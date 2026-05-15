@@ -10,15 +10,15 @@
   --text-primary: #F4F4F5;
   --text-secondary: #A1A1AA;
   --text-muted: #71717A;
-  --accent-blue: #3B82F6;
-  --accent-blue-hover: #2563EB;
+  --accent-blue: #cc785c;
+  --accent-blue-hover: #b8603e;
   --accent-green: #10B981;
   --accent-yellow: #F59E0B;
   --accent-red: #EF4444;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
-  --shadow-glow: 0 0 40px rgba(59, 130, 246, 0.15);
+  --shadow-glow: 0 0 40px rgba(204, 120, 92, 0.2);
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -64,7 +64,7 @@ a:hover { color: var(--text-primary); }
   justify-content: center;
   min-height: 100vh;
   padding: 1rem;
-  background: radial-gradient(circle at top center, #1a1a2e 0%, var(--bg-primary) 100%);
+  background: radial-gradient(circle at top center, #2a1510 0%, var(--bg-primary) 100%);
 }
 
 .login-card {
@@ -260,9 +260,9 @@ a:hover { color: var(--text-primary); }
 
 .nav-link:hover { background: var(--bg-hover); color: var(--text-primary); }
 .nav-link.active {
-  background: rgba(255,255,255,0.05);
-  color: var(--text-primary);
-  box-shadow: inset 2px 0 0 var(--text-primary);
+  background: rgba(204, 120, 92, 0.12);
+  color: #cc785c;
+  box-shadow: inset 2px 0 0 #cc785c;
 }
 
 .nav-icon { width: 16px; height: 16px; opacity: 0.8; }
