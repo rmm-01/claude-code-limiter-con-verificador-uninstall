@@ -30,6 +30,10 @@ COPY package.json ./
 COPY src/ ./src/
 COPY bin/ ./bin/
 
+# Dashboard (vanilla JS — no build step needed)
+RUN mkdir -p ./dashboard/dist
+COPY src/dashboard/ ./dashboard/dist/
+
 # Create data directory for SQLite volume
 RUN mkdir -p /data
 
