@@ -125,13 +125,13 @@ async function main() {
           + c.dim('Usage: sudo npx @howincodes/claude-code-limiter setup --code <CODE> --server <URL>'));
       }
       const installer = require('../src/installer.js');
-      await installer.setup({ code, server, skipConfirm });
+      await installer.setup({ code, server, yes: skipConfirm });
       break;
     }
 
     case 'uninstall': {
       const installer = require('../src/installer.js');
-      await installer.uninstall({ skipConfirm });
+      await installer.uninstall({ yes: skipConfirm });
       break;
     }
 
