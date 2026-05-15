@@ -638,9 +638,22 @@ async function uninstall(flags) {
   log(C.bold("  Uninstalling Claude Code Limiter"));
   log("");
 
-  // Check with server whether self-uninstall is permitted
+  // Check with server whether self-uninstall is permitted.
+  // Fail-closed: if hook is installed but server.json is missing/invalid,
+  // refuse to proceed — that state is either tampering or a broken install.
+  const hookInstalled = fs.existsSync(PATHS.hook);
   const serverConfig = readJSON(PATHS.server);
-  if (serverConfig && serverConfig.url && serverConfig.auth_token) {
+  const haveServerConfig = !!(serverConfig && serverConfig.url && serverConfig.auth_token);
+
+  if (hookInstalled && !haveServerConfig) {
+    fail("Cannot verify uninstall permission — server config missing or invalid.");
+    info(`Expected: ${PATHS.server}`);
+    info("Contact your admin to re-register this machine or to authorize uninstall.");
+    log("");
+    process.exit(1);
+  }
+
+  if (haveServerConfig) {
     info("Checking with server...");
     try {
       await fetchJSON(`${serverConfig.url}/api/v1/uninstall-check`, {
@@ -661,6 +674,10 @@ async function uninstall(flags) {
       log("");
       process.exit(1);
     }
+  } else if (!hookInstalled) {
+    info("No installation detected — nothing to uninstall.");
+    log("");
+    return;
   }
 
   if (!flags.yes) {
