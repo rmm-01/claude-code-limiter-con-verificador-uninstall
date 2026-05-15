@@ -34,6 +34,9 @@ ${c.bold('OPTIONS')}
   --server <URL>      Server URL, e.g. https://limiter.example.com (setup only)
   --port <PORT>       Port for the server to listen on (serve only, default: 3000)
   --yes, -y           Skip confirmation prompts
+  --skip-auth-check   Bypass 'claude auth status' check (setup only)
+  --email <EMAIL>     Pin allowed email when skipping auth check (setup only)
+  --plan <pro|max>    Pin plan when skipping auth check (setup only)
   --help, -h          Show this help message
 
 ${c.bold('EXAMPLES')}
@@ -90,12 +93,15 @@ function getCommand() {
   return undefined;
 }
 
-const showHelp    = hasFlag('--help') || hasFlag('-h');
-const skipConfirm = hasFlag('--yes')  || hasFlag('-y');
-const code        = getOption('--code');
-const server      = getOption('--server');
-const port        = getOption('--port');
-const command     = getCommand();
+const showHelp       = hasFlag('--help') || hasFlag('-h');
+const skipConfirm    = hasFlag('--yes')  || hasFlag('-y');
+const skipAuthCheck  = hasFlag('--skip-auth-check');
+const code           = getOption('--code');
+const server         = getOption('--server');
+const port           = getOption('--port');
+const email          = getOption('--email');
+const plan           = getOption('--plan');
+const command        = getCommand();
 
 // ---- Help / no command ----
 
@@ -125,7 +131,7 @@ async function main() {
           + c.dim('Usage: sudo npx @howincodes/claude-code-limiter setup --code <CODE> --server <URL>'));
       }
       const installer = require('../src/installer.js');
-      await installer.setup({ code, server, yes: skipConfirm });
+      await installer.setup({ code, server, yes: skipConfirm, skipAuthCheck, email, plan });
       break;
     }
 

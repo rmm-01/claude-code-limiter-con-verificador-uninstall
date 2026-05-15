@@ -343,9 +343,26 @@ async function setup(flags) {
     ] : []),
   ];
 
-  // Try which/where first (works if PATH is correct)
+  // Try which/where first (works if PATH is correct).
+  // On Windows `where claude` may return multiple lines (claude, claude.cmd, claude.ps1).
+  // Pick the first executable line — prefer .exe > .cmd > .bat > extensionless.
   try {
-    claudePath = execSync("which claude 2>/dev/null || where claude 2>nul", { encoding: "utf-8" }).trim();
+    const rawOut = execSync(
+      IS_WIN ? "where claude 2>nul" : "which claude 2>/dev/null",
+      { encoding: "utf-8" }
+    );
+    const lines = rawOut.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    if (IS_WIN) {
+      const score = (p) => {
+        const ext = path.extname(p).toLowerCase();
+        if (ext === ".exe") return 3;
+        if (ext === ".cmd") return 2;
+        if (ext === ".bat") return 1;
+        return 0;
+      };
+      lines.sort((a, b) => score(b) - score(a));
+    }
+    claudePath = lines[0] || "";
   } catch {}
 
   // Fall back to known paths
@@ -371,12 +388,15 @@ async function setup(flags) {
   // Run auth status as the actual user, not root.
   // sudo sets SUDO_USER — use it to run claude as the real user.
   let authStatus;
+  let authError = null;
+  let authRawOut = "";
   try {
     let authCmd = `"${claudePath}" auth status`;
     if (process.env.SUDO_USER) {
       authCmd = `su - ${process.env.SUDO_USER} -c '"${claudePath}" auth status'`;
     }
     const authOut = execSync(authCmd, { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    authRawOut = authOut;
     // Try JSON parse first, fall back to text parsing
     try {
       authStatus = JSON.parse(authOut);
@@ -390,16 +410,35 @@ async function setup(flags) {
         subscriptionType: authOut.includes("max") ? "max" : "pro",
       } : null;
     }
-  } catch {
+  } catch (err) {
+    authError = err;
     authStatus = null;
   }
 
   if (!authStatus || !authStatus.loggedIn) {
-    fail("Claude Code is not logged in.");
-    log("");
-    info("Log in first:  claude auth login");
-    log("");
-    process.exit(1);
+    if (flags.skipAuthCheck) {
+      warn("Auth check skipped (--skip-auth-check).");
+      authStatus = {
+        loggedIn: true,
+        email: flags.email || null,
+        subscriptionType: flags.plan || "pro",
+      };
+    } else {
+      fail("Claude Code is not logged in.");
+      log("");
+      info("Log in first:  claude auth login");
+      if (authError) {
+        info(`Detection error: ${authError.message}`);
+        if (authError.stderr) info(`stderr: ${String(authError.stderr).trim().slice(0, 300)}`);
+      } else if (authRawOut) {
+        info(`Got output but could not detect login. First 300 chars:`);
+        log(`     ${authRawOut.slice(0, 300)}`);
+      }
+      log("");
+      info("If you are sure you are logged in, retry with --skip-auth-check");
+      log("");
+      process.exit(1);
+    }
   }
   ok(`Logged in as: ${authStatus.email || "unknown"} (${authStatus.subscriptionType || "unknown"} plan)`);
 
@@ -714,6 +753,9 @@ if (require.main === module) {
     if (a === "--code") flags.code = args[++i];
     else if (a === "--server") flags.server = args[++i];
     else if (a === "--yes" || a === "-y") flags.yes = true;
+    else if (a === "--skip-auth-check") flags.skipAuthCheck = true;
+    else if (a === "--email") flags.email = args[++i];
+    else if (a === "--plan") flags.plan = args[++i];
   }
 
   const commands = { setup, uninstall, status, sync };
