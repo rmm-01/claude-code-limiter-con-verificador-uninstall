@@ -395,13 +395,23 @@ async function setup(flags) {
   }
 
   if (!authStatus || !authStatus.loggedIn) {
-    fail("Claude Code is not logged in.");
-    log("");
-    info("Log in first:  claude auth login");
-    log("");
-    process.exit(1);
+    if (IS_WIN) {
+      // Windows admin sessions can't reliably check auth status — assume logged in
+      warn("Could not verify Claude Code login (Windows admin session). Proceeding anyway.");
+      authStatus = { loggedIn: true, email: null, subscriptionType: "pro" };
+    } else {
+      fail("Claude Code is not logged in.");
+      log("");
+      info("Log in first:  claude auth login");
+      log("");
+      process.exit(1);
+    }
   }
-  ok(`Logged in as: ${authStatus.email || "unknown"} (${authStatus.subscriptionType || "unknown"} plan)`);
+  if (authStatus.email) {
+    ok(`Logged in as: ${authStatus.email} (${authStatus.subscriptionType || "unknown"} plan)`);
+  } else {
+    ok(`Claude Code found (${authStatus.subscriptionType || "unknown"} plan)`);
+  }
 
   // Detect default model from subscription type
   const subscriptionType = authStatus.subscriptionType || "pro";
