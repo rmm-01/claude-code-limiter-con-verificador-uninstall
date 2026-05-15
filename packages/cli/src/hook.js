@@ -412,6 +412,63 @@ function buildBlockMessage(config, model, usage, reason) {
 }
 
 // ════════════════════════════════════════════════════════════
+// ACCOUNT DETECTION — Skip limits for personal accounts
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Get the active Claude Code account email.
+ * Runs `claude auth status --output-format json` and caches the result for 1 hour.
+ * Returns null if Claude is not logged in or the command fails.
+ */
+const EMAIL_CACHE_FILE = path.join(LIMITER_DIR, "email-cache.json");
+const EMAIL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function getActiveEmail() {
+  try {
+    // Check cache first
+    const cached = readJSON(EMAIL_CACHE_FILE);
+    if (cached && cached.email && cached.cachedAt) {
+      if (Date.now() - cached.cachedAt < EMAIL_CACHE_TTL_MS) {
+        debugLog(`EMAIL cache hit: ${cached.email}`);
+        return cached.email;
+      }
+    }
+
+    // Run claude auth status (stdio:'pipe' suppresses stderr cross-platform)
+    const raw = execSync("claude auth status", {
+      timeout: 5000,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+
+    const data = JSON.parse(raw);
+    const email = (data.email || data.emailAddress || null);
+    if (!email) return null;
+
+    const normalized = email.toLowerCase();
+    writeJSON(EMAIL_CACHE_FILE, { email: normalized, cachedAt: Date.now() });
+    debugLog(`EMAIL resolved: ${normalized}`);
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Returns true if the active account is NOT the one registered during setup.
+ * When true, the hook should pass through without counting or blocking.
+ */
+function isPersonalAccount(config) {
+  const allowedEmail = config && config.allowed_email;
+  if (!allowedEmail) return false; // no email saved → apply limits normally
+
+  const activeEmail = getActiveEmail();
+  if (!activeEmail) return false; // can't determine → apply limits (safe default)
+
+  return activeEmail !== allowedEmail.toLowerCase();
+}
+
+// ════════════════════════════════════════════════════════════
 // KILL SWITCH — LOGOUT HELPER
 // ════════════════════════════════════════════════════════════
 
@@ -474,6 +531,12 @@ async function actionSync(config) {
  */
 async function actionCheck(config) {
   const stdinData = readStdin();
+
+  if (isPersonalAccount(config)) {
+    debugLog("CHECK bypassed — personal account");
+    return; // no output = allow
+  }
+
   const model = detectModel(stdinData, config);
   const usage = loadUsage();
   debugLog(`CHECK model=${model} usage=${JSON.stringify(usage)}`);
@@ -530,6 +593,12 @@ async function actionCheck(config) {
  */
 async function actionCount(config) {
   const stdinData = readStdin();
+
+  if (isPersonalAccount(config)) {
+    debugLog("COUNT bypassed — personal account");
+    return;
+  }
+
   const model = detectModel(stdinData, config);
   const usage = loadUsage();
   const prev = usage[model] || 0;
@@ -554,6 +623,13 @@ async function actionCount(config) {
  */
 async function actionEnforce() {
   const stdinData = readStdin();
+  const config = readJSON(CONFIG_FILE);
+
+  if (isPersonalAccount(config)) {
+    debugLog("ENFORCE bypassed — personal account");
+    return; // no output = allow
+  }
+
   const cached = readJSON(CACHE_FILE);
   const status = (cached && cached.status) || "active";
 

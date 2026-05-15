@@ -523,6 +523,7 @@ async function setup(flags) {
     debug: false,
     defaultModel,
     subscriptionType,
+    allowed_email: authStatus.email || null,
     limits: limits || [],
     credit_weights: credit_weights || { opus: 10, sonnet: 3, haiku: 1 },
   };
@@ -584,6 +585,31 @@ async function uninstall(flags) {
   log("");
   log(C.bold("  Uninstalling Claude Code Limiter"));
   log("");
+
+  // Check with server whether self-uninstall is permitted
+  const serverConfig = readJSON(PATHS.server);
+  if (serverConfig && serverConfig.url && serverConfig.auth_token) {
+    info("Checking with server...");
+    try {
+      await fetchJSON(`${serverConfig.url}/api/v1/uninstall-check`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${serverConfig.auth_token}` },
+      });
+      ok("Server authorized uninstall");
+    } catch (err) {
+      const msg = err.message || "";
+      if (msg.includes("HTTP 403")) {
+        fail("Uninstall blocked by server.");
+        info("Contact your admin to enable self-uninstall for your account.");
+      } else {
+        fail(`Could not reach server: ${msg}`);
+        info("Server must be reachable to authorize uninstall.");
+        info("Contact your admin if the server is unavailable.");
+      }
+      log("");
+      process.exit(1);
+    }
+  }
 
   if (!flags.yes) {
     const confirm = await ask("Remove all limiter files and watchdog? (y/N):");

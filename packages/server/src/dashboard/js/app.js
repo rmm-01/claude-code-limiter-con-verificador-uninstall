@@ -703,6 +703,18 @@
         }
         html += '</div>';
 
+        // Self-uninstall toggle
+        var canUninstall = !!user.allow_self_uninstall;
+        html += '<div class="detail-toggle-row">';
+        html += '<span class="detail-toggle-label">Allow self-uninstall</span>';
+        html += '<button class="btn btn-sm ' + (canUninstall ? 'btn-success' : 'btn-ghost') + '" ' +
+                'data-action="toggle-self-uninstall" data-user-id="' + user.id + '" ' +
+                'data-user-name="' + escapeHtml(user.name) + '" ' +
+                'data-current="' + (canUninstall ? '1' : '0') + '">' +
+                (canUninstall ? 'Enabled' : 'Disabled') +
+                '</button>';
+        html += '</div>';
+
         // Credit gauge
         var creditRule = getCreditRule(limits);
         if (creditRule && user.credit_budget > 0) {
@@ -1726,6 +1738,23 @@
 
         case 'change-password':
           changePassword();
+          break;
+
+        case 'toggle-self-uninstall':
+          if (userId) {
+            var current = target.getAttribute('data-current') === '1';
+            var next = !current;
+            API.updateUser(userId, { allow_self_uninstall: next })
+              .then(function () {
+                showToast(
+                  'Updated',
+                  (userName || 'User') + ': self-uninstall ' + (next ? 'enabled' : 'disabled'),
+                  next ? 'success' : 'warning'
+                );
+                renderPage(getRoute());
+              })
+              .catch(function (err) { showToast('Error', err.message, 'error'); });
+          }
           break;
       }
     });

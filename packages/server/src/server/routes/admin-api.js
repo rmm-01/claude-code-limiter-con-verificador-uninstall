@@ -93,6 +93,7 @@ router.get('/users', (req, res) => {
         last_seen: user.last_seen,
         last_session: lastSession ? lastSession.last_session : null,
         created_at: user.created_at,
+        allow_self_uninstall: !!user.allow_self_uninstall,
         limits,
         usage: usageSummary,
         credit_balance: creditBalance,
@@ -199,11 +200,12 @@ router.put('/users/:id', (req, res) => {
       return res.status(403).json({ error: 'User does not belong to your team' });
     }
 
-    const { name, slug, status, limits } = req.body;
+    const { name, slug, status, limits, allow_self_uninstall } = req.body;
     const updates = {};
     if (name !== undefined) updates.name = name;
     if (slug !== undefined) updates.slug = slug;
     if (status !== undefined) updates.status = status;
+    if (allow_self_uninstall !== undefined) updates.allow_self_uninstall = allow_self_uninstall;
 
     if (Object.keys(updates).length > 0) {
       db.updateUser(userId, updates);
@@ -251,6 +253,7 @@ router.put('/users/:id', (req, res) => {
         killed_at: updatedUser.killed_at,
         last_seen: updatedUser.last_seen,
         created_at: updatedUser.created_at,
+        allow_self_uninstall: !!updatedUser.allow_self_uninstall,
       },
       limits: updatedLimits,
     });

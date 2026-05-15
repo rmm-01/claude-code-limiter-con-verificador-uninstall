@@ -376,6 +376,21 @@ router.post('/register', (req, res) => {
 });
 
 /**
+ * GET /api/v1/uninstall-check
+ * Check whether this user is permitted to self-uninstall.
+ */
+router.get('/uninstall-check', hookAuth, (req, res) => {
+  const user = req.user;
+  if (user.allow_self_uninstall) {
+    return res.json({ allowed: true });
+  }
+  return res.status(403).json({
+    allowed: false,
+    reason: 'Self-uninstall is disabled for your account. Contact your admin to enable it.',
+  });
+});
+
+/**
  * GET /api/v1/health
  * Simple health check for Docker/load balancer.
  */

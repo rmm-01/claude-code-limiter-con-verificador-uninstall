@@ -40,15 +40,16 @@ function init(dbPath) {
     );
 
     CREATE TABLE IF NOT EXISTS user (
-      id          TEXT PRIMARY KEY,
-      team_id     TEXT NOT NULL REFERENCES team(id),
-      slug        TEXT NOT NULL,
-      name        TEXT NOT NULL,
-      auth_token  TEXT NOT NULL UNIQUE,
-      status      TEXT NOT NULL DEFAULT 'active',
-      killed_at   DATETIME,
-      last_seen   DATETIME,
-      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      id                   TEXT PRIMARY KEY,
+      team_id              TEXT NOT NULL REFERENCES team(id),
+      slug                 TEXT NOT NULL,
+      name                 TEXT NOT NULL,
+      auth_token           TEXT NOT NULL UNIQUE,
+      status               TEXT NOT NULL DEFAULT 'active',
+      killed_at            DATETIME,
+      last_seen            DATETIME,
+      created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+      allow_self_uninstall INTEGER NOT NULL DEFAULT 0,
       UNIQUE(team_id, slug)
     );
 
@@ -124,6 +125,12 @@ function init(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_install_code_user ON install_code(user_id);
     CREATE INDEX IF NOT EXISTS idx_device_user ON device(user_id);
   `);
+
+  // Migrations for existing databases
+  const cols = db.pragma('table_info(user)').map(c => c.name);
+  if (!cols.includes('allow_self_uninstall')) {
+    db.exec('ALTER TABLE user ADD COLUMN allow_self_uninstall INTEGER NOT NULL DEFAULT 0');
+  }
 
   console.log(`Database initialized at ${dbPath}`);
   return db;
@@ -234,6 +241,7 @@ function updateUser(userId, fields) {
     }
   }
   if (fields.last_seen !== undefined) { sets.push('last_seen = ?'); values.push(fields.last_seen); }
+  if (fields.allow_self_uninstall !== undefined) { sets.push('allow_self_uninstall = ?'); values.push(fields.allow_self_uninstall ? 1 : 0); }
   if (sets.length === 0) return;
   values.push(userId);
   getDb().prepare(`UPDATE user SET ${sets.join(', ')} WHERE id = ?`).run(...values);
