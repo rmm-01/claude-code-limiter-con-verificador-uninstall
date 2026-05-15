@@ -39,9 +39,9 @@
     var label = document.getElementById('ws-label');
     if (label) {
       var labels = {
-        connected: 'Live',
-        connecting: 'Reconnecting...',
-        disconnected: 'Disconnected',
+        connected: 'En vivo',
+        connecting: 'Reconectando...',
+        disconnected: 'Desconectado',
       };
       label.textContent = labels[state] || state;
     }

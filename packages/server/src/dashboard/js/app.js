@@ -35,10 +35,10 @@
           state.token = null;
           localStorage.removeItem('clm_token');
           navigate('login');
-          return Promise.reject(new Error('Session expired'));
+          return Promise.reject(new Error('Sesión expirada'));
         }
         return res.json().then(function (data) {
-          if (!res.ok) return Promise.reject(new Error(data.error || 'Request failed'));
+          if (!res.ok) return Promise.reject(new Error(data.error || 'Error en la solicitud'));
           return data;
         });
       });
@@ -215,7 +215,7 @@
   function copyToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function () {
-        showToast('Copied', 'Command copied to clipboard', 'success', 2500);
+        showToast('Copiado', 'Comando copiado al portapapeles', 'success', 2500);
       }).catch(function () {
         fallbackCopy(text);
       });
@@ -235,7 +235,7 @@
       document.execCommand('copy');
       showToast('Copied', 'Command copied to clipboard', 'success', 2500);
     } catch (e) {
-      showToast('Error', 'Could not copy to clipboard', 'error');
+      showToast('Error', 'No se pudo copiar al portapapeles', 'error');
     }
     document.body.removeChild(ta);
   }
@@ -253,19 +253,19 @@
   }
 
   function timeAgo(dateStr) {
-    if (!dateStr) return 'never';
+    if (!dateStr) return 'nunca';
     var d = new Date(dateStr);
     var now = Date.now();
     var diff = now - d.getTime();
-    if (diff < 0) return 'just now';
+    if (diff < 0) return 'ahora mismo';
     var seconds = Math.floor(diff / 1000);
-    if (seconds < 60) return seconds + 's ago';
+    if (seconds < 60) return 'hace ' + seconds + 's';
     var minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return minutes + 'm ago';
+    if (minutes < 60) return 'hace ' + minutes + 'm';
     var hours = Math.floor(minutes / 60);
-    if (hours < 24) return hours + 'h ago';
+    if (hours < 24) return 'hace ' + hours + 'h';
     var days = Math.floor(hours / 24);
-    return days + 'd ago';
+    return 'hace ' + days + 'd';
   }
 
   function formatTime(dateStr) {
@@ -297,7 +297,8 @@
 
   function statusBadge(status) {
     var cls = 'badge badge-' + (status || 'active');
-    return '<span class="' + cls + '">' + escapeHtml(status || 'active') + '</span>';
+    var labels = { active: 'activo', paused: 'pausado', killed: 'revocado' };
+    return '<span class="' + cls + '">' + escapeHtml(labels[status] || status || 'activo') + '</span>';
   }
 
   /** Get a usage percentage for progress bars. */
@@ -469,18 +470,18 @@
 
         var html = '';
         html += '<div class="page-header">';
-        html += '  <h2>Overview</h2>';
+        html += '  <h2>Resumen</h2>';
         html += '  <div class="page-header-actions">';
-        html += '    <button class="btn btn-primary" data-action="add-user">+ Add User</button>';
+        html += '    <button class="btn btn-primary" data-action="add-user">+ Agregar Usuario</button>';
         html += '  </div>';
         html += '</div>';
 
         // Stats row
         html += '<div class="stats-row">';
-        html += statCard('Total Users', totalUsers, '');
-        html += statCard('Active', activeUsers, '', 'text-green');
-        html += statCard('Paused', pausedUsers, '', 'text-yellow');
-        html += statCard('Killed', killedUsers, '', 'text-red');
+        html += statCard('Total Usuarios', totalUsers, '');
+        html += statCard('Activos', activeUsers, '', 'text-green');
+        html += statCard('Pausados', pausedUsers, '', 'text-yellow');
+        html += statCard('Eliminados', killedUsers, '', 'text-red');
         html += '</div>';
 
         // Two column: user cards + live feed
@@ -488,9 +489,9 @@
 
         // User cards
         html += '<div>';
-        html += '<div class="card mb-2"><div class="card-header"><h3>Users</h3></div>';
+        html += '<div class="card mb-2"><div class="card-header"><h3>Usuarios</h3></div>';
         if (users.length === 0) {
-          html += '<div class="card-body"><div class="empty-state"><p>No users yet. Click "Add User" to get started.</p></div></div>';
+          html += '<div class="card-body"><div class="empty-state"><p>Sin usuarios. Click en "Agregar Usuario" para comenzar.</p></div></div>';
         } else {
           html += '<div class="card-body"><div class="user-grid" style="margin-bottom:0">';
           for (var i = 0; i < users.length; i++) {
@@ -502,10 +503,10 @@
 
         // Live feed
         html += '<div>';
-        html += '<div class="card"><div class="card-header"><h3>Live Feed</h3></div>';
+        html += '<div class="card"><div class="card-header"><h3>Actividad en Vivo</h3></div>';
         html += '<div class="card-body-flush"><div class="live-feed" id="live-feed">';
         if (events.length === 0) {
-          html += '<div class="feed-empty">No events yet. Activity will appear here in real time.</div>';
+          html += '<div class="feed-empty">Sin actividad aún. Los eventos aparecerán aquí en tiempo real.</div>';
         } else {
           for (var j = 0; j < events.length; j++) {
             html += renderFeedItem(eventToFeed(events[j]));
@@ -520,7 +521,7 @@
         startAutoRefresh();
       })
       .catch(function (err) {
-        container.innerHTML = '<div class="empty-state"><p>Failed to load data: ' + escapeHtml(err.message) + '</p></div>';
+        container.innerHTML = '<div class="empty-state"><p>Error al cargar datos: ' + escapeHtml(err.message) + '</p></div>';
       });
   }
 
@@ -558,7 +559,7 @@
       }
     }
     if (!progressHtml) {
-      progressHtml = '<div class="text-muted text-sm">No limits configured</div>';
+      progressHtml = '<div class="text-muted text-sm">Sin límites configurados</div>';
     }
 
     var color = hashColor(user.name || user.slug);
@@ -578,12 +579,12 @@
         '<div class="user-card-usage">' + progressHtml + '</div>' +
         '<div class="user-card-actions">' +
           (user.status === 'active'
-            ? '<button class="btn btn-sm btn-warning" data-action="pause-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Pause</button>'
-              + '<button class="btn btn-sm btn-danger" data-action="kill-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Kill</button>'
+            ? '<button class="btn btn-sm btn-warning" data-action="pause-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Pausar</button>'
+              + '<button class="btn btn-sm btn-danger" data-action="kill-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Revocar</button>'
             : user.status === 'paused'
-            ? '<button class="btn btn-sm btn-success" data-action="reinstate-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Reinstate</button>'
-              + '<button class="btn btn-sm btn-danger" data-action="kill-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Kill</button>'
-            : '<button class="btn btn-sm btn-success" data-action="reinstate-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Reinstate</button>'
+            ? '<button class="btn btn-sm btn-success" data-action="reinstate-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Reactivar</button>'
+              + '<button class="btn btn-sm btn-danger" data-action="kill-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Revocar</button>'
+            : '<button class="btn btn-sm btn-success" data-action="reinstate-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Reactivar</button>'
           ) +
         '</div>' +
       '</div>'
@@ -607,16 +608,16 @@
   function wsEventToFeed(evt) {
     switch (evt.type) {
       case 'user_check':
-        return { type: 'check', user: evt.userName, detail: 'Checking ' + (evt.model || ''), time: evt.timestamp };
+        return { type: 'check', user: evt.userName, detail: 'Verificando ' + (evt.model || ''), time: evt.timestamp };
       case 'user_blocked':
-        return { type: 'blocked', user: evt.userName, detail: 'Blocked on ' + (evt.model || '') + (evt.reason ? ': ' + evt.reason.split('\n')[0] : ''), time: evt.timestamp };
+        return { type: 'blocked', user: evt.userName, detail: 'Bloqueado en ' + (evt.model || '') + (evt.reason ? ': ' + evt.reason.split('\n')[0] : ''), time: evt.timestamp };
       case 'user_counted':
-        return { type: 'counted', user: evt.userName, detail: (evt.model || '') + ' (+' + (evt.creditCost || 0) + ' credits)', time: evt.timestamp };
+        return { type: 'counted', user: evt.userName, detail: (evt.model || '') + ' (+' + (evt.creditCost || 0) + ' créditos)', time: evt.timestamp };
       case 'user_status_change':
       case 'user_killed':
         return { type: 'status', user: evt.userName, detail: (evt.oldStatus || '?') + ' -> ' + (evt.newStatus || '?'), time: evt.timestamp };
       case 'user_status':
-        return { type: 'check', user: evt.userName, detail: 'Session start (' + (evt.model || '') + ')', time: evt.timestamp };
+        return { type: 'check', user: evt.userName, detail: 'Inicio de sesión (' + (evt.model || '') + ')', time: evt.timestamp };
       default:
         return null;
     }
@@ -674,11 +675,11 @@
 
         var html = '';
         // Breadcrumb
-        html += '<div class="breadcrumb"><a href="#overview">Overview</a> / <span>' + escapeHtml(user.name) + '</span></div>';
+        html += '<div class="breadcrumb"><a href="#overview">Resumen</a> / <span>' + escapeHtml(user.name) + '</span></div>';
         html += '<div class="page-header"><h2>' + escapeHtml(user.name) + '</h2>';
         html += '<div class="page-header-actions">';
-        html += '<button class="btn btn-sm" data-action="edit-limits" data-user-id="' + user.id + '">Edit Limits</button>';
-        html += '<button class="btn btn-sm btn-danger" data-action="delete-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Delete User</button>';
+        html += '<button class="btn btn-sm" data-action="edit-limits" data-user-id="' + user.id + '">Editar Límites</button>';
+        html += '<button class="btn btn-sm btn-danger" data-action="delete-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Eliminar Usuario</button>';
         html += '</div></div>';
 
         html += '<div class="detail-grid">';
@@ -689,29 +690,29 @@
         html += '<div class="detail-name">' + escapeHtml(user.name) + '</div>';
         html += '<div class="detail-meta">@' + escapeHtml(user.slug) + '</div>';
         html += statusBadge(user.status);
-        html += '<div class="detail-meta">Last seen: ' + timeAgo(user.last_seen) + '</div>';
-        html += '<div class="detail-meta">Created: ' + (user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A') + '</div>';
+        html += '<div class="detail-meta">Última vez: ' + timeAgo(user.last_seen) + '</div>';
+        html += '<div class="detail-meta">Creado: ' + (user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A') + '</div>';
         html += '<div class="detail-actions">';
         if (user.status === 'active') {
-          html += '<button class="btn btn-sm btn-warning btn-block" data-action="pause-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Pause User</button>';
-          html += '<button class="btn btn-sm btn-danger btn-block" data-action="kill-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Kill User</button>';
+          html += '<button class="btn btn-sm btn-warning btn-block" data-action="pause-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Pausar Usuario</button>';
+          html += '<button class="btn btn-sm btn-danger btn-block" data-action="kill-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Revocar Acceso</button>';
         } else if (user.status === 'paused') {
-          html += '<button class="btn btn-sm btn-success btn-block" data-action="reinstate-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Reinstate</button>';
-          html += '<button class="btn btn-sm btn-danger btn-block" data-action="kill-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Kill User</button>';
+          html += '<button class="btn btn-sm btn-success btn-block" data-action="reinstate-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Reactivar</button>';
+          html += '<button class="btn btn-sm btn-danger btn-block" data-action="kill-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Revocar Acceso</button>';
         } else {
-          html += '<button class="btn btn-sm btn-success btn-block" data-action="reinstate-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Reinstate</button>';
+          html += '<button class="btn btn-sm btn-success btn-block" data-action="reinstate-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Reactivar</button>';
         }
         html += '</div>';
 
         // Self-uninstall toggle
         var canUninstall = !!user.allow_self_uninstall;
         html += '<div class="detail-toggle-row">';
-        html += '<span class="detail-toggle-label">Allow self-uninstall</span>';
+        html += '<span class="detail-toggle-label">Permitir desinstalación propia</span>';
         html += '<button class="btn btn-sm ' + (canUninstall ? 'btn-success' : 'btn-ghost') + '" ' +
                 'data-action="toggle-self-uninstall" data-user-id="' + user.id + '" ' +
                 'data-user-name="' + escapeHtml(user.name) + '" ' +
                 'data-current="' + (canUninstall ? '1' : '0') + '">' +
-                (canUninstall ? 'Enabled' : 'Disabled') +
+                (canUninstall ? 'Habilitado' : 'Deshabilitado') +
                 '</button>';
         html += '</div>';
 
@@ -727,17 +728,17 @@
         html += '<div>';
 
         // Per-model usage bars
-        html += '<div class="card mb-2"><div class="card-header"><h3>Per-Model Usage (Daily)</h3></div>';
+        html += '<div class="card mb-2"><div class="card-header"><h3>Uso por Modelo (Diario)</h3></div>';
         html += '<div class="card-body"><div class="chart-container"><canvas id="model-bars"></canvas></div></div>';
         html += '</div>';
 
         // Active limits
-        html += '<div class="card mb-2"><div class="card-header"><h3>Active Limits</h3>';
-        html += '<button class="btn btn-sm" data-action="edit-limits" data-user-id="' + user.id + '">Edit</button>';
+        html += '<div class="card mb-2"><div class="card-header"><h3>Límites Activos</h3>';
+        html += '<button class="btn btn-sm" data-action="edit-limits" data-user-id="' + user.id + '">Editar</button>';
         html += '</div>';
         html += '<div class="card-body">';
         if (limits.length === 0) {
-          html += '<div class="text-muted text-sm">No limits configured. This user has unlimited access.</div>';
+          html += '<div class="text-muted text-sm">Sin límites configurados. Este usuario tiene acceso ilimitado.</div>';
         } else {
           html += '<ul class="limits-list">';
           for (var li = 0; li < limits.length; li++) {
@@ -748,17 +749,17 @@
         html += '</div></div>';
 
         // 30-day trend
-        html += '<div class="card mb-2"><div class="card-header"><h3>30-Day Usage Trend</h3></div>';
+        html += '<div class="card mb-2"><div class="card-header"><h3>Tendencia de Uso (30 días)</h3></div>';
         html += '<div class="card-body"><div class="chart-container"><canvas id="trend-chart"></canvas></div></div>';
         html += '</div>';
 
         // Recent events
-        html += '<div class="card"><div class="card-header"><h3>Recent Activity</h3></div>';
+        html += '<div class="card"><div class="card-header"><h3>Actividad Reciente</h3></div>';
         html += '<div class="card-body-flush"><div class="table-wrap"><table>';
-        html += '<thead><tr><th>Time</th><th>Model</th><th>Credits</th></tr></thead><tbody>';
+        html += '<thead><tr><th>Hora</th><th>Modelo</th><th>Créditos</th></tr></thead><tbody>';
         var events = eventsData.events || [];
         if (events.length === 0) {
-          html += '<tr><td colspan="3" class="text-center text-muted">No recent activity</td></tr>';
+          html += '<tr><td colspan="3" class="text-center text-muted">Sin actividad reciente</td></tr>';
         } else {
           for (var ei = 0; ei < events.length; ei++) {
             var ev = events[ei];
@@ -774,9 +775,9 @@
         // Devices for this user
         var userDevices = user.devices || [];
         if (userDevices.length > 0) {
-          html += '<div class="card mb-2"><div class="card-header"><h3>Devices</h3></div>';
+          html += '<div class="card mb-2"><div class="card-header"><h3>Dispositivos</h3></div>';
           html += '<div class="card-body-flush"><div class="table-wrap"><table>';
-          html += '<thead><tr><th>Hostname</th><th>Platform</th><th>Claude Version</th><th>Last Seen</th><th>IP</th></tr></thead><tbody>';
+          html += '<thead><tr><th>Hostname</th><th>Plataforma</th><th>Versión Claude</th><th>Última Vez</th><th>IP</th></tr></thead><tbody>';
           for (var dvi = 0; dvi < userDevices.length; dvi++) {
             var dv = userDevices[dvi];
             html += '<tr>';
@@ -793,9 +794,9 @@
         // Top Projects for this user
         var userProjects = userAnalytics.project_usage || [];
         if (userProjects.length > 0) {
-          html += '<div class="card mb-2"><div class="card-header"><h3>Top Projects (30d)</h3></div>';
+          html += '<div class="card mb-2"><div class="card-header"><h3>Proyectos Principales (30d)</h3></div>';
           html += '<div class="card-body-flush"><div class="table-wrap"><table>';
-          html += '<thead><tr><th>Project</th><th>Prompts</th></tr></thead><tbody>';
+          html += '<thead><tr><th>Proyecto</th><th>Prompts</th></tr></thead><tbody>';
           for (var upi = 0; upi < userProjects.length; upi++) {
             html += '<tr>';
             html += '<td>' + escapeHtml(userProjects[upi].project) + '</td>';
@@ -808,7 +809,7 @@
         // Peak Hours for this user
         var userPeakHours = userAnalytics.peak_hours || [];
         if (userPeakHours.length > 0) {
-          html += '<div class="card mb-2"><div class="card-header"><h3>Peak Usage Hours (30d)</h3></div>';
+          html += '<div class="card mb-2"><div class="card-header"><h3>Horas Pico de Uso (30d)</h3></div>';
           html += '<div class="card-body"><div class="chart-container chart-container-tall"><canvas id="user-peak-hours"></canvas></div></div>';
           html += '</div>';
         }
@@ -872,7 +873,7 @@
         startAutoRefresh();
       })
       .catch(function (err) {
-        container.innerHTML = '<div class="empty-state"><p>Failed to load user: ' + escapeHtml(err.message) + '</p><a href="#overview">Back to overview</a></div>';
+        container.innerHTML = '<div class="empty-state"><p>Error al cargar usuario: ' + escapeHtml(err.message) + '</p><a href="#overview">Volver al resumen</a></div>';
       });
   }
 
@@ -916,7 +917,7 @@
       API.getUsers().then(function () {
         renderSettingsInner(container);
       }).catch(function (err) {
-        container.innerHTML = '<div class="empty-state"><p>Failed to load settings: ' + escapeHtml(err.message) + '</p></div>';
+        container.innerHTML = '<div class="empty-state"><p>Error al cargar configuración: ' + escapeHtml(err.message) + '</p></div>';
       });
     } else {
       renderSettingsInner(container);
@@ -928,24 +929,24 @@
     var cw = team.credit_weights || { opus: 10, sonnet: 3, haiku: 1 };
 
     var html = '';
-    html += '<div class="page-header"><h2>Settings</h2></div>';
+    html += '<div class="page-header"><h2>Configuración</h2></div>';
 
     // Team name
     html += '<div class="card mb-2"><div class="card-body">';
     html += '<div class="settings-section">';
-    html += '<h3>Team Name</h3>';
+    html += '<h3>Nombre del Equipo</h3>';
     html += '<div class="form-group">';
-    html += '<input type="text" id="settings-team-name" value="' + escapeHtml(team.name) + '" placeholder="Team name">';
+    html += '<input type="text" id="settings-team-name" value="' + escapeHtml(team.name) + '" placeholder="Nombre del equipo">';
     html += '</div>';
-    html += '<button class="btn btn-primary btn-sm" data-action="save-team-name">Save Name</button>';
+    html += '<button class="btn btn-primary btn-sm" data-action="save-team-name">Guardar Nombre</button>';
     html += '</div>';
     html += '</div></div>';
 
     // Credit Weights
     html += '<div class="card mb-2"><div class="card-body">';
     html += '<div class="settings-section">';
-    html += '<h3>Credit Weights</h3>';
-    html += '<p class="text-muted text-sm mb-2">Define how many credits each model costs per turn. Higher weight = more expensive.</p>';
+    html += '<h3>Pesos de Créditos</h3>';
+    html += '<p class="text-muted text-sm mb-2">Define cuántos créditos cuesta cada modelo por turno. Mayor peso = más caro.</p>';
     html += '<div class="weight-grid">';
     var models = ['opus', 'sonnet', 'haiku'];
     for (var i = 0; i < models.length; i++) {
@@ -956,21 +957,21 @@
       html += '</div>';
     }
     html += '</div>';
-    html += '<div class="mt-2"><button class="btn btn-primary btn-sm" data-action="save-weights">Save Weights</button></div>';
+    html += '<div class="mt-2"><button class="btn btn-primary btn-sm" data-action="save-weights">Guardar Pesos</button></div>';
     html += '</div>';
     html += '</div></div>';
 
     // Change Password
     html += '<div class="card mb-2"><div class="card-body">';
     html += '<div class="settings-section">';
-    html += '<h3>Change Admin Password</h3>';
+    html += '<h3>Cambiar Contraseña de Admin</h3>';
     html += '<div class="form-row">';
-    html += '<div class="form-group"><label for="settings-new-pw">New Password</label>';
-    html += '<input type="password" id="settings-new-pw" placeholder="New password"></div>';
-    html += '<div class="form-group"><label for="settings-confirm-pw">Confirm Password</label>';
-    html += '<input type="password" id="settings-confirm-pw" placeholder="Confirm password"></div>';
+    html += '<div class="form-group"><label for="settings-new-pw">Nueva Contraseña</label>';
+    html += '<input type="password" id="settings-new-pw" placeholder="Nueva contraseña"></div>';
+    html += '<div class="form-group"><label for="settings-confirm-pw">Confirmar Contraseña</label>';
+    html += '<input type="password" id="settings-confirm-pw" placeholder="Confirmar contraseña"></div>';
     html += '</div>';
-    html += '<button class="btn btn-danger btn-sm" data-action="change-password">Change Password</button>';
+    html += '<button class="btn btn-danger btn-sm" data-action="change-password">Cambiar Contraseña</button>';
     html += '</div>';
     html += '</div></div>';
 
@@ -991,20 +992,20 @@
       html += '  <h2>Analytics</h2>';
       html += '  <div class="page-header-actions">';
       html += '    <select id="analytics-days" class="select-sm">';
-      html += '      <option value="7"' + (_analyticsDays === 7 ? ' selected' : '') + '>Last 7 days</option>';
-      html += '      <option value="14"' + (_analyticsDays === 14 ? ' selected' : '') + '>Last 14 days</option>';
-      html += '      <option value="30"' + (_analyticsDays === 30 ? ' selected' : '') + '>Last 30 days</option>';
-      html += '      <option value="90"' + (_analyticsDays === 90 ? ' selected' : '') + '>Last 90 days</option>';
+      html += '      <option value="7"' + (_analyticsDays === 7 ? ' selected' : '') + '>Últimos 7 días</option>';
+      html += '      <option value="14"' + (_analyticsDays === 14 ? ' selected' : '') + '>Últimos 14 días</option>';
+      html += '      <option value="30"' + (_analyticsDays === 30 ? ' selected' : '') + '>Últimos 30 días</option>';
+      html += '      <option value="90"' + (_analyticsDays === 90 ? ' selected' : '') + '>Últimos 90 días</option>';
       html += '    </select>';
       html += '  </div>';
       html += '</div>';
 
       // Stats row
       html += '<div class="stats-row">';
-      html += statCard('Avg Prompt Length', data.avg_prompt_length || 0, 'chars');
-      html += statCard('Avg Response Length', data.avg_response_length || 0, 'chars');
-      html += statCard('Avg Prompts/Session', data.avg_prompts_per_session || 0, '');
-      html += statCard('Block Rate', data.block_rate ? (data.block_rate.rate * 100).toFixed(1) + '%' : '0%', data.block_rate ? data.block_rate.blocked + '/' + data.block_rate.total + ' blocked' : '');
+      html += statCard('Prom. Long. Prompt', data.avg_prompt_length || 0, 'chars');
+      html += statCard('Prom. Long. Respuesta', data.avg_response_length || 0, 'chars');
+      html += statCard('Prom. Prompts/Sesión', data.avg_prompts_per_session || 0, '');
+      html += statCard('Tasa de Bloqueo', data.block_rate ? (data.block_rate.rate * 100).toFixed(1) + '%' : '0%', data.block_rate ? data.block_rate.blocked + '/' + data.block_rate.total + ' bloqueados' : '');
       html += '</div>';
 
       // Two column layout: charts
@@ -1014,22 +1015,22 @@
       html += '<div>';
 
       // Model Distribution
-      html += '<div class="card mb-2"><div class="card-header"><h3>Model Distribution</h3></div>';
+      html += '<div class="card mb-2"><div class="card-header"><h3>Distribución por Modelo</h3></div>';
       html += '<div class="card-body" style="display:flex;justify-content:center"><canvas id="model-donut"></canvas></div>';
       html += '</div>';
 
       // Block Rate Gauge
-      html += '<div class="card mb-2"><div class="card-header"><h3>Block Rate</h3></div>';
+      html += '<div class="card mb-2"><div class="card-header"><h3>Tasa de Bloqueo</h3></div>';
       html += '<div class="card-body" style="display:flex;justify-content:center"><canvas id="block-gauge"></canvas></div>';
       html += '</div>';
 
       // Top Projects
-      html += '<div class="card mb-2"><div class="card-header"><h3>Top Projects</h3></div>';
+      html += '<div class="card mb-2"><div class="card-header"><h3>Proyectos Principales</h3></div>';
       html += '<div class="card-body-flush"><div class="table-wrap"><table>';
-      html += '<thead><tr><th>Project</th><th>Prompts</th></tr></thead><tbody>';
+      html += '<thead><tr><th>Proyecto</th><th>Prompts</th></tr></thead><tbody>';
       var projects = data.project_usage || [];
       if (projects.length === 0) {
-        html += '<tr><td colspan="2" class="text-center text-muted">No project data yet</td></tr>';
+        html += '<tr><td colspan="2" class="text-center text-muted">Sin datos de proyectos aún</td></tr>';
       } else {
         for (var pi = 0; pi < projects.length; pi++) {
           html += '<tr>';
@@ -1046,12 +1047,12 @@
       html += '<div>';
 
       // Daily Active Users
-      html += '<div class="card mb-2"><div class="card-header"><h3>Daily Active Users</h3></div>';
+      html += '<div class="card mb-2"><div class="card-header"><h3>Usuarios Activos por Día</h3></div>';
       html += '<div class="card-body"><div class="chart-container"><canvas id="dau-chart"></canvas></div></div>';
       html += '</div>';
 
       // Peak Hours
-      html += '<div class="card mb-2"><div class="card-header"><h3>Peak Usage Hours</h3></div>';
+      html += '<div class="card mb-2"><div class="card-header"><h3>Horas Pico de Uso</h3></div>';
       html += '<div class="card-body"><div class="chart-container chart-container-tall"><canvas id="peak-hours-chart"></canvas></div></div>';
       html += '</div>';
 
@@ -1059,12 +1060,12 @@
       html += '</div>'; // two-col
 
       // Devices table
-      html += '<div class="card mb-2"><div class="card-header"><h3>Devices</h3></div>';
+      html += '<div class="card mb-2"><div class="card-header"><h3>Dispositivos</h3></div>';
       html += '<div class="card-body-flush"><div class="table-wrap"><table>';
-      html += '<thead><tr><th>Hostname</th><th>User</th><th>Platform</th><th>OS Version</th><th>Claude Version</th><th>Last Seen</th><th>IP</th></tr></thead><tbody>';
+      html += '<thead><tr><th>Hostname</th><th>Usuario</th><th>Plataforma</th><th>Versión SO</th><th>Versión Claude</th><th>Última Vez</th><th>IP</th></tr></thead><tbody>';
       var devices = data.devices || [];
       if (devices.length === 0) {
-        html += '<tr><td colspan="7" class="text-center text-muted">No devices registered yet</td></tr>';
+        html += '<tr><td colspan="7" class="text-center text-muted">Sin dispositivos registrados aún</td></tr>';
       } else {
         for (var di = 0; di < devices.length; di++) {
           var dev = devices[di];
@@ -1133,7 +1134,7 @@
       }
 
     }).catch(function (err) {
-      container.innerHTML = '<div class="empty-state"><p>Failed to load analytics: ' + escapeHtml(err.message) + '</p></div>';
+      container.innerHTML = '<div class="empty-state"><p>Error al cargar analíticas: ' + escapeHtml(err.message) + '</p></div>';
     });
   }
 
@@ -1142,46 +1143,46 @@
      ================================================================ */
   function openAddUserModal() {
     var html = '';
-    html += '<div class="modal-header"><h3>Add User</h3><button class="modal-close" data-action="close-modal">&times;</button></div>';
+    html += '<div class="modal-header"><h3>Agregar Usuario</h3><button class="modal-close" data-action="close-modal">&times;</button></div>';
     html += '<div class="modal-body">';
 
-    html += '<div class="form-group"><label for="new-user-name">Name</label>';
-    html += '<input type="text" id="new-user-name" placeholder="e.g. Alice, Dev Team, Intern"></div>';
+    html += '<div class="form-group"><label for="new-user-name">Nombre</label>';
+    html += '<input type="text" id="new-user-name" placeholder="Ej: Alice, Equipo Dev, Practicante"></div>';
 
-    html += '<div class="form-group"><label for="new-user-slug">Slug (username)</label>';
-    html += '<input type="text" id="new-user-slug" placeholder="e.g. alice, dev-team, intern">';
-    html += '<p class="form-hint">Lowercase, no spaces. Used in install commands and logs.</p></div>';
+    html += '<div class="form-group"><label for="new-user-slug">Slug (usuario)</label>';
+    html += '<input type="text" id="new-user-slug" placeholder="Ej: alice, equipo-dev, practicante">';
+    html += '<p class="form-hint">Minúsculas, sin espacios. Usado en comandos de instalación y logs.</p></div>';
 
     html += '<hr class="section-divider">';
-    html += '<h4 class="mb-1">Limits Preset</h4>';
+    html += '<h4 class="mb-1">Preset de Límites</h4>';
     html += '<div class="presets-row">';
-    html += '<button class="preset-btn selected" data-preset="light">Light</button>';
-    html += '<button class="preset-btn" data-preset="medium">Medium</button>';
-    html += '<button class="preset-btn" data-preset="heavy">Heavy</button>';
-    html += '<button class="preset-btn" data-preset="unlimited">Unlimited</button>';
-    html += '<button class="preset-btn" data-preset="custom">Custom</button>';
+    html += '<button class="preset-btn selected" data-preset="light">Ligero</button>';
+    html += '<button class="preset-btn" data-preset="medium">Medio</button>';
+    html += '<button class="preset-btn" data-preset="heavy">Intensivo</button>';
+    html += '<button class="preset-btn" data-preset="unlimited">Ilimitado</button>';
+    html += '<button class="preset-btn" data-preset="custom">Personalizado</button>';
     html += '</div>';
 
-    html += '<div id="preset-description" class="text-muted text-sm mb-2">50 credits/day. Opus: 3, Sonnet: 10, Haiku: 30.</div>';
+    html += '<div id="preset-description" class="text-muted text-sm mb-2">50 créditos/día. Opus: 3, Sonnet: 10, Haiku: 30.</div>';
 
     // Custom limits form (hidden by default)
     html += '<div id="custom-limits-form" class="hidden">';
-    html += '<div class="form-group"><label>Credit Budget (daily)</label>';
-    html += '<input type="number" id="custom-credits" min="-1" value="100" placeholder="-1 for unlimited"></div>';
+    html += '<div class="form-group"><label>Presupuesto de Créditos (diario)</label>';
+    html += '<input type="number" id="custom-credits" min="-1" value="100" placeholder="-1 para ilimitado"></div>';
     html += '<div class="form-row-3">';
-    html += '<div class="form-group"><label>Opus (daily)</label>';
+    html += '<div class="form-group"><label>Opus (diario)</label>';
     html += '<input type="number" id="custom-opus" min="-1" value="5"></div>';
-    html += '<div class="form-group"><label>Sonnet (daily)</label>';
+    html += '<div class="form-group"><label>Sonnet (diario)</label>';
     html += '<input type="number" id="custom-sonnet" min="-1" value="20"></div>';
-    html += '<div class="form-group"><label>Haiku (daily)</label>';
+    html += '<div class="form-group"><label>Haiku (diario)</label>';
     html += '<input type="number" id="custom-haiku" min="-1" value="50"></div>';
     html += '</div>';
     html += '</div>';
 
     html += '</div>'; // modal-body
     html += '<div class="modal-footer">';
-    html += '<button class="btn btn-ghost" data-action="close-modal">Cancel</button>';
-    html += '<button class="btn btn-primary" data-action="submit-add-user">Create User</button>';
+    html += '<button class="btn btn-ghost" data-action="close-modal">Cancelar</button>';
+    html += '<button class="btn btn-primary" data-action="submit-add-user">Crear Usuario</button>';
     html += '</div>';
 
     openModal(html);
@@ -1197,10 +1198,10 @@
   }
 
   var PRESETS = {
-    light:     { credits: 50,  opus: 3,  sonnet: 10, haiku: 30, desc: '50 credits/day. Opus: 3, Sonnet: 10, Haiku: 30.' },
-    medium:    { credits: 100, opus: 5,  sonnet: 20, haiku: 50, desc: '100 credits/day. Opus: 5, Sonnet: 20, Haiku: 50.' },
-    heavy:     { credits: 200, opus: 10, sonnet: 40, haiku: 100, desc: '200 credits/day. Opus: 10, Sonnet: 40, Haiku: 100.' },
-    unlimited: { credits: -1,  opus: -1, sonnet: -1, haiku: -1, desc: 'No limits. User has full unrestricted access.' },
+    light:     { credits: 50,  opus: 3,  sonnet: 10, haiku: 30, desc: '50 créditos/día. Opus: 3, Sonnet: 10, Haiku: 30.' },
+    medium:    { credits: 100, opus: 5,  sonnet: 20, haiku: 50, desc: '100 créditos/día. Opus: 5, Sonnet: 20, Haiku: 50.' },
+    heavy:     { credits: 200, opus: 10, sonnet: 40, haiku: 100, desc: '200 créditos/día. Opus: 10, Sonnet: 40, Haiku: 100.' },
+    unlimited: { credits: -1,  opus: -1, sonnet: -1, haiku: -1, desc: 'Sin límites. El usuario tiene acceso completo sin restricciones.' },
   };
 
   var selectedPreset = 'light';
@@ -1218,7 +1219,7 @@
     var customForm = document.getElementById('custom-limits-form');
 
     if (preset === 'custom') {
-      if (descEl) descEl.textContent = 'Set your own limits below.';
+      if (descEl) descEl.textContent = 'Configura tus propios límites abajo.';
       if (customForm) customForm.classList.remove('hidden');
     } else {
       var p = PRESETS[preset];
@@ -1260,16 +1261,16 @@
     var name = (document.getElementById('new-user-name').value || '').trim();
     var slug = (document.getElementById('new-user-slug').value || '').trim();
 
-    if (!name) { showToast('Error', 'Name is required', 'error'); return; }
-    if (!slug) { showToast('Error', 'Slug is required', 'error'); return; }
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) { showToast('Error', 'Slug must be lowercase letters, numbers, and hyphens', 'error'); return; }
+    if (!name) { showToast('Error', 'El nombre es requerido', 'error'); return; }
+    if (!slug) { showToast('Error', 'El slug es requerido', 'error'); return; }
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) { showToast('Error', 'El slug debe ser minúsculas, números y guiones', 'error'); return; }
 
     var limits = buildLimitsFromPreset();
 
     API.createUser({ name: name, slug: slug, limits: limits })
       .then(function (result) {
         closeModal();
-        showToast('User Created', name + ' has been added', 'success');
+        showToast('Usuario Creado', name + ' ha sido agregado', 'success');
 
         // Show install command modal
         var installCode = result.install_code;
@@ -1277,16 +1278,16 @@
         var installCmd = 'sudo npx @howincodes/claude-code-limiter setup --code ' + installCode + ' --server ' + serverUrl;
 
         var installHtml = '';
-        installHtml += '<div class="modal-header"><h3>Install Command</h3><button class="modal-close" data-action="close-modal">&times;</button></div>';
+        installHtml += '<div class="modal-header"><h3>Comando de Instalación</h3><button class="modal-close" data-action="close-modal">&times;</button></div>';
         installHtml += '<div class="modal-body">';
-        installHtml += '<p class="mb-2">Run this command on <strong>' + escapeHtml(name) + '</strong>\'s machine to set up rate limiting:</p>';
+        installHtml += '<p class="mb-2">Ejecuta este comando en la máquina de <strong>' + escapeHtml(name) + '</strong> para configurar el limitador:</p>';
         installHtml += '<div class="install-box">';
         installHtml += '<code>' + escapeHtml(installCmd) + '</code>';
-        installHtml += '<button class="btn btn-sm btn-primary" data-action="copy-install" data-command="' + escapeHtml(installCmd) + '">Copy</button>';
+        installHtml += '<button class="btn btn-sm btn-primary" data-action="copy-install" data-command="' + escapeHtml(installCmd) + '">Copiar</button>';
         installHtml += '</div>';
-        installHtml += '<p class="form-hint mt-2">This code can only be used once. Generate a new one from the user detail page if needed.</p>';
+        installHtml += '<p class="form-hint mt-2">Este código solo puede usarse una vez. Genera uno nuevo desde el detalle del usuario si es necesario.</p>';
         installHtml += '</div>';
-        installHtml += '<div class="modal-footer"><button class="btn btn-primary" data-action="close-modal">Done</button></div>';
+        installHtml += '<div class="modal-footer"><button class="btn btn-primary" data-action="close-modal">Listo</button></div>';
 
         openModal(installHtml);
 
@@ -1312,15 +1313,15 @@
       var creditWindow = creditRule ? creditRule.window : 'daily';
 
       var html = '';
-      html += '<div class="modal-header"><h3>Edit Limits: ' + escapeHtml(user.name) + '</h3><button class="modal-close" data-action="close-modal">&times;</button></div>';
+      html += '<div class="modal-header"><h3>Editar Límites: ' + escapeHtml(user.name) + '</h3><button class="modal-close" data-action="close-modal">&times;</button></div>';
       html += '<div class="modal-body">';
 
       // Credit budget
-      html += '<div class="form-group"><label>Credit Budget</label>';
+      html += '<div class="form-group"><label>Presupuesto de Créditos</label>';
       html += '<div class="form-row">';
-      html += '<div class="form-group"><label class="text-sm">Value (-1 = unlimited, 0 = blocked)</label>';
+      html += '<div class="form-group"><label class="text-sm">Valor (-1 = ilimitado, 0 = bloqueado)</label>';
       html += '<input type="number" id="edit-credits" min="-1" value="' + (creditVal !== '' ? creditVal : '-1') + '"></div>';
-      html += '<div class="form-group"><label class="text-sm">Window</label>';
+      html += '<div class="form-group"><label class="text-sm">Ventana</label>';
       html += '<select id="edit-credits-window">';
       var windows = ['daily', 'weekly', 'monthly', 'sliding_24h'];
       for (var wi = 0; wi < windows.length; wi++) {
@@ -1332,8 +1333,8 @@
       html += '<hr class="section-divider">';
 
       // Per-model limits
-      html += '<h4 class="mb-1">Per-Model Limits (Daily)</h4>';
-      html += '<p class="form-hint mb-2">-1 = unlimited, 0 = blocked</p>';
+      html += '<h4 class="mb-1">Límites por Modelo (Diario)</h4>';
+      html += '<p class="form-hint mb-2">-1 = ilimitado, 0 = bloqueado</p>';
       var models = ['opus', 'sonnet', 'haiku'];
       html += '<div class="form-row-3">';
       for (var mi = 0; mi < models.length; mi++) {
@@ -1346,7 +1347,7 @@
 
       // Time-of-day rules
       html += '<hr class="section-divider">';
-      html += '<h4 class="mb-1">Time-of-Day Restrictions</h4>';
+      html += '<h4 class="mb-1">Restricciones Horarias</h4>';
       var timeRules = limits.filter(function (r) { return r.type === 'time_of_day'; });
       html += '<div id="time-rules-list">';
       if (timeRules.length > 0) {
@@ -1355,12 +1356,12 @@
         }
       }
       html += '</div>';
-      html += '<button class="btn btn-sm mt-1" data-action="add-time-rule">+ Add Time Rule</button>';
+      html += '<button class="btn btn-sm mt-1" data-action="add-time-rule">+ Agregar Restricción Horaria</button>';
 
       html += '</div>'; // modal-body
       html += '<div class="modal-footer">';
-      html += '<button class="btn btn-ghost" data-action="close-modal">Cancel</button>';
-      html += '<button class="btn btn-primary" data-action="submit-edit-limits" data-user-id="' + userId + '">Save Limits</button>';
+      html += '<button class="btn btn-ghost" data-action="close-modal">Cancelar</button>';
+      html += '<button class="btn btn-primary" data-action="submit-edit-limits" data-user-id="' + userId + '">Guardar Límites</button>';
       html += '</div>';
 
       openModal(html);
@@ -1375,19 +1376,19 @@
     rule = rule || {};
     return (
       '<div class="form-row-3 mb-1" id="time-rule-' + idx + '">' +
-        '<div class="form-group"><label class="text-sm">Model</label>' +
+        '<div class="form-group"><label class="text-sm">Modelo</label>' +
         '<select class="time-rule-model">' +
           '<option value="opus"' + (rule.model === 'opus' ? ' selected' : '') + '>Opus</option>' +
           '<option value="sonnet"' + (rule.model === 'sonnet' ? ' selected' : '') + '>Sonnet</option>' +
           '<option value="haiku"' + (rule.model === 'haiku' ? ' selected' : '') + '>Haiku</option>' +
         '</select></div>' +
-        '<div class="form-group"><label class="text-sm">Start - End</label>' +
+        '<div class="form-group"><label class="text-sm">Inicio - Fin</label>' +
         '<div style="display:flex;gap:0.3rem;align-items:center">' +
           '<input type="time" class="time-rule-start" value="' + (rule.schedule_start || '09:00') + '" style="flex:1">' +
           '<span class="text-muted">-</span>' +
           '<input type="time" class="time-rule-end" value="' + (rule.schedule_end || '18:00') + '" style="flex:1">' +
         '</div></div>' +
-        '<div class="form-group"><label class="text-sm">Timezone</label>' +
+        '<div class="form-group"><label class="text-sm">Zona Horaria</label>' +
         '<input type="text" class="time-rule-tz" value="' + escapeHtml(rule.schedule_tz || Intl.DateTimeFormat().resolvedOptions().timeZone) + '" placeholder="America/New_York"></div>' +
       '</div>'
     );
@@ -1439,7 +1440,7 @@
     API.updateUser(userId, { limits: limits })
       .then(function () {
         closeModal();
-        showToast('Limits Updated', 'Limits have been saved', 'success');
+        showToast('Límites Actualizados', 'Los límites han sido guardados', 'success');
         renderPage(getRoute());
       })
       .catch(function (err) {
@@ -1451,11 +1452,11 @@
      USER ACTIONS
      ================================================================ */
   function pauseUser(userId, userName) {
-    confirmDialog('Pause User', 'Pause ' + userName + '? They will not be able to use Claude Code until reinstated.', 'Pause')
+    confirmDialog('Pausar Usuario', 'Pausar a ' + userName + '? No podrá usar Claude Code hasta que sea reactivado.', 'Pausar')
       .then(function (ok) {
         if (!ok) return;
         return API.updateUser(userId, { status: 'paused' }).then(function () {
-          showToast('User Paused', userName + ' has been paused', 'warning');
+          showToast('Usuario Pausado', userName + ' ha sido pausado', 'warning');
           renderPage(getRoute());
         });
       })
@@ -1463,11 +1464,11 @@
   }
 
   function killUser(userId, userName) {
-    confirmDialog('Kill User', 'Kill ' + userName + '? This will revoke their Claude Code access and log them out. They will need manual re-setup to restore access.', 'Kill')
+    confirmDialog('Revocar Acceso', '¿Revocar acceso a ' + userName + '? Se cerrará su sesión y necesitará reinstalación manual para recuperar el acceso.', 'Revocar')
       .then(function (ok) {
         if (!ok) return;
         return API.updateUser(userId, { status: 'killed' }).then(function () {
-          showToast('User Killed', userName + ' has been killed. Their session will be revoked.', 'error');
+          showToast('Acceso Revocado', 'El acceso de ' + userName + ' ha sido revocado.', 'error');
           renderPage(getRoute());
         });
       })
@@ -1477,18 +1478,18 @@
   function reinstateUser(userId, userName) {
     API.updateUser(userId, { status: 'active' })
       .then(function () {
-        showToast('User Reinstated', userName + ' is now active', 'success');
+        showToast('Usuario Reactivado', userName + ' ahora está activo', 'success');
         renderPage(getRoute());
       })
       .catch(function (err) { showToast('Error', err.message, 'error'); });
   }
 
   function deleteUser(userId, userName) {
-    confirmDialog('Delete User', 'Permanently delete ' + userName + '? This removes all their usage data and cannot be undone.', 'Delete')
+    confirmDialog('Eliminar Usuario', '¿Eliminar permanentemente a ' + userName + '? Esto borrará todos sus datos de uso y no puede deshacerse.', 'Eliminar')
       .then(function (ok) {
         if (!ok) return;
         return API.deleteUser(userId).then(function () {
-          showToast('User Deleted', userName + ' has been removed', 'success');
+          showToast('Usuario Eliminado', userName + ' ha sido eliminado', 'success');
           navigate('overview');
         });
       })
@@ -1500,12 +1501,12 @@
      ================================================================ */
   function saveTeamName() {
     var name = (document.getElementById('settings-team-name').value || '').trim();
-    if (!name) { showToast('Error', 'Team name cannot be empty', 'error'); return; }
+    if (!name) { showToast('Error', 'El nombre del equipo no puede estar vacío', 'error'); return; }
     API.updateSettings({ name: name })
       .then(function (data) {
         state.team = data.team;
         updateTeamNameDisplay();
-        showToast('Saved', 'Team name updated', 'success');
+        showToast('Guardado', 'Nombre del equipo actualizado', 'success');
       })
       .catch(function (err) { showToast('Error', err.message, 'error'); });
   }
@@ -1520,7 +1521,7 @@
     API.updateSettings({ credit_weights: cw })
       .then(function (data) {
         state.team = data.team;
-        showToast('Saved', 'Credit weights updated', 'success');
+        showToast('Guardado', 'Pesos de créditos actualizados', 'success');
       })
       .catch(function (err) { showToast('Error', err.message, 'error'); });
   }
@@ -1528,13 +1529,13 @@
   function changePassword() {
     var newPw = (document.getElementById('settings-new-pw').value || '');
     var confirmPw = (document.getElementById('settings-confirm-pw').value || '');
-    if (!newPw) { showToast('Error', 'Password cannot be empty', 'error'); return; }
-    if (newPw !== confirmPw) { showToast('Error', 'Passwords do not match', 'error'); return; }
-    if (newPw.length < 6) { showToast('Error', 'Password must be at least 6 characters', 'error'); return; }
+    if (!newPw) { showToast('Error', 'La contraseña no puede estar vacía', 'error'); return; }
+    if (newPw !== confirmPw) { showToast('Error', 'Las contraseñas no coinciden', 'error'); return; }
+    if (newPw.length < 6) { showToast('Error', 'La contraseña debe tener al menos 6 caracteres', 'error'); return; }
 
     API.updateSettings({ admin_password: newPw })
       .then(function () {
-        showToast('Saved', 'Admin password changed. You will need to log in again.', 'success');
+        showToast('Guardado', 'Contraseña de admin cambiada. Deberás iniciar sesión nuevamente.', 'success');
         document.getElementById('settings-new-pw').value = '';
         document.getElementById('settings-confirm-pw').value = '';
       })
@@ -1616,10 +1617,10 @@
     var errEl = document.getElementById('login-error');
     var btn = document.getElementById('login-btn');
 
-    if (!pw) { errEl.textContent = 'Password is required'; errEl.classList.remove('hidden'); return; }
+    if (!pw) { errEl.textContent = 'La contraseña es requerida'; errEl.classList.remove('hidden'); return; }
 
     btn.disabled = true;
-    btn.textContent = 'Signing in...';
+    btn.textContent = 'Iniciando sesión...';
     errEl.classList.add('hidden');
 
     API.login(pw)
@@ -1636,7 +1637,7 @@
       })
       .finally(function () {
         btn.disabled = false;
-        btn.textContent = 'Sign In';
+        btn.textContent = 'Iniciar Sesión';
       });
   }
 
@@ -1748,7 +1749,7 @@
               .then(function () {
                 showToast(
                   'Updated',
-                  (userName || 'User') + ': self-uninstall ' + (next ? 'enabled' : 'disabled'),
+                  (userName || 'Usuario') + ': desinstalación propia ' + (next ? 'habilitada' : 'deshabilitada'),
                   next ? 'success' : 'warning'
                 );
                 renderPage(getRoute());
@@ -1832,8 +1833,8 @@
       // Show toast for blocked events
       if (event.type === 'user_blocked') {
         showToast(
-          'User Blocked',
-          (event.userName || 'Unknown') + ' was blocked on ' + (event.model || 'unknown'),
+          'Usuario Bloqueado',
+          (event.userName || 'Desconocido') + ' fue bloqueado en ' + (event.model || 'desconocido'),
           'warning',
           8000
         );
@@ -1842,8 +1843,8 @@
       // Show toast for kill events
       if (event.type === 'user_killed' || (event.type === 'user_status_change' && event.newStatus === 'killed')) {
         showToast(
-          'User Killed',
-          (event.userName || 'Unknown') + ' has been killed',
+          'Acceso Revocado',
+          'El acceso de ' + (event.userName || 'Desconocido') + ' ha sido revocado',
           'error',
           8000
         );
