@@ -143,7 +143,7 @@ async function main() {
 
     case 'sync': {
       const installer = require('../src/installer.js');
-      await installer.sync();
+      await installer.sync({ yes: skipConfirm });
       break;
     }
 

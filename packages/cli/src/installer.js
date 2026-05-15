@@ -687,7 +687,8 @@ async function sync(flags) {
 
   info("Syncing with server...");
   try {
-    execSync(`node "${PATHS.hook}" sync < /dev/null`, { stdio: "inherit" });
+    const stdinRedir = IS_WIN ? "< NUL" : "< /dev/null";
+    execSync(`node "${PATHS.hook}" sync ${stdinRedir}`, { stdio: "inherit", shell: true });
     ok("Sync complete.");
   } catch { fail("Sync failed."); }
 }
@@ -697,3 +698,35 @@ async function sync(flags) {
 // ════════════════════════════════════════════════════════════
 
 module.exports = { setup, uninstall, status, sync };
+
+// ════════════════════════════════════════════════════════════
+// CLI ENTRY POINT
+// ════════════════════════════════════════════════════════════
+// Allow `node src/installer.js setup --code X --server Y` directly,
+// as documented in SETUP.md.
+
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  const cmd = args[0];
+  const flags = {};
+  for (let i = 1; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--code") flags.code = args[++i];
+    else if (a === "--server") flags.server = args[++i];
+    else if (a === "--yes" || a === "-y") flags.yes = true;
+  }
+
+  const commands = { setup, uninstall, status, sync };
+  const fn = commands[cmd];
+  if (!fn) {
+    console.error(C.red(`Unknown command: ${cmd || "(none)"}`));
+    console.error("Usage: node installer.js <setup|uninstall|status|sync> [--code CODE] [--server URL] [--yes]");
+    process.exit(1);
+  }
+
+  Promise.resolve(fn(flags)).catch((err) => {
+    fail(err && err.message ? err.message : String(err));
+    if (process.env.DEBUG && err && err.stack) console.error(err.stack);
+    process.exit(1);
+  });
+}
