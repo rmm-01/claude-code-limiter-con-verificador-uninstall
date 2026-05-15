@@ -376,7 +376,20 @@ async function setup(flags) {
     if (process.env.SUDO_USER) {
       authCmd = `su - ${process.env.SUDO_USER} -c '"${claudePath}" auth status'`;
     }
-    authStatus = JSON.parse(execSync(authCmd, { encoding: "utf-8" }).trim());
+    const authOut = execSync(authCmd, { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    // Try JSON parse first, fall back to text parsing
+    try {
+      authStatus = JSON.parse(authOut);
+    } catch {
+      // Text output: check for logged in indicators
+      const loggedIn = authOut.includes("Logged in") || authOut.includes("loggedIn") || authOut.includes('"loggedIn": true');
+      const emailMatch = authOut.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      authStatus = loggedIn || emailMatch ? {
+        loggedIn: true,
+        email: emailMatch ? emailMatch[0] : null,
+        subscriptionType: authOut.includes("max") ? "max" : "pro",
+      } : null;
+    }
   } catch {
     authStatus = null;
   }
