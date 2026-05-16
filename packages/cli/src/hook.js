@@ -317,8 +317,8 @@ function evaluateLimitsLocally(config, model, usage) {
     return {
       allowed: false,
       reason: config.status === "killed"
-        ? "Your Claude Code access has been revoked by the admin.\nContact your admin to restore access."
-        : "Your Claude Code access has been paused by the admin.\nContact your admin to resume access.",
+        ? "Tu acceso a Claude Code fue revocado por el admin.\nContactá al admin para restaurar el acceso."
+        : "Tu acceso a Claude Code fue pausado por el admin.\nContactá al admin para reanudar el acceso.",
     };
   }
 
@@ -333,7 +333,7 @@ function evaluateLimitsLocally(config, model, usage) {
         if (hhmm < rule.schedule_start || hhmm >= rule.schedule_end) {
           return {
             allowed: false,
-            reason: `${model} is only available ${rule.schedule_start} - ${rule.schedule_end}.\nCurrent time: ${hhmm}. Try another model.`,
+            reason: `${model} solo está disponible de ${rule.schedule_start} a ${rule.schedule_end}.\nHora actual: ${hhmm}. Probá con otro modelo.`,
           };
         }
       }
@@ -345,10 +345,10 @@ function evaluateLimitsLocally(config, model, usage) {
       if (rule.model && rule.model !== model) continue;
       const limit = rule.value;
       if (limit < 0) continue;
-      if (limit === 0) return { allowed: false, reason: `${model} is blocked for your account.` };
+      if (limit === 0) return { allowed: false, reason: `${model} está bloqueado para tu cuenta.` };
       const used = usage[rule.model || model] || 0;
       if (used >= limit) {
-        return { allowed: false, reason: `Daily ${model} limit reached.\nUsed ${used}/${limit} prompts today.` };
+        return { allowed: false, reason: `Límite diario de ${model} alcanzado.\nUsaste ${used}/${limit} prompts hoy.` };
       }
     }
 
@@ -364,7 +364,7 @@ function evaluateLimitsLocally(config, model, usage) {
       if (totalCredits + nextCost > budget) {
         return {
           allowed: false,
-          reason: `Daily credit budget exhausted.\nUsed ${totalCredits}/${budget} credits.\nNext ${model} prompt costs ${nextCost} credits.`,
+          reason: `Presupuesto diario de créditos agotado.\nUsaste ${totalCredits}/${budget} créditos.\nEl próximo prompt de ${model} cuesta ${nextCost} créditos.`,
         };
       }
     }
@@ -391,11 +391,11 @@ function buildBlockMessage(config, model, usage, reason) {
     const lim = rule ? rule.value : -1;
     const limStr = lim < 0 ? "∞" : lim;
     const remaining = lim < 0 ? "∞" : Math.max(0, lim - used);
-    summaryLines.push(`  ${m}: ${used}/${limStr} (${remaining} left)`);
+    summaryLines.push(`  ${m}: ${used}/${limStr} (${remaining} restantes)`);
   }
 
   if (summaryLines.length > 0) {
-    lines.push("All usage today:", ...summaryLines, "");
+    lines.push("Uso de hoy:", ...summaryLines, "");
   }
 
   // Credit balance
@@ -405,10 +405,10 @@ function buildBlockMessage(config, model, usage, reason) {
     for (const [m, count] of Object.entries(usage)) {
       totalCredits += count * (creditWeights[m] || 1);
     }
-    lines.push(`Credit balance: ${Math.max(0, creditRule.value - totalCredits)}/${creditRule.value}`, "");
+    lines.push(`Balance de créditos: ${Math.max(0, creditRule.value - totalCredits)}/${creditRule.value}`, "");
   }
 
-  lines.push("Options:", "  Switch to another model (if quota remains)", "  Try again later");
+  lines.push("Opciones:", "  Cambiar a otro modelo (si te queda cuota)", "  Reintentar más tarde");
   return lines.join("\n");
 }
 
@@ -565,11 +565,11 @@ async function actionCheck(config) {
 
     if (serverResp.status === "killed") {
       allowed = false;
-      reason = "Your Claude Code access has been revoked by the admin.\nContact your admin to restore access.";
+      reason = "Tu acceso a Claude Code fue revocado por el admin.\nContactá al admin para restaurar el acceso.";
       triggerLogout();
     } else if (serverResp.status === "paused") {
       allowed = false;
-      reason = "Your Claude Code access has been paused by the admin.\nContact your admin to resume access.";
+      reason = "Tu acceso a Claude Code fue pausado por el admin.\nContactá al admin para reanudar el acceso.";
     }
     // If status is "active", allowed stays as the server said (based on limits)
   } else {
@@ -652,8 +652,8 @@ async function actionEnforce() {
     // Still killed/paused
     const currentStatus = (serverResp && serverResp.status) || status;
     const msg = currentStatus === "killed"
-      ? "Your Claude Code access has been revoked by the admin.\nContact your admin to restore access."
-      : "Your Claude Code access has been paused by the admin.\nContact your admin to resume access.";
+      ? "Tu acceso a Claude Code fue revocado por el admin.\nContactá al admin para restaurar el acceso."
+      : "Tu acceso a Claude Code fue pausado por el admin.\nContactá al admin para reanudar el acceso.";
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
@@ -677,26 +677,26 @@ function actionStatus(config) {
 
   console.log("");
   console.log("╔══════════════════════════════════════════════╗");
-  console.log("║     claude-code-limiter — Status              ║");
+  console.log("║     Limitador de Claude Code — Estado         ║");
   console.log("╚══════════════════════════════════════════════╝");
   console.log("");
-  console.log(`  User:          ${userName}`);
-  console.log(`  Date:          ${TODAY}`);
-  console.log(`  Active model:  ${model}`);
+  console.log(`  Usuario:       ${userName}`);
+  console.log(`  Fecha:         ${TODAY}`);
+  console.log(`  Modelo activo: ${model}`);
   console.log(`  Config:        ${CONFIG_FILE}`);
-  if (serverConfig && serverConfig.url) console.log(`  Server:        ${serverConfig.url}`);
+  if (serverConfig && serverConfig.url) console.log(`  Servidor:      ${serverConfig.url}`);
   console.log("");
 
   const limits = (config && config.limits) || [];
   const creditWeights = (config && config.credit_weights) || { opus: 10, sonnet: 3, haiku: 1 };
 
   if (limits.length === 0) {
-    console.log("  No limits configured — unlimited mode\n");
+    console.log("  Sin límites configurados — modo ilimitado\n");
     return;
   }
 
   console.log("  ┌────────────┬───────┬───────┬──────────────────────┬──────────┐");
-  console.log("  │ Model      │ Used  │ Limit │ Progress             │ Left     │");
+  console.log("  │ Modelo     │ Uso   │ Tope  │ Progreso             │ Restan   │");
   console.log("  ├────────────┼───────┼───────┼──────────────────────┼──────────┤");
 
   for (const m of ["opus", "sonnet", "haiku"]) {
@@ -725,7 +725,7 @@ function actionStatus(config) {
     for (const [m, count] of Object.entries(usage)) {
       totalCredits += count * (creditWeights[m] || 1);
     }
-    console.log(`\n  Credits: ${Math.max(0, creditRule.value - totalCredits)}/${creditRule.value} remaining`);
+    console.log(`\n  Créditos: ${Math.max(0, creditRule.value - totalCredits)}/${creditRule.value} restantes`);
   }
   console.log("");
 }
@@ -741,8 +741,8 @@ async function main() {
 
   if (!config || Object.keys(config).length === 0) {
     if (action === "status") {
-      console.log("\n  No limiter config found — unlimited mode.");
-      console.log(`  Config path: ${CONFIG_FILE}\n`);
+      console.log("\n  No se encontró configuración del limitador — modo ilimitado.");
+      console.log(`  Ruta de config: ${CONFIG_FILE}\n`);
       return;
     }
     if (action !== "status") {
@@ -751,10 +751,10 @@ async function main() {
       if (serverConfig && serverConfig.url) {
         if (action === "check") {
           readStdin();
-          process.stdout.write(JSON.stringify({ decision: "block", reason: "Limiter configuration missing. Contact your admin." }));
+          process.stdout.write(JSON.stringify({ decision: "block", reason: "Falta configuración del limitador. Contactá a tu admin." }));
         } else if (action === "enforce") {
           readStdin();
-          process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: "Limiter configuration missing. Contact your admin." } }));
+          process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: "Falta configuración del limitador. Contactá a tu admin." } }));
         } else {
           readStdin();
         }

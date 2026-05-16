@@ -130,12 +130,12 @@ function isElevated() {
 function requireElevated(action) {
   if (isElevated()) return;
   log("");
-  fail(`"${action}" requires elevated privileges.`);
+  fail(`"${action}" requiere privilegios elevados (admin / root).`);
   log("");
   if (IS_WIN) {
-    info("Right-click PowerShell → 'Run as administrator', then retry.");
+    info("Click derecho en PowerShell → 'Ejecutar como administrador' y reintentá.");
   } else {
-    info(`Run with sudo:  sudo npx @howincodes/claude-code-limiter ${action}`);
+    info(`Ejecutá con sudo:  sudo node packages/cli/src/installer.js ${action}`);
   }
   log("");
   process.exit(1);
@@ -217,9 +217,9 @@ function lockPermissions() {
       execSync(`chown ${owner} "${PATHS.managedSettings}" && chmod 644 "${PATHS.managedSettings}"`, { stdio: "ignore" });
       execSync(`chown -R ${owner} "${PATHS.backupDir}" && chmod -R 700 "${PATHS.backupDir}"`, { stdio: "ignore" });
     }
-    ok("File permissions locked");
+    ok("Permisos de archivo bloqueados");
   } catch (err) {
-    warn(`Permissions partially set: ${err.message}`);
+    warn(`Permisos seteados parcialmente: ${err.message}`);
   }
 }
 
@@ -247,7 +247,7 @@ function setupWatchdog() {
     fs.writeFileSync(scriptPath, script);
     try { execSync('schtasks /delete /tn "ClaudeLimiterWatchdog" /f', { stdio: "ignore" }); } catch {}
     execSync(`schtasks /create /tn "ClaudeLimiterWatchdog" /tr "powershell -NoProfile -ExecutionPolicy Bypass -File \\"${scriptPath}\\"" /sc minute /mo 5 /ru SYSTEM /f`, { stdio: "ignore" });
-    ok("Watchdog scheduled task created");
+    ok("Tarea programada del watchdog creada");
   } else if (IS_MAC) {
     const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -279,7 +279,7 @@ fi
     fs.writeFileSync(plistPath, plist);
     try { execSync(`launchctl unload "${plistPath}" 2>/dev/null`, { stdio: "ignore" }); } catch {}
     execSync(`launchctl load "${plistPath}"`, { stdio: "ignore" });
-    ok("Watchdog launchd daemon created");
+    ok("Daemon launchd del watchdog creado");
   } else {
     const service = `[Unit]\nDescription=Claude Code Limiter Watchdog\n[Service]\nType=oneshot\nExecStart=/bin/bash -c 'B="${PATHS.backupDir}"; M="${PATHS.managedSettings}"; H="${PATHS.hook}"; C="${PATHS.config}"; [ ! -f "$M" ] && cp "$B/managed-settings.json" "$M"; [ ! -f "$H" ] && cp "$B/hook.js" "$H"; [ ! -f "$C" ] && cp "$B/config.json" "$C"; BHASH=$(sha256sum "$B/hook.js" 2>/dev/null | cut -d" " -f1); HHASH=$(sha256sum "$H" 2>/dev/null | cut -d" " -f1); if [ -n "$BHASH" ] && [ -n "$HHASH" ] && [ "$BHASH" != "$HHASH" ]; then cp "$B/hook.js" "$H"; cp "$B/config.json" "$C"; cp "$B/managed-settings.json" "$M"; chown root:root "$M" "$H" "$C"; chmod 644 "$M" "$H" "$C"; fi'`;
     const timer = `[Unit]\nDescription=Claude Code Limiter Watchdog Timer\n[Timer]\nOnBootSec=1min\nOnUnitActiveSec=5min\n[Install]\nWantedBy=timers.target`;
@@ -287,17 +287,17 @@ fi
     fs.writeFileSync("/etc/systemd/system/claude-limiter-watchdog.timer", timer);
     execSync("systemctl daemon-reload", { stdio: "ignore" });
     execSync("systemctl enable --now claude-limiter-watchdog.timer", { stdio: "ignore" });
-    ok("Watchdog systemd timer created");
+    ok("Timer systemd del watchdog creado");
   }
 }
 
 function removeWatchdog() {
   if (IS_WIN) {
-    try { execSync('schtasks /delete /tn "ClaudeLimiterWatchdog" /f', { stdio: "ignore" }); ok("Removed watchdog task"); } catch { warn("No watchdog task found"); }
+    try { execSync('schtasks /delete /tn "ClaudeLimiterWatchdog" /f', { stdio: "ignore" }); ok("Tarea del watchdog eliminada"); } catch { warn("No se encontró tarea del watchdog"); }
     try { fs.unlinkSync(path.join(PATHS.base, "watchdog.ps1")); } catch {}
   } else if (IS_MAC) {
     const plist = "/Library/LaunchDaemons/com.claude-limiter.watchdog.plist";
-    try { execSync(`launchctl unload "${plist}" 2>/dev/null`, { stdio: "ignore" }); fs.unlinkSync(plist); ok("Removed watchdog"); } catch { warn("No watchdog found"); }
+    try { execSync(`launchctl unload "${plist}" 2>/dev/null`, { stdio: "ignore" }); fs.unlinkSync(plist); ok("Watchdog eliminado"); } catch { warn("No se encontró watchdog"); }
   } else {
     try {
       execSync("systemctl stop claude-limiter-watchdog.timer 2>/dev/null", { stdio: "ignore" });
@@ -306,8 +306,8 @@ function removeWatchdog() {
         try { fs.unlinkSync(`/etc/systemd/system/${f}`); } catch {}
       }
       execSync("systemctl daemon-reload 2>/dev/null", { stdio: "ignore" });
-      ok("Removed watchdog");
-    } catch { warn("No watchdog found"); }
+      ok("Watchdog eliminado");
+    } catch { warn("No se encontró watchdog"); }
   }
 }
 
@@ -326,7 +326,7 @@ function createBackup() {
     }
   }
   fs.writeFileSync(path.join(PATHS.backupDir, "checksums.json"), JSON.stringify(checksums, null, 2));
-  ok("Backup created");
+  ok("Backup creado");
 }
 
 // ════════════════════════════════════════════════════════════
@@ -338,7 +338,7 @@ async function setup(flags) {
 
   log("");
   log(C.bold("  ╔══════════════════════════════════════════╗"));
-  log(C.bold("  ║   Claude Code Limiter — Setup            ║"));
+  log(C.bold("  ║   Limitador de Claude Code — Instalación ║"));
   log(C.bold("  ╚══════════════════════════════════════════╝"));
   log("");
 
@@ -393,17 +393,17 @@ async function setup(flags) {
   }
 
   if (!claudePath) {
-    fail("Claude Code is not installed on this machine.");
+    fail("Claude Code no está instalado en esta máquina.");
     log("");
-    info("Install it first: https://code.claude.com");
+    info("Instalalo primero desde: https://code.claude.com");
     if (process.env.SUDO_USER) {
-      info(`Looked in: ${path.join(homeDir, ".local", "bin", "claude")}`);
-      info("If Claude is installed elsewhere, add it to PATH and retry.");
+      info(`Se buscó en: ${path.join(homeDir, ".local", "bin", "claude")}`);
+      info("Si Claude está en otra ruta, agregalo al PATH y reintentá.");
     }
     log("");
     process.exit(1);
   }
-  ok(`Claude Code found: ${claudePath}`);
+  ok(`Claude Code encontrado: ${claudePath}`);
 
   // Run auth status as the actual user, not root.
   // sudo sets SUDO_USER — use it to run claude as the real user.
@@ -437,35 +437,35 @@ async function setup(flags) {
 
   if (!authStatus || !authStatus.loggedIn) {
     if (flags.skipAuthCheck) {
-      warn("Auth check skipped (--skip-auth-check).");
+      warn("Verificación de auth omitida (--skip-auth-check).");
       authStatus = {
         loggedIn: true,
         email: flags.email || null,
         subscriptionType: flags.plan || "pro",
       };
     } else {
-      fail("Claude Code is not logged in.");
+      fail("Claude Code no está logueado.");
       log("");
-      info("Log in first:  claude auth login");
+      info("Iniciá sesión primero:  claude auth login");
       if (authError) {
-        info(`Detection error: ${authError.message}`);
+        info(`Error de detección: ${authError.message}`);
         if (authError.stderr) info(`stderr: ${String(authError.stderr).trim().slice(0, 300)}`);
       } else if (authRawOut) {
-        info(`Got output but could not detect login. First 300 chars:`);
+        info(`Se obtuvo output pero no se detectó login. Primeros 300 chars:`);
         log(`     ${authRawOut.slice(0, 300)}`);
       }
       log("");
-      info("If you are sure you are logged in, retry with --skip-auth-check");
+      info("Si estás seguro de que estás logueado, reintentá con --skip-auth-check");
       log("");
       process.exit(1);
     }
   }
-  ok(`Logged in as: ${authStatus.email || "unknown"} (${authStatus.subscriptionType || "unknown"} plan)`);
+  ok(`Logueado como: ${authStatus.email || "desconocido"} (plan ${authStatus.subscriptionType || "desconocido"})`);
 
   // Detect default model from subscription type
   const subscriptionType = authStatus.subscriptionType || "pro";
   const defaultModel = subscriptionType === "max" ? "opus" : "sonnet";
-  info(`Plan default model: ${defaultModel}`);
+  info(`Modelo por defecto del plan: ${defaultModel}`);
 
   // ── Check for existing installation ──
   const existingServer = readJSON(PATHS.server);
@@ -476,20 +476,20 @@ async function setup(flags) {
   if (existingServer && existingServer.auth_token && existingConfig) {
     // Already installed — offer to reinstall with existing credentials
     log("");
-    warn(`Limiter already installed for "${existingConfig.user_name || "unknown"}".`);
-    info(`Server: ${existingServer.url}`);
+    warn(`Limitador ya instalado para "${existingConfig.user_name || "desconocido"}".`);
+    info(`Servidor: ${existingServer.url}`);
 
     if (!flags.yes) {
-      const choice = await ask("Reinstall with existing config? (y/N):");
-      if (!choice.match(/^y(es)?$/i)) {
-        log("\n  Cancelled. Use --code to set up a different user.\n");
+      const choice = await ask("¿Reinstalar con la configuración existente? (s/N):");
+      if (!choice.match(/^(y|yes|s|si|sí)$/i)) {
+        log("\n  Cancelado. Usá --code para configurar otro usuario.\n");
         process.exit(0);
       }
     }
 
     // Re-fetch latest config from server
     log("");
-    info("Syncing with server...");
+    info("Sincronizando con el servidor...");
     let serverUrl = flags.server || existingServer.url;
     try {
       const resp = await fetchJSON(`${serverUrl}/api/v1/status`, {
@@ -501,7 +501,7 @@ async function setup(flags) {
       limits = resp.limits || existingConfig.limits;
       credit_weights = resp.credit_weights || existingConfig.credit_weights;
       status = (resp.user && resp.user.status) || "active";
-      ok(`Synced as "${user_name}" (${status})`);
+      ok(`Sincronizado como "${user_name}" (${status})`);
     } catch {
       // Server unreachable — use cached config
       auth_token = existingServer.auth_token;
@@ -509,18 +509,18 @@ async function setup(flags) {
       limits = existingConfig.limits;
       credit_weights = existingConfig.credit_weights;
       status = existingConfig.status || "active";
-      warn("Server unreachable — reinstalling with cached config.");
+      warn("Servidor no alcanzable — reinstalando con configuración en caché.");
     }
   } else {
     // Fresh install — need code and server
     let code = flags.code;
     freshServerUrl = flags.server;
 
-    if (!code) code = await ask("Install code:");
-    if (!freshServerUrl) freshServerUrl = await ask("Server URL:");
+    if (!code) code = await ask("Código de instalación:");
+    if (!freshServerUrl) freshServerUrl = await ask("URL del servidor:");
 
     if (!code || !freshServerUrl) {
-      fail("Install code and server URL are required.");
+      fail("Se requieren código de instalación y URL del servidor.");
       process.exit(1);
     }
 
@@ -528,7 +528,7 @@ async function setup(flags) {
     freshServerUrl = freshServerUrl.replace(/\/+$/, "");
 
     log("");
-    info("Registering with server...");
+    info("Registrando con el servidor...");
 
     let registration;
     try {
@@ -537,12 +537,12 @@ async function setup(flags) {
         body: { code },
       });
     } catch (err) {
-      fail(`Registration failed: ${err.message}`);
+      fail(`Fallo en el registro: ${err.message}`);
       process.exit(1);
     }
 
     if (!registration || !registration.auth_token) {
-      fail("Invalid server response — missing auth_token.");
+      fail("Respuesta del servidor inválida — falta auth_token.");
       process.exit(1);
     }
 
@@ -551,18 +551,18 @@ async function setup(flags) {
     limits = registration.limits;
     credit_weights = registration.credit_weights;
     status = (registration.user && registration.user.status) || registration.status;
-    ok(`Registered as "${user_name}"`);
+    ok(`Registrado como "${user_name}"`);
   }
 
   const serverUrl = freshServerUrl || flags.server || (existingServer && existingServer.url) || "";
 
   // Show limits
-  info("Limits:");
+  info("Límites:");
   for (const rule of (limits || [])) {
     if (rule.type === "per_model") {
       log(`     ${rule.model || "all"}: ${rule.value < 0 ? "∞" : rule.value}/${rule.window || "daily"}`);
     } else if (rule.type === "credits") {
-      log(`     credits: ${rule.value}/${rule.window || "daily"}`);
+      log(`     créditos: ${rule.value}/${rule.window || "daily"}`);
     } else if (rule.type === "time_of_day") {
       log(`     ${rule.model || "all"}: ${rule.schedule_start}-${rule.schedule_end} (${rule.schedule_tz || "local"})`);
     }
@@ -570,12 +570,12 @@ async function setup(flags) {
 
   if (!flags.yes) {
     log("");
-    const confirm = await ask("Proceed with installation? (y/N):");
-    if (!confirm.match(/^y(es)?$/i)) { log("\n  Cancelled.\n"); process.exit(0); }
+    const confirm = await ask("¿Continuar con la instalación? (s/N):");
+    if (!confirm.match(/^(y|yes|s|si|sí)$/i)) { log("\n  Cancelado.\n"); process.exit(0); }
   }
 
   log("");
-  info("Installing...");
+  info("Instalando...");
   log("");
 
   // Stop anything that could be holding handles to the files we're about to
@@ -583,7 +583,7 @@ async function setup(flags) {
   // running Claude Code session (has hook.js loaded as a require()'d module
   // on Windows). Errors are ignored — these may not exist on a fresh install.
   if (IS_WIN) {
-    info("Closing running Claude Code sessions and old watchdog...");
+    info("Cerrando sesiones activas de Claude Code y watchdog viejo...");
     try { execSync('schtasks /delete /tn "ClaudeLimiterWatchdog" /f', { stdio: "ignore" }); } catch {}
     try { execSync('taskkill /F /IM claude.exe', { stdio: "ignore" }); } catch {}
   }
@@ -639,7 +639,7 @@ async function setup(flags) {
   try { existingMS = JSON.parse(fs.readFileSync(PATHS.managedSettings, "utf-8")); } catch {}
   const managedSettings = generateManagedSettings(existingMS);
   fs.writeFileSync(PATHS.managedSettings, JSON.stringify(managedSettings, null, 2));
-  ok(`Managed settings → ${PATHS.managedSettings}`);
+  ok(`Configuración administrada → ${PATHS.managedSettings}`);
   ok("allowManagedHooksOnly: true");
 
   // Backup
@@ -652,16 +652,16 @@ async function setup(flags) {
   setupWatchdog();
 
   log("");
-  log(C.green(C.bold("  Installation complete!")));
+  log(C.green(C.bold("  ¡Instalación completa!")));
   log("");
-  log("  Enforcement layers:");
-  log("    1. managed-settings.json  (highest priority)");
-  log("    2. allowManagedHooksOnly  (user hooks blocked)");
-  log(`    3. File permissions        (${IS_WIN ? "admin" : "root"}-only write)`);
-  log("    4. Watchdog               (auto-restores every 5 min)");
-  log("    5. Server-side tracking   (tamper-proof usage)");
+  log("  Capas de aplicación activas:");
+  log("    1. managed-settings.json   (prioridad máxima)");
+  log("    2. allowManagedHooksOnly   (hooks de usuario bloqueados)");
+  log(`    3. Permisos de archivo     (escritura solo ${IS_WIN ? "admin" : "root"})`);
+  log("    4. Watchdog                (autorrestaura cada 5 min)");
+  log("    5. Tracking server-side    (uso a prueba de manipulación)");
   log("");
-  log(C.yellow("  Restart Claude Code for hooks to take effect."));
+  log(C.yellow("  Reiniciá Claude Code para que los hooks tomen efecto."));
   log("");
 }
 
@@ -672,7 +672,7 @@ async function setup(flags) {
 async function uninstall(flags) {
   requireElevated("uninstall");
   log("");
-  log(C.bold("  Uninstalling Claude Code Limiter"));
+  log(C.bold("  Desinstalando el Limitador de Claude Code"));
   log("");
 
   // Check with server whether self-uninstall is permitted.
@@ -683,57 +683,57 @@ async function uninstall(flags) {
   const haveServerConfig = !!(serverConfig && serverConfig.url && serverConfig.auth_token);
 
   if (hookInstalled && !haveServerConfig) {
-    fail("Cannot verify uninstall permission — server config missing or invalid.");
-    info(`Expected: ${PATHS.server}`);
-    info("Contact your admin to re-register this machine or to authorize uninstall.");
+    fail("No se puede verificar el permiso de desinstalación — falta o es inválida la configuración del servidor.");
+    info(`Se esperaba: ${PATHS.server}`);
+    info("Contactá al admin para re-registrar esta máquina o autorizar la desinstalación.");
     log("");
     process.exit(1);
   }
 
   if (haveServerConfig) {
-    info("Checking with server...");
+    info("Consultando con el servidor...");
     try {
       await fetchJSON(`${serverConfig.url}/api/v1/uninstall-check`, {
         method: "GET",
         headers: { "Authorization": `Bearer ${serverConfig.auth_token}` },
       });
-      ok("Server authorized uninstall");
+      ok("Servidor autorizó la desinstalación");
     } catch (err) {
       const msg = err.message || "";
       if (msg.includes("HTTP 403")) {
-        fail("Uninstall blocked by server.");
-        info("Contact your admin to enable self-uninstall for your account.");
+        fail("Desinstalación bloqueada por el servidor.");
+        info("Contactá al admin para habilitar la auto-desinstalación de tu cuenta.");
       } else {
-        fail(`Could not reach server: ${msg}`);
-        info("Server must be reachable to authorize uninstall.");
-        info("Contact your admin if the server is unavailable.");
+        fail(`No se pudo alcanzar el servidor: ${msg}`);
+        info("El servidor debe ser accesible para autorizar la desinstalación.");
+        info("Contactá al admin si el servidor no está disponible.");
       }
       log("");
       process.exit(1);
     }
   } else if (!hookInstalled) {
-    info("No installation detected — nothing to uninstall.");
+    info("No se detectó instalación — nada para desinstalar.");
     log("");
     return;
   }
 
   if (!flags.yes) {
-    const confirm = await ask("Remove all limiter files and watchdog? (y/N):");
-    if (!confirm.match(/^y(es)?$/i)) { log("\n  Cancelled.\n"); return; }
+    const confirm = await ask("¿Eliminar todos los archivos del limitador y el watchdog? (s/N):");
+    if (!confirm.match(/^(y|yes|s|si|sí)$/i)) { log("\n  Cancelado.\n"); return; }
     log("");
   }
 
   removeWatchdog();
 
   for (const p of [PATHS.limiterDir, PATHS.backupDir]) {
-    try { fs.rmSync(p, { recursive: true, force: true }); ok(`Removed ${p}`); } catch { warn(`Could not remove ${p}`); }
+    try { fs.rmSync(p, { recursive: true, force: true }); ok(`Eliminado ${p}`); } catch { warn(`No se pudo eliminar ${p}`); }
   }
 
   try {
     const ms = JSON.parse(fs.readFileSync(PATHS.managedSettings, "utf-8"));
     if (ms._readme && ms._readme.includes("claude-code-limiter")) {
       fs.unlinkSync(PATHS.managedSettings);
-      ok(`Removed ${PATHS.managedSettings}`);
+      ok(`Eliminado ${PATHS.managedSettings}`);
     } else {
       delete ms.allowManagedHooksOnly;
       delete ms._readme;
@@ -745,12 +745,12 @@ async function uninstall(flags) {
         if (Object.keys(ms.hooks).length === 0) delete ms.hooks;
       }
       fs.writeFileSync(PATHS.managedSettings, JSON.stringify(ms, null, 2));
-      ok(`Cleaned limiter hooks from managed-settings`);
+      ok(`Hooks del limitador limpiados de managed-settings`);
     }
-  } catch { warn(`Could not clean ${PATHS.managedSettings}`); }
+  } catch { warn(`No se pudo limpiar ${PATHS.managedSettings}`); }
 
   log("");
-  log(C.green("  Done. Restart Claude Code for changes to take effect."));
+  log(C.green("  Listo. Reiniciá Claude Code para que los cambios tomen efecto."));
   log("");
 }
 
@@ -761,13 +761,13 @@ async function uninstall(flags) {
 function status() {
   if (!fs.existsSync(PATHS.hook)) {
     log("");
-    warn("Limiter not installed on this machine.");
-    log(C.dim(`  Expected hook at: ${PATHS.hook}`));
-    log(C.dim("  Run: sudo npx @howincodes/claude-code-limiter setup"));
+    warn("El limitador no está instalado en esta máquina.");
+    log(C.dim(`  Se esperaba hook en: ${PATHS.hook}`));
+    log(C.dim("  Ejecutá: sudo node packages/cli/src/installer.js setup"));
     log("");
     return;
   }
-  try { execSync(`node "${PATHS.hook}" status`, { stdio: "inherit" }); } catch { fail("Could not run status"); }
+  try { execSync(`node "${PATHS.hook}" status`, { stdio: "inherit" }); } catch { fail("No se pudo ejecutar status"); }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -776,14 +776,14 @@ function status() {
 
 async function sync(flags) {
   requireElevated("sync");
-  if (!fs.existsSync(PATHS.hook)) { fail("Limiter not installed."); process.exit(1); }
+  if (!fs.existsSync(PATHS.hook)) { fail("Limitador no instalado."); process.exit(1); }
 
-  info("Syncing with server...");
+  info("Sincronizando con el servidor...");
   try {
     const stdinRedir = IS_WIN ? "< NUL" : "< /dev/null";
     execSync(`node "${PATHS.hook}" sync ${stdinRedir}`, { stdio: "inherit", shell: true });
-    ok("Sync complete.");
-  } catch { fail("Sync failed."); }
+    ok("Sincronización completa.");
+  } catch { fail("Falló la sincronización."); }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -815,8 +815,8 @@ if (require.main === module) {
   const commands = { setup, uninstall, status, sync };
   const fn = commands[cmd];
   if (!fn) {
-    console.error(C.red(`Unknown command: ${cmd || "(none)"}`));
-    console.error("Usage: node installer.js <setup|uninstall|status|sync> [--code CODE] [--server URL] [--yes]");
+    console.error(C.red(`Comando desconocido: ${cmd || "(ninguno)"}`));
+    console.error("Uso: node installer.js <setup|uninstall|status|sync> [--code CÓDIGO] [--server URL] [--yes]");
     process.exit(1);
   }
 
