@@ -566,7 +566,7 @@
     var color = hashColor(user.name || user.slug);
 
     return (
-      '<div class="user-card" data-action="view-user" data-user-id="' + user.id + '">' +
+      '<div class="user-card" data-action="view-user" data-user-id="' + user.id + '" data-status="' + escapeHtml(user.status || 'active') + '">' +
         '<div class="user-card-head">' +
           '<div class="user-card-info">' +
             '<div class="user-avatar" style="background:' + color + '">' + initials(user.name) + '</div>' +
