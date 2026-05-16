@@ -679,6 +679,7 @@
         html += '<div class="breadcrumb"><a href="#overview">Resumen</a> / <span>' + escapeHtml(user.name) + '</span></div>';
         html += '<div class="page-header"><h2>' + escapeHtml(user.name) + '</h2>';
         html += '<div class="page-header-actions">';
+        html += '<button class="btn btn-sm btn-secondary" data-action="explain-credits">¿Cómo funcionan los créditos?</button>';
         html += '<button class="btn btn-sm" data-action="edit-limits" data-user-id="' + user.id + '">Editar Límites</button>';
         html += '<button class="btn btn-sm btn-danger" data-action="delete-user" data-user-id="' + user.id + '" data-user-name="' + escapeHtml(user.name) + '">Eliminar Usuario</button>';
         html += '</div></div>';
