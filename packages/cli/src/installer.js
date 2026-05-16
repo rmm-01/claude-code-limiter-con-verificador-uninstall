@@ -547,10 +547,10 @@ async function setup(flags) {
     }
 
     auth_token = registration.auth_token;
-    user_name = registration.user_name;
+    user_name = (registration.user && registration.user.name) || registration.user_name;
     limits = registration.limits;
     credit_weights = registration.credit_weights;
-    status = registration.status;
+    status = (registration.user && registration.user.status) || registration.status;
     ok(`Registered as "${user_name}"`);
   }
 
