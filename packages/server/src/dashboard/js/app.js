@@ -472,6 +472,7 @@
         html += '<div class="page-header">';
         html += '  <h2>Resumen</h2>';
         html += '  <div class="page-header-actions">';
+        html += '    <button class="btn btn-secondary" data-action="explain-credits">¿Cómo funcionan los créditos?</button>';
         html += '    <button class="btn btn-primary" data-action="add-user">+ Agregar Usuario</button>';
         html += '  </div>';
         html += '</div>';
@@ -1257,6 +1258,100 @@
     return limits;
   }
 
+  function openCreditsExplainerModal() {
+    var team = state.team || {};
+    var cw = team.credit_weights || { opus: 10, sonnet: 3, haiku: 1 };
+    var opusCost = cw.opus || 10;
+    var sonnetCost = cw.sonnet || 3;
+    var haikuCost = cw.haiku || 1;
+
+    // Example budget for the math walkthrough
+    var exampleBudget = 100;
+    var opusOnly = Math.floor(exampleBudget / opusCost);
+    var sonnetOnly = Math.floor(exampleBudget / sonnetCost);
+    var haikuOnly = Math.floor(exampleBudget / haikuCost);
+
+    var html = '';
+    html += '<div class="modal-header"><h3>¿Cómo funcionan los créditos?</h3><button class="modal-close" data-action="close-modal">&times;</button></div>';
+    html += '<div class="modal-body credits-explainer">';
+
+    // Section 1 — Why credits
+    html += '<section class="explainer-section">';
+    html += '<h4>1. ¿Por qué un presupuesto de créditos?</h4>';
+    html += '<p>Los modelos de Claude no cuestan lo mismo. Opus consume mucha más capacidad de la suscripción que Haiku. ';
+    html += 'Si cada usuario solo tuviera un cap de "X prompts al día", uno podría tirar 50 prompts de Opus y consumir lo equivalente a 500 de Haiku.</p>';
+    html += '<p>El sistema de créditos resuelve eso: <strong>un único presupuesto que el usuario gasta como quiera</strong>, ';
+    html += 'pero cada modelo cuesta distinta cantidad de créditos por prompt.</p>';
+    html += '</section>';
+
+    // Section 2 — Cost table
+    html += '<section class="explainer-section">';
+    html += '<h4>2. Costo por modelo (configuración actual)</h4>';
+    html += '<table class="explainer-table">';
+    html += '<thead><tr><th>Modelo</th><th>Créditos por prompt</th><th>Por qué</th></tr></thead>';
+    html += '<tbody>';
+    html += '<tr><td><strong>Opus</strong></td><td>' + opusCost + '</td><td>Modelo más caro y potente</td></tr>';
+    html += '<tr><td><strong>Sonnet</strong></td><td>' + sonnetCost + '</td><td>Balance costo / capacidad</td></tr>';
+    html += '<tr><td><strong>Haiku</strong></td><td>' + haikuCost + '</td><td>Modelo más liviano y económico</td></tr>';
+    html += '</tbody></table>';
+    html += '<p class="form-hint">Los pesos son configurables. Cambialos en <strong>Configuración → Pesos de Créditos</strong> si tu suscripción tiene proporciones distintas.</p>';
+    html += '</section>';
+
+    // Section 3 — Math example
+    html += '<section class="explainer-section">';
+    html += '<h4>3. Ejemplo con presupuesto de ' + exampleBudget + ' créditos diarios</h4>';
+    html += '<p>Con un usuario que tenga <strong>' + exampleBudget + ' créditos/día</strong>, puede elegir cómo gastarlos:</p>';
+    html += '<div class="explainer-examples">';
+    html += '<div class="explainer-example"><div class="explainer-example-num">' + opusOnly + '</div><div class="explainer-example-label">prompts solo Opus</div><div class="explainer-example-calc">' + opusOnly + ' × ' + opusCost + ' = ' + (opusOnly * opusCost) + ' créditos</div></div>';
+    html += '<div class="explainer-example"><div class="explainer-example-num">' + sonnetOnly + '</div><div class="explainer-example-label">prompts solo Sonnet</div><div class="explainer-example-calc">' + sonnetOnly + ' × ' + sonnetCost + ' = ' + (sonnetOnly * sonnetCost) + ' créditos</div></div>';
+    html += '<div class="explainer-example"><div class="explainer-example-num">' + haikuOnly + '</div><div class="explainer-example-label">prompts solo Haiku</div><div class="explainer-example-calc">' + haikuOnly + ' × ' + haikuCost + ' = ' + (haikuOnly * haikuCost) + ' créditos</div></div>';
+    html += '</div>';
+    html += '<p>O cualquier combinación. Por ejemplo: <code>5 Opus + 10 Sonnet + 20 Haiku = ' + (5*opusCost + 10*sonnetCost + 20*haikuCost) + ' créditos</code>.</p>';
+    html += '</section>';
+
+    // Section 4 — When does it reset
+    html += '<section class="explainer-section">';
+    html += '<h4>4. ¿Cuándo se resetea el presupuesto?</h4>';
+    html += '<p>Depende de la ventana configurada para cada usuario:</p>';
+    html += '<ul class="explainer-list">';
+    html += '<li><strong>Diaria (<code>daily</code>):</strong> a medianoche local del usuario.</li>';
+    html += '<li><strong>Semanal (<code>weekly</code>):</strong> lunes a medianoche.</li>';
+    html += '<li><strong>Mensual (<code>monthly</code>):</strong> el 1 del mes.</li>';
+    html += '<li><strong>Rodante (<code>sliding_24h</code>):</strong> ventana móvil de 24 horas — no hay "truco de medianoche".</li>';
+    html += '</ul>';
+    html += '</section>';
+
+    // Section 5 — Interaction with per-model caps
+    html += '<section class="explainer-section">';
+    html += '<h4>5. ¿Y los límites por modelo?</h4>';
+    html += '<p>Los créditos no reemplazan los caps por modelo — los <strong>complementan</strong>. ';
+    html += 'Un usuario puede tener:</p>';
+    html += '<ul class="explainer-list">';
+    html += '<li>Cap duro: <code>Opus: 3/día</code> (no más que esto pase lo que pase)</li>';
+    html += '<li>Y además: <code>100 créditos/día</code> compartidos entre los 3 modelos</li>';
+    html += '</ul>';
+    html += '<p>El primer límite que se viole, gana. Si quedan créditos pero ya usó 3 Opus → no puede tirar más Opus, pero sí Sonnet o Haiku.</p>';
+    html += '</section>';
+
+    // Section 6 — How it's enforced
+    html += '<section class="explainer-section">';
+    html += '<h4>6. ¿Cómo se cobra cada prompt?</h4>';
+    html += '<p>Cada vez que un usuario manda un prompt en Claude Code:</p>';
+    html += '<ol class="explainer-list">';
+    html += '<li>El hook detecta qué modelo está activo (Opus, Sonnet o Haiku).</li>';
+    html += '<li>Le pregunta al servidor: <em>¿queda presupuesto y cap suficiente?</em></li>';
+    html += '<li>Si sí, Claude responde normal. Al terminar el turno, se descuenta el costo del modelo.</li>';
+    html += '<li>Si no, el prompt se bloquea con un mensaje explicando qué límite se alcanzó.</li>';
+    html += '</ol>';
+    html += '<p class="form-hint">Se cuenta por <strong>turno</strong> (prompt del usuario), no por cada tool call interna. Un prompt que dispare 20 lecturas de archivo sigue costando lo del modelo, una sola vez.</p>';
+    html += '</section>';
+
+    html += '</div>';
+    html += '<div class="modal-footer"><button class="btn btn-primary" data-action="close-modal">Entendido</button></div>';
+
+    openModal(html);
+  }
+
   function buildUnixInstallCmd(code, serverUrl) {
     return 'sudo node packages/cli/src/installer.js setup \\\n  --code ' + code + ' \\\n  --server ' + serverUrl;
   }
@@ -1759,6 +1854,10 @@
 
         case 'add-user':
           openAddUserModal();
+          break;
+
+        case 'explain-credits':
+          openCreditsExplainerModal();
           break;
 
         case 'submit-add-user':
