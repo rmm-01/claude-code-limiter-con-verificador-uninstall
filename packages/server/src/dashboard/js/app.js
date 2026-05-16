@@ -1257,6 +1257,93 @@
     return limits;
   }
 
+  function buildUnixInstallCmd(code, serverUrl) {
+    return 'sudo node packages/cli/src/installer.js setup \\\n  --code ' + code + ' \\\n  --server ' + serverUrl;
+  }
+
+  function buildWindowsInstallCmd(code, serverUrl) {
+    return 'node packages\\cli\\src\\installer.js setup `\n  --code ' + code + ' `\n  --server ' + serverUrl;
+  }
+
+  function openInstallCommandModal(userName, installCode, dashboardUrl, savedServerUrl) {
+    var placeholder = 'TU-SERVIDOR-AQUI';
+    var initialUrl = savedServerUrl || '';
+    var effectiveUrl = initialUrl || placeholder;
+
+    var unixCmd = buildUnixInstallCmd(installCode, effectiveUrl);
+    var winCmd = buildWindowsInstallCmd(installCode, effectiveUrl);
+
+    var html = '';
+    html += '<div class="modal-header"><h3>Comando de Instalación — ' + escapeHtml(userName) + '</h3><button class="modal-close" data-action="close-modal">&times;</button></div>';
+    html += '<div class="modal-body">';
+
+    // Info panel
+    html += '<div class="install-info-panel">';
+    html += '<div class="install-info-title">¿Qué pongo en <code>TU-SERVIDOR-AQUI</code>?</div>';
+    html += '<div class="install-info-body">';
+    html += 'Reemplazá <code>TU-SERVIDOR-AQUI</code> por la URL que la máquina del usuario use para llegar a este servidor:';
+    html += '<ul class="install-info-list">';
+    html += '<li><strong>LAN local:</strong> <code>http://192.168.1.210:3000</code></li>';
+    html += '<li><strong>VPS público:</strong> <code>https://limiter.tudominio.com</code></li>';
+    html += '<li><strong>VirtualBox host-only:</strong> <code>http://192.168.56.1:3000</code></li>';
+    html += '</ul>';
+    html += '<div class="install-info-current">Dashboard actual: <code>' + escapeHtml(dashboardUrl) + '</code></div>';
+    html += '</div></div>';
+
+    // URL input
+    html += '<div class="form-group install-url-group">';
+    html += '<label for="invite-server-url">URL del servidor para esta invitación (opcional)</label>';
+    html += '<input type="text" id="invite-server-url" placeholder="http://192.168.1.210:3000" value="' + escapeHtml(initialUrl) + '">';
+    html += '<p class="form-hint">Si la dejás vacía, los comandos mostrarán <code>TU-SERVIDOR-AQUI</code>. Se recuerda para próximas invitaciones.</p>';
+    html += '</div>';
+
+    // Linux / macOS command
+    html += '<div class="install-os-block">';
+    html += '<div class="install-os-header"><span class="install-os-label">Linux / macOS</span>';
+    html += '<button class="btn btn-sm btn-primary" data-action="copy-install" data-target="cmd-unix">Copiar</button>';
+    html += '</div>';
+    html += '<pre class="install-cmd" id="cmd-unix">' + escapeHtml(unixCmd) + '</pre>';
+    html += '</div>';
+
+    // Windows command
+    html += '<div class="install-os-block">';
+    html += '<div class="install-os-header"><span class="install-os-label">Windows (PowerShell como Administrador)</span>';
+    html += '<button class="btn btn-sm btn-primary" data-action="copy-install" data-target="cmd-win">Copiar</button>';
+    html += '</div>';
+    html += '<pre class="install-cmd" id="cmd-win">' + escapeHtml(winCmd) + '</pre>';
+    html += '</div>';
+
+    // Code-only field
+    html += '<div class="install-os-block">';
+    html += '<div class="install-os-header"><span class="install-os-label">Código de instalación (por si falla copiar)</span>';
+    html += '<button class="btn btn-sm btn-secondary" data-action="copy-install" data-target="cmd-code">Copiar</button>';
+    html += '</div>';
+    html += '<pre class="install-cmd install-cmd-code" id="cmd-code">' + escapeHtml(installCode) + '</pre>';
+    html += '</div>';
+
+    html += '<p class="form-hint mt-2">⚠️ Este código solo puede usarse una vez. Generá uno nuevo desde el detalle del usuario si es necesario.</p>';
+    html += '</div>';
+    html += '<div class="modal-footer"><button class="btn btn-primary" data-action="close-modal">Listo</button></div>';
+
+    openModal(html);
+
+    // Wire up live command rebuild + localStorage persistence
+    var urlInput = document.getElementById('invite-server-url');
+    if (urlInput) {
+      urlInput.addEventListener('input', function () {
+        var val = urlInput.value.trim();
+        var url = val || placeholder;
+        var unix = buildUnixInstallCmd(installCode, url);
+        var win = buildWindowsInstallCmd(installCode, url);
+        var unixEl = document.getElementById('cmd-unix');
+        var winEl = document.getElementById('cmd-win');
+        if (unixEl) unixEl.textContent = unix;
+        if (winEl) winEl.textContent = win;
+        try { localStorage.setItem('limiter_invite_server_url', val); } catch (e) {}
+      });
+    }
+  }
+
   function submitAddUser() {
     var name = (document.getElementById('new-user-name').value || '').trim();
     var slug = (document.getElementById('new-user-slug').value || '').trim();
@@ -1274,22 +1361,11 @@
 
         // Show install command modal
         var installCode = result.install_code;
-        var serverUrl = location.protocol + '//' + location.host;
-        var installCmd = 'sudo npx @howincodes/claude-code-limiter setup --code ' + installCode + ' --server ' + serverUrl;
+        var dashboardUrl = location.protocol + '//' + location.host;
+        var savedServerUrl = '';
+        try { savedServerUrl = localStorage.getItem('limiter_invite_server_url') || ''; } catch (e) {}
 
-        var installHtml = '';
-        installHtml += '<div class="modal-header"><h3>Comando de Instalación</h3><button class="modal-close" data-action="close-modal">&times;</button></div>';
-        installHtml += '<div class="modal-body">';
-        installHtml += '<p class="mb-2">Ejecuta este comando en la máquina de <strong>' + escapeHtml(name) + '</strong> para configurar el limitador:</p>';
-        installHtml += '<div class="install-box">';
-        installHtml += '<code>' + escapeHtml(installCmd) + '</code>';
-        installHtml += '<button class="btn btn-sm btn-primary" data-action="copy-install" data-command="' + escapeHtml(installCmd) + '">Copiar</button>';
-        installHtml += '</div>';
-        installHtml += '<p class="form-hint mt-2">Este código solo puede usarse una vez. Genera uno nuevo desde el detalle del usuario si es necesario.</p>';
-        installHtml += '</div>';
-        installHtml += '<div class="modal-footer"><button class="btn btn-primary" data-action="close-modal">Listo</button></div>';
-
-        openModal(installHtml);
+        openInstallCommandModal(name, installCode, dashboardUrl, savedServerUrl);
 
         // Refresh overview
         var route = getRoute();
@@ -1725,8 +1801,13 @@
           break;
 
         case 'copy-install':
-          var cmd = target.getAttribute('data-command');
-          if (cmd) copyToClipboard(cmd);
+          var directCmd = target.getAttribute('data-command');
+          if (directCmd) { copyToClipboard(directCmd); break; }
+          var targetId = target.getAttribute('data-target');
+          if (targetId) {
+            var el = document.getElementById(targetId);
+            if (el) copyToClipboard(el.textContent);
+          }
           break;
 
         case 'save-team-name':

@@ -498,6 +498,25 @@ table td strong { color: var(--text-primary); font-weight: 500; }
 .limit-value { font-family: var(--font-mono); font-weight: 500; color: var(--text-primary); }
 .install-box { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem; }
 .install-box code { flex: 1; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-green); word-break: break-all; }
+
+.install-info-panel { background: var(--bg-tertiary); border-left: 3px solid var(--accent-blue); border-radius: var(--radius-sm); padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+.install-info-title { font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem; font-size: 0.95rem; }
+.install-info-title code { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-blue); background: rgba(0,0,0,0.2); padding: 0.1rem 0.35rem; border-radius: 3px; }
+.install-info-body { color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5; }
+.install-info-body code { font-family: var(--font-mono); font-size: 0.82rem; color: var(--accent-green); background: rgba(0,0,0,0.2); padding: 0.05rem 0.35rem; border-radius: 3px; }
+.install-info-list { margin: 0.5rem 0 0.5rem 1.25rem; padding: 0; }
+.install-info-list li { margin: 0.25rem 0; }
+.install-info-current { margin-top: 0.6rem; font-size: 0.82rem; color: var(--text-secondary); opacity: 0.85; }
+
+.install-url-group { margin-bottom: 1.5rem; }
+.install-url-group input { width: 100%; padding: 0.6rem 0.85rem; background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.9rem; }
+.install-url-group input:focus { outline: none; border-color: var(--accent-blue); }
+
+.install-os-block { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.75rem 1rem 1rem; margin-bottom: 1rem; }
+.install-os-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; gap: 1rem; }
+.install-os-label { font-weight: 600; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+.install-cmd { font-family: var(--font-mono); font-size: 0.82rem; color: var(--accent-green); background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.75rem 1rem; margin: 0; white-space: pre-wrap; word-break: break-all; overflow-x: auto; }
+.install-cmd-code { color: var(--accent-blue); font-size: 0.95rem; text-align: center; letter-spacing: 0.05em; }
 .settings-section { margin-bottom: 2.5rem; }
 .settings-section h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1.25rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
 .weight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
