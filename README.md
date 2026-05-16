@@ -32,7 +32,7 @@ Estás pagando **$100/mes** por Claude Code Max. Tres desarrolladores comparten 
 
 Entonces alguien descubre Opus y manda 50 prompts en una hora. La suscripción entera queda rate-limited hasta el otro día. El resto no puede usar nada.
 
-Claude Code **no tiene controles de uso integrados**. No hay límites por usuario, ni cuotas, ni visibilidad de quién consume qué. Estás a ciegas y pagás la cuenta.
+Claude Code **no tiene controles de uso integrados**. No hay límites por usuario, ni cuotas, ni visibilidad de quién consume qué. Estás a ciegas y pagas la cuenta.
 
 ## :bulb: La solución
 
@@ -43,7 +43,7 @@ Claude Code **no tiene controles de uso integrados**. No hay límites por usuari
 - **Dashboard en tiempo real** — ver quién está usando qué, en vivo
 - **Kill switch** — revocar acceso al instante y forzar logout remoto
 
-Funciona instalando un hook a nivel de sistema en cada máquina. El hook consulta los límites en cada prompt contra un servidor que vos hosteás. El usuario no puede bypasearlo sin la contraseña de admin/root de la máquina.
+Funciona instalando un hook a nivel de sistema en cada máquina. El hook consulta los límites en cada prompt contra un servidor que hosteas. El usuario no puede bypasearlo sin la contraseña de admin/root de la máquina.
 
 ```
 ┌───────────────────────────────────────────────────────┐
@@ -103,7 +103,7 @@ ADMIN_PASSWORD=secret node bin/server.js
 # Servidor accesible en http://192.168.x.x:3000 — alcanzable desde toda la red
 ```
 
-> **Importante:** cada máquina de usuario debe poder conectarse al servidor. `localhost` solo sirve en la misma máquina. Usá una URL pública, IP de VPS, o IP de red local.
+> **Importante:** cada máquina de usuario debe poder conectarse al servidor. `localhost` solo sirve en la misma máquina. Usa una URL pública, IP de VPS, o IP de red local.
 
 ### 2. Agregar usuarios en el dashboard
 
@@ -344,7 +344,7 @@ limiter.tudominio.com {
 
 ### Modo LAN (sin dominio)
 
-Corré Docker en cualquier máquina de tu red local. Apuntá a los usuarios a `http://192.168.1.x:3000`. No hace falta HTTPS para redes internas. El timeout de 3 segundos del hook maneja gracefully cortes de Wi-Fi cayendo a caché local.
+Corre Docker en cualquier máquina de tu red local. Apunta a los usuarios a `http://192.168.1.x:3000`. No hace falta HTTPS para redes internas. El timeout de 3 segundos del hook maneja gracefully cortes de Wi-Fi cayendo a caché local.
 
 ---
 
