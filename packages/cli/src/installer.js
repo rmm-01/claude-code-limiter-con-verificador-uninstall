@@ -578,6 +578,16 @@ async function setup(flags) {
   info("Installing...");
   log("");
 
+  // Stop anything that could be holding handles to the files we're about to
+  // overwrite: the old watchdog task (runs as SYSTEM every 5 min) and any
+  // running Claude Code session (has hook.js loaded as a require()'d module
+  // on Windows). Errors are ignored — these may not exist on a fresh install.
+  if (IS_WIN) {
+    info("Closing running Claude Code sessions and old watchdog...");
+    try { execSync('schtasks /delete /tn "ClaudeLimiterWatchdog" /f', { stdio: "ignore" }); } catch {}
+    try { execSync('taskkill /F /IM claude.exe', { stdio: "ignore" }); } catch {}
+  }
+
   // Reclaim ownership/ACLs from any prior failed install before touching files.
   // Without this, a previous setup that crashed after /inheritance:r could
   // have left these paths with an empty DACL, blocking even Administrators.
