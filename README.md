@@ -1,55 +1,55 @@
 <p align="center">
   <h1 align="center">claude-code-limiter</h1>
   <p align="center">
-    Share one Claude Code subscription across your team — with enforced per-user quotas, credit budgets, and a kill switch.
+    Comparte una sola suscripción de Claude Code entre tu equipo — con cuotas por usuario, presupuesto de créditos y kill switch.
   </p>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@howincodes/claude-code-limiter"><img src="https://img.shields.io/npm/v/@howincodes/claude-code-limiter?color=blue&label=npm" alt="npm version"></a>
+  <a href="https://github.com/rmm-01/claude-code-limiter-con-verificador-uninstall"><img src="https://img.shields.io/badge/repo-rmm--01-blue" alt="repo"></a>
   <a href="https://github.com/howincodes/claude-code-limiter/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
-  <a href="https://ghcr.io/howincodes/claude-code-limiter"><img src="https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker" alt="Docker"></a>
 </p>
 
 <p align="center">
-  <b>One subscription. Multiple users. Fair usage for everyone.</b>
+  <b>Una suscripción. Varios usuarios. Uso justo para todos.</b>
 </p>
 
-> **Early Beta** — This project is actively under development. Things may break, APIs may change. If you run into issues, please [open an issue](https://github.com/howincodes/claude-code-limiter/issues) — we're building this in the open and would love to fix it together.
+> **Fork**
+> Este repositorio es un fork de [howincodes/claude-code-limiter](https://github.com/howincodes/claude-code-limiter) con dos cambios principales sobre el upstream:
+>
+> 1. **Verificador de desinstalación** — el cliente no puede desinstalar el limiter sin que el admin haya habilitado el toggle `Allow self-uninstall` en el dashboard. La autorización se valida contra el servidor antes de borrar archivos.
+> 2. **Bypass por cuenta personal** — si el usuario cambia su sesión de Claude Code a otra cuenta de Anthropic distinta a la registrada durante el setup, el hook pasa de largo (no cuenta ni bloquea). Los límites solo aplican a la cuenta con la que se registró el equipo.
+>
+> Además incluye varios fixes específicos para Windows (ACLs, watchdog, reinstalación sobre instalación previa). Ver `git log` para detalles.
 
-<p align="center">
-  <img src=".github/dashboard-demo.png" alt="Dashboard — real-time usage monitoring with live feed" width="700">
-</p>
-<p align="center">
-  <img src=".github/block-message.png" alt="What users see when rate limited" width="500">
-</p>
+> **Beta temprana** — Proyecto en desarrollo activo. Las cosas pueden romperse, las APIs pueden cambiar. Si encontrás un problema, [abrí un issue](https://github.com/rmm-01/claude-code-limiter-con-verificador-uninstall/issues).
 
 ---
 
-## :fire: The Problem
+## :fire: El problema
 
-You're paying **$100/month** for Claude Code Max. Three developers on your team share it. Maybe an intern too.
+Estás pagando **$100/mes** por Claude Code Max. Tres desarrolladores comparten la cuenta. Quizá también un becario.
 
-Then someone discovers Opus and sends 50 prompts in an hour. Now the entire subscription is rate-limited for the rest of the day. Everyone else gets nothing.
+Entonces alguien descubre Opus y manda 50 prompts en una hora. La suscripción entera queda rate-limited hasta el otro día. El resto no puede usar nada.
 
-Claude Code has **zero built-in usage controls**. No per-user limits. No quotas. No visibility into who's using what. You're flying blind, and you're paying the bill.
+Claude Code **no tiene controles de uso integrados**. No hay límites por usuario, ni cuotas, ni visibilidad de quién consume qué. Estás a ciegas y pagás la cuenta.
 
-## :bulb: The Solution
+## :bulb: La solución
 
-**claude-code-limiter** gives you a complete usage control layer for shared Claude Code subscriptions:
+**claude-code-limiter** agrega una capa completa de control sobre suscripciones compartidas de Claude Code:
 
-- **Per-user quotas** — each person gets their own daily/weekly/monthly limits
-- **Credit budgets** — one budget across all models; users decide how to spend it
-- **Real-time dashboard** — see who's using what, right now
-- **Kill switch** — instantly revoke access and force logout, remotely
+- **Cuotas por usuario** — cada persona tiene su propio límite diario/semanal/mensual
+- **Presupuesto de créditos** — un único presupuesto entre todos los modelos; el usuario decide cómo gastarlo
+- **Dashboard en tiempo real** — ver quién está usando qué, en vivo
+- **Kill switch** — revocar acceso al instante y forzar logout remoto
 
-It works by installing a system-level hook on each user's machine that checks limits on every prompt. The hook talks to a lightweight server you self-host. Users can't bypass it without the machine's root password.
+Funciona instalando un hook a nivel de sistema en cada máquina. El hook consulta los límites en cada prompt contra un servidor que vos hosteás. El usuario no puede bypasearlo sin la contraseña de admin/root de la máquina.
 
 ```
 ┌───────────────────────────────────────────────────────┐
-│              Your Server (Docker / Cloud)             │
+│              Tu servidor (Docker / Cloud)             │
 │  ┌────────-─┐  ┌──────────┐  ┌─────────────────────┐  │
-│  │ REST API │  │  SQLite  │  │    Web Dashboard    │  │
+│  │ REST API │  │  SQLite  │  │   Dashboard Web     │  │
 │  └────┬─────┘  └────┬─────┘  └──────────┬──────────┘  │
 │       └─────────────┴───────────────────┘             │
 └────────────┬─────────────┬──────────────┬─────────────┘
@@ -57,73 +57,83 @@ It works by installing a system-level hook on each user's machine that checks li
         ┌────┘       ┌─────┘       ┌──────┘
         ▼            ▼             ▼
    ┌──────────┐ ┌─────────┐ ┌────────────┐
-   │  Dev A's │ │  Dev B's│ │  Your      │
-   │  MacBook │ │  Laptop │ │  Browser   │
+   │ MacBook  │ │ Laptop  │ │  Tu        │
+   │ Dev A    │ │ Dev B   │ │  navegador │
    │          │ │         │ │ (Dashboard)│
    │ hook.js  │ │ hook.js │ └────────────┘
    │    ↕     │ │    ↕    │
+   │  caché   │ │  caché  │
    │  local   │ │  local  │
-   │  cache   │ │  cache  │
    └──────────┘ └─────────┘ 
 ```
 
-Hooks check local cache first (zero latency), sync with the server in the background, and fail-closed if anything is missing. Deleting local files doesn't reset counts — the server is the source of truth.
+Los hooks consultan la caché local primero (latencia cero), sincronizan con el servidor en segundo plano, y **fail-closed** si falta algo. Borrar archivos locales no resetea contadores — el servidor es la única fuente de verdad.
 
 ---
 
-## :rocket: Quick Start
+## :rocket: Inicio rápido
 
-### 1. Deploy the server
+### 1. Desplegar el servidor
 
-The server must be reachable from every user's machine. Deploy it anywhere with a public URL.
+El servidor debe ser alcanzable desde cada máquina de usuario. Desplegalo en cualquier lugar con URL pública o IP de red local.
 
-**Option A: Docker on a VPS**
+**Opción A: Docker en VPS**
 ```bash
+docker build -t claude-limiter-local packages/server
 docker run -d \
   --name claude-limiter \
   -p 3000:3000 \
   -v claude-limiter-data:/data \
-  -e ADMIN_PASSWORD=your-secure-password \
-  ghcr.io/howincodes/claude-code-limiter:latest
+  -e ADMIN_PASSWORD=tu-password-seguro \
+  claude-limiter-local
 ```
 
-**Option B: Docker Compose with auto-HTTPS**
+**Opción B: Docker Compose con HTTPS automático**
 ```bash
 cd packages/server
-DOMAIN=limiter.yourdomain.com ADMIN_PASSWORD=secret docker compose up -d
+DOMAIN=limiter.tudominio.com ADMIN_PASSWORD=secret docker compose up -d
 ```
-Caddy handles SSL certificates automatically.
+Caddy maneja los certificados SSL automáticamente.
 
-**Option C: Office/home network**
+**Opción C: Red local / oficina**
 ```bash
-# Run on any machine on your network
-ADMIN_PASSWORD=secret npx @howincodes/claude-code-limiter-server
-# Server is at http://192.168.x.x:3000 — reachable by all machines on the same network
+cd packages/server
+npm install
+ADMIN_PASSWORD=secret node bin/server.js
+# Servidor accesible en http://192.168.x.x:3000 — alcanzable desde toda la red
 ```
 
-> **Important:** Every user's machine needs to reach the server URL. `localhost` only works on your own machine. Use a public URL, VPS IP, or local network IP.
+> **Importante:** cada máquina de usuario debe poder conectarse al servidor. `localhost` solo sirve en la misma máquina. Usá una URL pública, IP de VPS, o IP de red local.
 
-### 2. Add users in the dashboard
+### 2. Agregar usuarios en el dashboard
 
-Open your server URL (e.g. `https://limiter.yourdomain.com/dashboard`) and log in with your admin password.
+Abrí la URL del servidor (ej. `https://limiter.tudominio.com/dashboard`) y entrá con tu contraseña de admin.
 
-Click **Add User** → set their name, limits, and credit budget → copy the install code.
+Click en **Add User** → nombre, límites, presupuesto de créditos → copiá el código de instalación.
 
-### 3. Install on each user's machine
+### 3. Instalar en cada máquina
 
+**Linux / macOS:**
 ```bash
-sudo npx @howincodes/claude-code-limiter setup \
+sudo node packages/cli/src/installer.js setup \
   --code CLM-alice-a8f3e2 \
-  --server https://limiter.yourdomain.com
+  --server https://limiter.tudominio.com
 ```
 
-Restart Claude Code. That's it. The user is now rate-limited.
+**Windows (PowerShell como Administrador):**
+```powershell
+node packages\cli\src\installer.js setup `
+  --code CLM-alice-a8f3e2 `
+  --server https://limiter.tudominio.com
+```
+
+Reiniciar Claude Code. Listo. El usuario queda limitado.
 
 ---
 
-## :no_entry: What Users See When Blocked
+## :no_entry: Qué ve el usuario al ser bloqueado
 
-When a user hits their limit, the next prompt is blocked with a clear message:
+Cuando un usuario alcanza su límite, el próximo prompt se bloquea con un mensaje claro:
 
 ```
 Daily sonnet limit reached for Alice.
@@ -141,14 +151,14 @@ Options:
   Try again later
 ```
 
-When an admin kills access remotely:
+Cuando el admin revoca acceso remotamente:
 
 ```
 Your Claude Code access has been revoked by the admin.
 Contact your admin to restore access.
 ```
 
-When a model is outside its allowed time window:
+Cuando se intenta usar un modelo fuera de su ventana horaria:
 
 ```
 Opus is only available 9:00 AM - 6:00 PM (America/New_York).
@@ -157,111 +167,104 @@ Current time: 8:15 PM. Try sonnet or haiku instead.
 
 ---
 
-## :sparkles: Features
+## :sparkles: Funcionalidades
 
-### Limit Types
+### Tipos de límite
 
-| Type | Example | Description |
+| Tipo | Ejemplo | Descripción |
 |------|---------|-------------|
-| **Per-model caps** | `opus: 5/day, sonnet: 20/day` | Hard limit per model per time window |
-| **Credit budgets** | `100 credits/day` | One budget across all models — opus costs 10, sonnet costs 3, haiku costs 1 |
-| **Time-of-day rules** | `opus: 9am–6pm only` | Restrict expensive models to business hours |
+| **Cap por modelo** | `opus: 5/día, sonnet: 20/día` | Tope duro por modelo y ventana de tiempo |
+| **Presupuesto de créditos** | `100 créditos/día` | Un único presupuesto entre todos los modelos — opus cuesta 10, sonnet 3, haiku 1 |
+| **Horario por modelo** | `opus: 9am–6pm` | Restringir modelos caros al horario laboral |
 
-### Window Types
+### Tipos de ventana
 
-| Window | Behavior |
-|--------|----------|
-| `daily` | Resets at midnight local time |
-| `weekly` | Resets Monday midnight |
-| `monthly` | Resets 1st of month |
-| `sliding_24h` | Rolling 24-hour window — no midnight gaming |
+| Ventana | Comportamiento |
+|---------|----------------|
+| `daily` | Resetea a medianoche local |
+| `weekly` | Resetea el lunes a medianoche |
+| `monthly` | Resetea el 1 del mes |
+| `sliding_24h` | Ventana rodante de 24h — sin trucos a medianoche |
 
-### Credit Weights (configurable)
+### Pesos de créditos (configurables)
 
-| Model | Default Cost |
-|-------|-------------|
-| Opus | 10 credits |
-| Sonnet | 3 credits |
-| Haiku | 1 credit |
+| Modelo | Costo por defecto |
+|--------|-------------------|
+| Opus | 10 créditos |
+| Sonnet | 3 créditos |
+| Haiku | 1 crédito |
 
-With a **100 credit/day** budget, a user can do: **10 Opus** prompts, **or 33 Sonnet**, **or 100 Haiku**, or any mix.
+Con un presupuesto de **100 créditos/día**, un usuario puede hacer: **10 Opus**, **o 33 Sonnet**, **o 100 Haiku**, o cualquier mezcla.
 
-### Admin Controls
+### Controles de admin
 
-- :bar_chart: **Real-time dashboard** — live usage bars, per-user breakdowns, event feed via WebSocket
-- :zap: **Kill switch** — instantly revoke access + force `claude auth logout` on the user's machine
-- :pause_button: **Pause/resume** — temporarily suspend a user without revoking
-- :gear: **Live config push** — change limits on the server; users pick them up on next prompt (no reinstall)
-
----
-
-## :bar_chart: Dashboard
-
-> **Screenshot placeholder:** The dashboard shows an overview page with all users listed in cards. Each card has the user's name, a colored status badge (active/paused/killed), per-model usage progress bars, credit balance, and last active timestamp. A live event feed on the right shows recent prompts in real time via WebSocket. The user detail page shows monthly trend charts, active limit rules, time-of-day schedules, and machine info (hostname, platform).
-
-<!-- TODO: Replace with actual screenshot -->
-<!-- ![Dashboard Screenshot](docs/images/dashboard.png) -->
+- :bar_chart: **Dashboard en tiempo real** — barras de uso en vivo, desglose por usuario, feed de eventos por WebSocket
+- :zap: **Kill switch** — revoca acceso al instante + fuerza `claude auth logout` en la máquina del usuario
+- :pause_button: **Pausar / reanudar** — suspender temporalmente sin revocar
+- :gear: **Push de configuración en vivo** — cambia límites en el servidor; los usuarios los reciben en el próximo prompt (sin reinstalar)
+- :shield: **Verificador de desinstalación** (fork) — el usuario no puede desinstalar el limiter sin que el admin habilite el toggle en User Detail
+- :bust_in_silhouette: **Bypass por cuenta personal** (fork) — si el usuario cambia a otra cuenta de Anthropic distinta a la registrada, los límites no aplican
 
 ---
 
-## :gear: How It Works
+## :gear: Cómo funciona
 
-Every Claude Code prompt passes through four hook events:
+Cada prompt de Claude Code pasa por cuatro eventos de hook:
 
 ```
-User types a prompt
+Usuario escribe un prompt
         │
         ▼
 ┌─ SessionStart ───────────────────────────────────┐
-│  Captures active model (opus/sonnet/haiku)       │
-│  Syncs config + limits from server               │
+│  Captura modelo activo (opus/sonnet/haiku)       │
+│  Sincroniza config + límites desde servidor      │
 └──────────────────────────────────────────────────┘
         │
         ▼
-┌─ UserPromptSubmit (THE GATE) ────────────────────┐
-│  Calls server /check → "Is this prompt allowed?" │
-│  Server checks: status → time rules →            │
-│    per-model caps → credit budget                │
-│  If denied → blocks with usage summary           │
-│  If server down → falls back to local cache      │
+┌─ UserPromptSubmit (LA COMPUERTA) ────────────────┐
+│  Llama al servidor /check → ¿Permitido?          │
+│  El servidor evalúa: status → reglas horarias →  │
+│    caps por modelo → presupuesto de créditos     │
+│  Si rechaza → bloquea con resumen de uso         │
+│  Si servidor caído → cae a caché local           │
 └──────────────────────────────────────────────────┘
-        │ (allowed)
+        │ (permitido)
         ▼
-   Claude does its work
-   (tool calls pass through PreToolUse
-    for kill/pause enforcement only)
+   Claude hace su trabajo
+   (las tool calls pasan por PreToolUse
+    solo para enforcement de kill/pause)
         │
         ▼
 ┌─ Stop ──────────────────────────────────────────┐
-│  Increments usage counter (local + server)      │
-│  One count per completed turn                   │
+│  Incrementa contador de uso (local + servidor)  │
+│  Una cuenta por turno completado                │
 └─────────────────────────────────────────────────┘
 ```
 
-**Key design decisions:**
-- We count **turns** (user prompts), not individual tool calls
-- The hook has **zero npm dependencies** — uses only Node.js built-ins
-- Local-first: checks are instant, server syncs happen in the background
-- **Fail-closed**: if all limiter files are deleted, access is denied (not allowed)
+**Decisiones de diseño clave:**
+- Se cuentan **turnos** (prompts del usuario), no tool calls individuales
+- El hook tiene **cero dependencias de npm** — solo módulos built-in de Node.js
+- Local-first: las consultas son instantáneas, la sincronización con servidor es en segundo plano
+- **Fail-closed**: si se borran todos los archivos del limiter, el acceso queda denegado (no abierto)
 
 ---
 
-## :lock: Security
+## :lock: Seguridad
 
-8 layers of protection. The only way to bypass this is with the machine's root/admin password — and if someone has that, they already have access to the subscription credentials anyway.
+8 capas de protección. La única forma de bypasear esto es con la contraseña root/admin de la máquina — y si alguien la tiene, ya tiene acceso a las credenciales de la suscripción de todos modos.
 
-| # | Layer | What It Prevents |
-|---|-------|-----------------|
-| 1 | **Managed settings** | `managed-settings.json` in system directory — can't be overridden by user or project config |
-| 2 | **allowManagedHooksOnly** | Users cannot define their own hooks to bypass the limiter |
-| 3 | **OS file permissions** | Hook, config, and server files are root-owned — users can read but not modify |
-| 4 | **Watchdog daemon** | Runs every 5 min, SHA-256 integrity check, auto-restores tampered files from root-only backup |
-| 5 | **Server-side tracking** | Deleting local usage files doesn't reset counts — the server is the source of truth |
-| 6 | **Kill switch** | Instant remote lockout + forces `claude auth logout` |
-| 7 | **Per-user auth tokens** | Each user has a unique token stored in a root-owned file — prevents impersonation |
-| 8 | **Fail-closed** | Missing config = denied, not allowed. Watchdog restores files within 5 minutes |
+| # | Capa | Qué previene |
+|---|------|--------------|
+| 1 | **Managed settings** | `managed-settings.json` en directorio del sistema — no puede ser sobrescrito por config de usuario o proyecto |
+| 2 | **allowManagedHooksOnly** | Los usuarios no pueden definir sus propios hooks para bypasear el limiter |
+| 3 | **Permisos de archivo del SO** | Hook, config y archivos del servidor son root-owned — usuarios pueden leer pero no modificar |
+| 4 | **Daemon watchdog** | Corre cada 5 min, verifica integridad SHA-256, restaura archivos manipulados desde un backup root-only |
+| 5 | **Tracking server-side** | Borrar los archivos de uso locales no resetea contadores — el servidor es la fuente de verdad |
+| 6 | **Kill switch** | Bloqueo remoto instantáneo + fuerza `claude auth logout` |
+| 7 | **Tokens por usuario** | Cada usuario tiene un token único guardado en archivo root-only — previene suplantación |
+| 8 | **Fail-closed** | Config faltante = denegado, no permitido. El watchdog restaura archivos en menos de 5 min |
 
-### File Locations
+### Ubicación de archivos
 
 ```
 macOS:   /Library/Application Support/ClaudeCode/
@@ -270,46 +273,49 @@ Windows: C:\Program Files\ClaudeCode\
 
 <base>/
 ├── managed-settings.json       ← hooks + allowManagedHooksOnly
-├── .backup/                    ← root-only, watchdog restore source
+├── .backup/                    ← root-only, fuente de restauración del watchdog
 │   ├── managed-settings.json
 │   ├── hook.js
 │   ├── config.json
-│   └── checksums.json          ← SHA-256 hashes of all protected files
+│   └── checksums.json          ← hashes SHA-256 de todos los archivos protegidos
 └── limiter/
-    ├── hook.js                 ← the rate limiter (zero npm deps)
-    ├── config.json             ← cached limits + credit weights
-    ├── server.json             ← server URL + auth token
-    ├── cache.json              ← last server response (offline fallback)
-    ├── session-model.txt       ← current model
+    ├── hook.js                 ← el rate limiter (cero deps de npm)
+    ├── config.json             ← límites cacheados + pesos de créditos
+    ├── server.json             ← URL del servidor + token de auth
+    ├── cache.json              ← última respuesta del servidor (fallback offline)
+    ├── session-model.txt       ← modelo actual
     └── usage/
-        └── YYYY-MM-DD.json    ← local counters
+        └── YYYY-MM-DD.json    ← contadores locales
 ```
+
+> **Nota Windows:** los permisos en Windows son parciales (`icacls` no es tan estricto como `chmod` root). Las capas activas en Windows son: managed-settings + allowManagedHooksOnly + watchdog (tarea programada como SYSTEM cada 5 min) + tracking server-side + kill switch + fail-closed.
 
 ---
 
-## :whale: Self-Hosting
+## :whale: Self-hosting
 
-### Docker (recommended)
+### Docker (recomendado)
 
 ```bash
+docker build -t claude-limiter-local packages/server
 docker run -d \
   --name claude-limiter \
   -p 3000:3000 \
   -v claude-limiter-data:/data \
-  -e ADMIN_PASSWORD=your-secure-password \
-  ghcr.io/howincodes/claude-code-limiter:latest
+  -e ADMIN_PASSWORD=tu-password-seguro \
+  claude-limiter-local
 ```
 
-### Docker Compose with HTTPS
+### Docker Compose con HTTPS
 
 ```yaml
 # docker-compose.yml
 version: "3.8"
 services:
   limiter:
-    image: ghcr.io/howincodes/claude-code-limiter:latest
+    image: claude-limiter-local
     environment:
-      - ADMIN_PASSWORD=your-secure-password
+      - ADMIN_PASSWORD=tu-password-seguro
     volumes:
       - limiter-data:/data
 
@@ -331,42 +337,34 @@ volumes:
 
 ```
 # Caddyfile
-limiter.yourdomain.com {
+limiter.tudominio.com {
     reverse_proxy limiter:3000
 }
 ```
 
-### One-Click Cloud Deploy
+### Modo LAN (sin dominio)
 
-| Platform | Deploy |
-|----------|--------|
-| Railway  | [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/YOUR_TEMPLATE_ID) |
-| Render   | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/howincodes/claude-code-limiter) |
-| Fly.io   | `fly launch --image ghcr.io/howincodes/claude-code-limiter:latest` |
-
-### LAN Mode (no domain needed)
-
-Run Docker on any machine on your home network. Point users to `http://192.168.1.x:3000`. No HTTPS needed for local networks. The hook's 3-second timeout gracefully handles Wi-Fi blips by falling back to local cache.
+Corré Docker en cualquier máquina de tu red local. Apuntá a los usuarios a `http://192.168.1.x:3000`. No hace falta HTTPS para redes internas. El timeout de 3 segundos del hook maneja gracefully cortes de Wi-Fi cayendo a caché local.
 
 ---
 
-## :wrench: Configuration
+## :wrench: Configuración
 
-### Limit Rules
+### Reglas de límite
 
-Limits are configured per-user via the dashboard. Rules stack — the most restrictive one wins.
+Los límites se configuran por usuario vía dashboard. Las reglas se apilan — la más restrictiva gana.
 
-**Per-model cap:**
+**Cap por modelo:**
 ```json
 { "type": "per_model", "model": "opus", "window": "sliding_24h", "value": 5 }
 ```
 
-**Credit budget:**
+**Presupuesto de créditos:**
 ```json
 { "type": "credits", "window": "daily", "value": 100 }
 ```
 
-**Time-of-day restriction:**
+**Restricción horaria:**
 ```json
 {
   "type": "time_of_day",
@@ -377,44 +375,52 @@ Limits are configured per-user via the dashboard. Rules stack — the most restr
 }
 ```
 
-### Credit Weights
+### Pesos de créditos
 
-Configured per-team on the server. Defaults:
+Configurados por equipo en el servidor. Default:
 
 ```json
 { "opus": 10, "sonnet": 3, "haiku": 1 }
 ```
 
-Change these in **Dashboard → Settings** to match your usage priorities.
+Cambialos en **Dashboard → Settings** para que coincidan con tus prioridades de uso.
 
-### Evaluation Order
+### Orden de evaluación
 
-All rules are checked on every prompt. First "deny" wins:
+Todas las reglas se evalúan en cada prompt. La primera regla que niega, gana:
 
 ```
-1. Is user killed or paused?        → BLOCK
-2. Is model in allowed time window?  → if no, BLOCK
-3. Is per-model cap exceeded?        → if yes, BLOCK
-4. Is credit budget exceeded?        → if yes, BLOCK
-5. ALLOW
+1. ¿Usuario killed o paused?         → BLOQUEA
+2. ¿Modelo dentro de su horario?     → si no, BLOQUEA
+3. ¿Cap por modelo excedido?         → si sí, BLOQUEA
+4. ¿Presupuesto de créditos excedido? → si sí, BLOQUEA
+5. PERMITE
 ```
 
 ---
 
-## :computer: CLI Reference
+## :computer: Referencia de CLI
 
-### Setup (run on each user's machine)
+### Setup (correr en cada máquina de usuario)
 
+**Linux / macOS:**
 ```bash
-sudo npx @howincodes/claude-code-limiter setup --code <INSTALL_CODE> --server <SERVER_URL>
+sudo node packages/cli/src/installer.js setup --code <CÓDIGO> --server <URL>
 ```
 
-Installs the hook, managed settings, watchdog daemon, and registers with the server. Requires `sudo` because files are written to system-protected directories.
+**Windows (PowerShell Admin):**
+```powershell
+node packages\cli\src\installer.js setup --code <CÓDIGO> --server <URL>
+```
 
-### Check Status
+Instala el hook, managed settings, watchdog, y registra contra el servidor. Requiere privilegios elevados porque escribe en directorios protegidos del sistema.
+
+> **Nota fork:** el installer también limpia automáticamente cualquier instalación previa antes de escribir (cierra Claude Code, borra watchdog viejo, recupera ACLs rotas). Esto permite reinstalar sobre una instalación parcial fallida sin pasos manuales.
+
+### Estado
 
 ```bash
-npx @howincodes/claude-code-limiter status
+node packages/cli/src/installer.js status
 ```
 
 ```
@@ -425,143 +431,151 @@ npx @howincodes/claude-code-limiter status
   User:          Alice
   Date:          2026-03-24
   Active model:  sonnet
-  Server:        https://your-server:3000
+  Server:        https://tu-servidor:3000
 
   ┌────────────┬───────┬───────┬──────────────────────┬──────────┐
   │ Model      │ Used  │ Limit │ Progress             │ Left     │
   ├────────────┼───────┼───────┼──────────────────────┼──────────┤
   │ opus       │   3   │   5   │ ██████████░░░░░░░░   │    2     │
   │ sonnet     │  12   │  20   │ ██████████░░░░░░░░   │    8     │
-  │ haiku      │   0   │   ∞   │   ∞ unlimited        │    ∞     │
+  │ haiku      │   0   │   ∞   │   ∞ ilimitado        │    ∞     │
   └────────────┴───────┴───────┴──────────────────────┴──────────┘
 
-  Credits: 61/100 remaining
+  Credits: 61/100 restantes
 ```
 
-### Force Sync
+### Forzar sincronización
 
 ```bash
-sudo npx @howincodes/claude-code-limiter sync
+sudo node packages/cli/src/installer.js sync
 ```
 
-Pulls the latest config and limits from the server immediately.
+Trae la configuración y los límites actualizados del servidor de inmediato.
 
-### Uninstall
+### Desinstalar
 
 ```bash
-sudo npx @howincodes/claude-code-limiter uninstall
+sudo node packages/cli/src/installer.js uninstall
 ```
 
-Removes the hook, managed settings, watchdog daemon, and all local data. Requires `sudo`.
+> **Verificador (fork):** la desinstalación consulta primero al servidor (`/api/v1/uninstall-check`). Si el admin no habilitó `allow_self_uninstall` en el dashboard para ese usuario, la operación falla con HTTP 403. También fail-closed si el `server.json` no existe — un estado de tampering o instalación rota.
 
 ---
 
-## :question: FAQ
+## :question: Preguntas frecuentes
 
-### Can a user bypass this?
+### ¿Puede un usuario bypasear esto?
 
-Not without the machine's root/admin password. The hook runs from a system-protected directory with root-owned files. `allowManagedHooksOnly` prevents users from adding their own hooks. The watchdog daemon restores any tampered files every 5 minutes. Even if they delete everything, the hook fails closed (denies access, doesn't allow it).
+No sin la contraseña root/admin de la máquina. El hook corre desde un directorio protegido del sistema con archivos root-owned. `allowManagedHooksOnly` impide que los usuarios agreguen sus propios hooks. El watchdog restaura cualquier archivo manipulado cada 5 min. Y si borran todo, el hook fail-cloase (deniega acceso, no abre).
 
-### What if a user deletes the local usage files?
+### ¿Qué pasa si un usuario borra los archivos de uso local?
 
-Nothing happens. Usage is tracked server-side. Deleting local files just means the hook falls back to server-side counts on the next check. The watchdog also restores config files from a root-only backup.
+Nada. El uso se trackea server-side. Borrar archivos locales solo hace que el hook caiga a contadores del servidor en la próxima consulta. El watchdog además restaura los archivos de config desde el backup root-only.
 
-### Does this affect Claude.ai (the web app)?
+### ¿Afecta a Claude.ai (la app web)?
 
-No. This only controls **Claude Code** (the CLI/terminal tool). Claude.ai in the browser is completely unaffected.
+No. Esto solo controla **Claude Code** (la CLI). Claude.ai en el browser no se ve afectado.
 
-### What happens if the server goes down?
+### ¿Qué pasa si el servidor se cae?
 
-The hook falls back to locally cached limits and usage data. Limits are still enforced. When the server comes back, everything syncs up. If there's no cache at all (fresh install, server never reached), the hook denies access (fail-closed).
+El hook cae a límites y datos de uso cacheados localmente. Los límites se siguen aplicando. Cuando el servidor vuelve, todo se sincroniza. Si no hay caché (instalación fresca, servidor nunca alcanzado), el hook deniega acceso (fail-closed).
 
-### Does this count tool calls or prompts?
+### ¿Cuenta tool calls o prompts?
 
-**Prompts (turns).** A single prompt might trigger 10+ tool calls (reading files, writing code, running commands). We count the turn, not each tool call. This means one user prompt = one unit of quota, regardless of how much work Claude does.
+**Prompts (turnos).** Un solo prompt puede disparar más de 10 tool calls (leer archivos, escribir código, correr comandos). Contamos el turno, no cada tool call. Un prompt = una unidad de cuota, sin importar cuánto trabajo haga Claude.
 
-### What about auto-continue? Does that count as multiple turns?
+### ¿Qué pasa con auto-continue? ¿Cuenta como múltiples turnos?
 
-Yes. If Claude hits an output limit and auto-continues, each continuation fires a `Stop` event and counts as a separate turn. This is intentional — each turn consumes real model capacity against your subscription. Admins should set limits with this in mind.
+Sí. Si Claude alcanza un límite de output y auto-continúa, cada continuación dispara un evento `Stop` y cuenta como turno separado. Esto es intencional — cada turno consume capacidad real del modelo contra la suscripción. Los admins deberían fijar límites teniendo esto en cuenta.
 
-### Can I use this for a team at work?
+### ¿El bypass por cuenta personal cómo funciona exactamente?
 
-Absolutely. It works for any group sharing a single Claude Code subscription — families, small teams, studios. Each deployment supports one admin and multiple users.
+Durante el `setup`, el installer guarda el email de la cuenta de Claude actualmente logueada en `config.json` como `allowed_email`. En cada prompt, el hook ejecuta `claude auth status` y compara el email activo contra el guardado. Si difieren → bypass (no cuenta, no bloquea). Si coinciden o el comando falla → los límites se aplican normal (fail-safe). El email se cachea 1h para no spam comandos.
+
+### ¿Puedo usar esto para un equipo de trabajo?
+
+Sí. Funciona para cualquier grupo que comparta una sola suscripción de Claude Code — familias, equipos chicos, estudios. Cada deployment soporta un admin y múltiples usuarios.
 
 ---
 
-## :building_construction: Project Structure
+## :building_construction: Estructura del proyecto
 
 ```
-claude-code-limiter/
-├── package.json
-├── bin/
-│   ├── cli.js                  ← npx @howincodes/claude-code-limiter (client CLI)
-│   └── server.js               ← npx @howincodes/claude-code-limiter serve
-├── src/
-│   ├── hook.js                 ← standalone hook (zero npm deps)
-│   ├── installer.js            ← setup, uninstall, sync
-│   ├── server/
-│   │   ├── index.js            ← Express app
-│   │   ├── db.js               ← SQLite schema + migrations
-│   │   ├── routes/
-│   │   │   ├── hook-api.js     ← /api/v1/* (hook communication)
-│   │   │   └── admin-api.js    ← /api/admin/* (dashboard backend)
-│   │   ├── services/
-│   │   │   ├── limiter.js      ← limit evaluation engine
-│   │   │   ├── usage.js        ← tracking + aggregation
-│   │   │   └── auth.js         ← JWT (admin) + token (hook) auth
-│   │   └── ws.js               ← WebSocket live updates
-│   └── dashboard/
-│       ├── index.html
-│       ├── css/style.css
-│       └── js/app.js
-├── docker/
-│   ├── Dockerfile
-│   └── docker-compose.yml
+claude-code-limiter-con-verificador-uninstall/
+├── package.json                ← workspace raíz (monorepo)
+├── packages/
+│   ├── cli/                    ← cliente CLI (se instala en cada máquina)
+│   │   ├── bin/
+│   │   │   └── cli.js          ← entry point
+│   │   └── src/
+│   │       ├── hook.js         ← hook standalone (cero deps de npm)
+│   │       └── installer.js    ← setup, uninstall, sync, status
+│   ├── server/                 ← servidor admin (REST + WebSocket + dashboard)
+│   │   ├── bin/
+│   │   │   └── server.js
+│   │   ├── Dockerfile
+│   │   ├── docker-compose.yml
+│   │   └── src/
+│   │       ├── server/
+│   │       │   ├── index.js    ← Express app
+│   │       │   ├── db.js       ← schema SQLite + migraciones
+│   │       │   ├── ws.js       ← updates en vivo por WebSocket
+│   │       │   ├── routes/
+│   │       │   │   ├── hook-api.js   ← /api/v1/* (comunicación hook)
+│   │       │   │   └── admin-api.js  ← /api/admin/* (backend dashboard)
+│   │       │   └── services/
+│   │       │       ├── limiter.js    ← motor de evaluación de límites
+│   │       │       ├── usage.js      ← tracking + agregación
+│   │       │       └── auth.js       ← JWT (admin) + token (hook)
+│   │       └── dashboard/      ← dashboard vanilla servido por el server
+│   └── dashboard/              ← UI React+TS+Vite (versión nueva del dashboard)
 └── tests/
+    ├── api.test.js
     ├── hook.test.js
-    ├── limiter.test.js
-    └── api.test.js
+    └── limiter.test.js
 ```
 
-**Two logical components, one npm package:**
-- **Hook** (`src/hook.js`) — zero npm dependencies, uses only Node.js built-ins. Gets copied to the system directory during setup.
-- **Server** — Express.js, better-sqlite3, ws. Serves the REST API, dashboard, and WebSocket feed on a single port.
+**Tres paquetes, un monorepo:**
+- **CLI** (`packages/cli`) — installer + hook standalone. El hook tiene cero dependencias de npm (solo built-ins de Node).
+- **Server** (`packages/server`) — Express + better-sqlite3 + ws. Sirve REST API, dashboard y WebSocket en un solo puerto.
+- **Dashboard** (`packages/dashboard`) — UI moderna React + Vite (en desarrollo, aún no reemplaza al dashboard vanilla del server).
 
 ---
 
-## :handshake: Contributing
+## :handshake: Contribuir
 
-PRs welcome! This project is open source under the MIT license.
+PRs bienvenidos. Proyecto open source bajo licencia MIT.
 
 ```bash
-# Clone and install
-git clone https://github.com/howincodes/claude-code-limiter.git
-cd claude-code-limiter
+# Clonar e instalar
+git clone https://github.com/rmm-01/claude-code-limiter-con-verificador-uninstall.git
+cd claude-code-limiter-con-verificador-uninstall
 npm install
 
-# Start the server in development
-npm start
+# Iniciar servidor en desarrollo
+cd packages/server
+npm install
+ADMIN_PASSWORD=devpass node bin/server.js
 
-# Run tests
+# Tests (TODO — placeholders por ahora)
 npm test
 ```
 
-**Key guidelines:**
-- `src/hook.js` must remain **zero npm dependencies** — Node.js built-ins only
-- The server uses Express + better-sqlite3 — keep it simple
-- Dashboard is vanilla HTML/CSS/JS — no build step, no framework
-
-See [CONTRIBUTING.md](https://github.com/howincodes/claude-code-limiter/blob/main/CONTRIBUTING.md) for details.
+**Reglas clave:**
+- `packages/cli/src/hook.js` debe mantener **cero dependencias de npm** — solo built-ins de Node
+- El servidor usa Express + better-sqlite3 — mantenerlo simple
+- El dashboard servido por el server es HTML/CSS/JS vanilla — sin build step ni framework
 
 ---
 
-## :page_facing_up: License
+## :page_facing_up: Licencia
 
-[MIT](LICENSE) — Basha, 2026
+[MIT](LICENSE) — Basha, 2026 (upstream original)
+Modificaciones del fork: Ricardo Mendoza, 2026.
 
 ---
 
 <p align="center">
-  <b>Stop sharing blindly. Start sharing fairly.</b><br>
-  <a href="https://github.com/howincodes/claude-code-limiter">GitHub</a> · <a href="https://github.com/howincodes/claude-code-limiter/issues">Issues</a> · <a href="https://github.com/howincodes/claude-code-limiter/discussions">Discussions</a>
+  <b>Dejá de compartir a ciegas. Empezá a compartir con reglas.</b><br>
+  <a href="https://github.com/rmm-01/claude-code-limiter-con-verificador-uninstall">Fork (este repo)</a> · <a href="https://github.com/howincodes/claude-code-limiter">Upstream original</a> · <a href="https://github.com/rmm-01/claude-code-limiter-con-verificador-uninstall/issues">Issues</a>
 </p>
