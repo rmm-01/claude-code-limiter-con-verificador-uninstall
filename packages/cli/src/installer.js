@@ -141,6 +141,20 @@ function requireElevated(action) {
   process.exit(1);
 }
 
+// Recover a path left in an inaccessible state by a previous failed install
+// (e.g. empty DACL after /inheritance:r succeeded but /grant:r failed).
+function reclaimPath(p) {
+  if (!fs.existsSync(p)) return;
+  try {
+    if (IS_WIN) {
+      execSync(`takeown /F "${p}" /R /D Y`, { stdio: "ignore" });
+      execSync(`icacls "${p}" /grant *S-1-5-32-544:F /T /C /Q`, { stdio: "ignore" });
+    } else {
+      execSync(`chmod -R u+rwX "${p}"`, { stdio: "ignore" });
+    }
+  } catch {}
+}
+
 // ════════════════════════════════════════════════════════════
 // MANAGED-SETTINGS.JSON GENERATOR
 // ════════════════════════════════════════════════════════════
@@ -182,10 +196,16 @@ function generateManagedSettings(existingSettings) {
 function lockPermissions() {
   try {
     if (IS_WIN) {
-      execSync(`icacls "${PATHS.limiterDir}" /inheritance:r /grant:r Administrators:(OI)(CI)F /grant:r Users:(OI)(CI)RX /T`, { stdio: "ignore" });
-      execSync(`icacls "${PATHS.usageDir}" /grant:r Users:(OI)(CI)M`, { stdio: "ignore" });
-      execSync(`icacls "${PATHS.managedSettings}" /inheritance:r /grant:r Administrators:F /grant:r Users:R`, { stdio: "ignore" });
-      execSync(`icacls "${PATHS.backupDir}" /inheritance:r /grant:r Administrators:(OI)(CI)F /T`, { stdio: "ignore" });
+      // Use SID *S-1-5-32-544 (Administrators) instead of the localized name
+      // and /inheritance:d (copy inherited ACEs as explicit) instead of /inheritance:r
+      // (wipe everything) so a failed /grant cannot leave an empty DACL that
+      // locks out even Administrators on retry.
+      const ADM = "*S-1-5-32-544"; // BUILTIN\Administrators
+      const USR = "*S-1-5-32-545"; // BUILTIN\Users
+      execSync(`icacls "${PATHS.limiterDir}" /grant:r ${ADM}:(OI)(CI)F /grant:r ${USR}:(OI)(CI)RX /inheritance:d /T`, { stdio: "pipe" });
+      execSync(`icacls "${PATHS.usageDir}" /grant:r ${USR}:(OI)(CI)M`, { stdio: "pipe" });
+      execSync(`icacls "${PATHS.managedSettings}" /grant:r ${ADM}:F /grant:r ${USR}:R /inheritance:d`, { stdio: "pipe" });
+      execSync(`icacls "${PATHS.backupDir}" /grant:r ${ADM}:(OI)(CI)F /inheritance:d /T`, { stdio: "pipe" });
     } else {
       const owner = IS_MAC ? "root:wheel" : "root:root";
       execSync(`chown -R ${owner} "${PATHS.limiterDir}"`, { stdio: "ignore" });
@@ -557,6 +577,13 @@ async function setup(flags) {
   log("");
   info("Installing...");
   log("");
+
+  // Reclaim ownership/ACLs from any prior failed install before touching files.
+  // Without this, a previous setup that crashed after /inheritance:r could
+  // have left these paths with an empty DACL, blocking even Administrators.
+  for (const p of [PATHS.limiterDir, PATHS.backupDir, PATHS.managedSettings]) {
+    reclaimPath(p);
+  }
 
   // Create directories
   for (const dir of [PATHS.limiterDir, PATHS.usageDir, PATHS.backupDir]) {
