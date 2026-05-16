@@ -576,6 +576,6 @@ Modificaciones del fork: Ricardo Mendoza, 2026.
 ---
 
 <p align="center">
-  <b>Ya no compartas a ciegas. Empezá a compartir con reglas.</b><br>
+  <b>Ya no compartas a ciegas. Empieza a compartir con reglas.</b><br>
   <a href="https://github.com/rmm-01/claude-code-limiter-con-verificador-uninstall">Fork (este repo)</a> · <a href="https://github.com/howincodes/claude-code-limiter">Upstream original</a> · <a href="https://github.com/rmm-01/claude-code-limiter-con-verificador-uninstall/issues">Issues</a>
 </p>
