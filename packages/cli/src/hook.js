@@ -205,7 +205,8 @@ function getDeviceInfo(stdinData) {
 
   let claudeVersion = null;
   try {
-    claudeVersion = execSync("claude --version 2>/dev/null", { timeout: 3000 }).toString().trim();
+    // stdio:pipe captures both streams; no shell redirect needed (works on Windows + POSIX).
+    claudeVersion = execSync("claude --version", { timeout: 3000, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
   } catch {}
 
   const info = {
@@ -519,6 +520,7 @@ async function actionSync(config) {
       const updated = { ...config, limits: serverResp.limits };
       if (serverResp.credit_weights) updated.credit_weights = serverResp.credit_weights;
       if (serverResp.status) updated.status = serverResp.status;
+      if (serverResp.user_name) updated.user_name = serverResp.user_name;
       writeJSON(CONFIG_FILE, updated);
     }
     debugLog(`SYNC server_response status=${serverResp.status}`);

@@ -86,6 +86,7 @@ router.post('/sync', hookAuth, (req, res) => {
     });
 
     res.json({
+      user_name: user.name,
       status: user.status,
       limits: limits.map(sanitizeRule),
       credit_weights: creditWeights,
