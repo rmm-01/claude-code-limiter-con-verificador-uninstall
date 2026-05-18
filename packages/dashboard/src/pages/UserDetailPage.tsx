@@ -475,7 +475,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
               <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex items-center justify-between gap-3">
                 <code className="text-[#cc5500] font-mono text-sm">{installCode}</code>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(installCode); showToast('Copiado', 'Código copiado al portapapeles', 'success', 2000); }}
+                  onClick={() => { navigator.clipboard.writeText(installCode); showToast('Copiado', 'Código copiado al portapapeles', 'success'); }}
                   className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
                 >Copiar</button>
               </div>
