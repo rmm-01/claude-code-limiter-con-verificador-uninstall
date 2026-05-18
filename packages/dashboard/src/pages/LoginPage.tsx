@@ -49,6 +49,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <img src={`${import.meta.env.BASE_URL}crab.png`} alt="Claude Code Limiter" className="w-12 h-12 rounded-xl mb-4 object-cover" />
           <h1 className="text-xl font-semibold text-zinc-100">Claude Code Limiter</h1>
           <p className="text-sm text-zinc-500 mt-1">Inicia sesión en tu dashboard</p>
+          <p className="text-xs text-zinc-700 mt-0.5">fork by rmm-01</p>
         </div>
 
         {/* Form */}
