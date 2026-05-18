@@ -180,12 +180,12 @@ export function AnalyticsPage() {
         <CardBody flush>
           <Table
             columns={[
-              { key: 'hostname', header: 'Hostname', render: (d) => <span className="text-zinc-200">{d.hostname || 'unknown'}</span> },
-              { key: 'user', header: 'User', render: (d) => d.user_name || d.user_slug || '' },
-              { key: 'platform', header: 'Platform', render: (d) => `${d.platform || ''}${d.arch ? ` (${d.arch})` : ''}` },
-              { key: 'os', header: 'OS Version', render: (d) => <span className="text-xs">{d.os_version || ''}</span> },
+              { key: 'hostname', header: 'Hostname', render: (d) => <span className="text-zinc-200">{d.hostname || 'desconocido'}</span> },
+              { key: 'user', header: 'Usuario', render: (d) => d.user_name || d.user_slug || '' },
+              { key: 'platform', header: 'Plataforma', render: (d) => `${d.platform || ''}${d.arch ? ` (${d.arch})` : ''}` },
+              { key: 'os', header: 'Versión SO', render: (d) => <span className="text-xs">{d.os_version || ''}</span> },
               { key: 'claude', header: 'Claude', render: (d) => <span className="text-xs">{d.claude_version || ''}</span> },
-              { key: 'seen', header: 'Last Seen', render: (d) => <span className="text-xs">{timeAgo(d.last_seen)}</span> },
+              { key: 'seen', header: 'Última vez', render: (d) => <span className="text-xs">{timeAgo(d.last_seen)}</span> },
               { key: 'ip', header: 'IP', render: (d) => <span className="font-mono text-xs">{d.last_ip || ''}</span> },
             ]}
             data={devices}

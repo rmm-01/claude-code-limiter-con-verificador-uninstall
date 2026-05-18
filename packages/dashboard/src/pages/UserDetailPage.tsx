@@ -347,10 +347,10 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
               <CardBody flush>
                 <Table
                   columns={[
-                    { key: 'hostname', header: 'Hostname', render: (d) => <span className="text-zinc-200">{d.hostname || 'unknown'}</span> },
-                    { key: 'platform', header: 'Platform', render: (d) => `${d.platform || ''}${d.arch ? ` (${d.arch})` : ''}` },
+                    { key: 'hostname', header: 'Hostname', render: (d) => <span className="text-zinc-200">{d.hostname || 'desconocido'}</span> },
+                    { key: 'platform', header: 'Plataforma', render: (d) => `${d.platform || ''}${d.arch ? ` (${d.arch})` : ''}` },
                     { key: 'claude', header: 'Claude', render: (d) => <span className="text-xs">{d.claude_version || ''}</span> },
-                    { key: 'seen', header: 'Last Seen', render: (d) => <span className="text-xs">{timeAgo(d.last_seen)}</span> },
+                    { key: 'seen', header: 'Última vez', render: (d) => <span className="text-xs">{timeAgo(d.last_seen)}</span> },
                     { key: 'ip', header: 'IP', render: (d) => <span className="font-mono text-xs">{d.last_ip || ''}</span> },
                   ]}
                   data={userDevices}
