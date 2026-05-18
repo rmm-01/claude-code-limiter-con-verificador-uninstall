@@ -40,7 +40,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4">
+    <div className="min-h-screen flex items-center justify-center login-bg px-4">
       <div
         className={`w-full max-w-sm ${shaking ? 'animate-shake' : ''}`}
       >
@@ -54,7 +54,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-4">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 backdrop-blur-sm p-6 space-y-4 shadow-[0_0_40px_rgba(204,85,0,0.07)]">
             <Input
               type="password"
               label="Contraseña de Admin"

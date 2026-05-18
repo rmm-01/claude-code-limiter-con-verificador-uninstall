@@ -80,7 +80,8 @@ export function Sidebar({ teamName, open, onClose, connectionState }: SidebarPro
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 h-full w-64 bg-zinc-950 border-r border-zinc-800 z-50
+          fixed top-0 left-0 h-full w-64 border-r border-zinc-800 z-50
+          [background:linear-gradient(180deg,#0f0f11_0%,#09090b_100%)]
           flex flex-col
           transition-transform duration-200 ease-out
           lg:translate-x-0 lg:static lg:z-auto
@@ -112,15 +113,19 @@ export function Sidebar({ teamName, open, onClose, connectionState }: SidebarPro
               end={item.end}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-100 ${
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
                   isActive
-                    ? 'bg-zinc-800 text-zinc-100'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                    ? 'bg-[#cc5500]/10 text-zinc-100 border border-[#cc5500]/20'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent'
                 }`
               }
             >
-              <span className="flex-shrink-0 opacity-70">{item.icon}</span>
-              {item.label}
+              {({ isActive }) => (
+                <>
+                  <span className={`flex-shrink-0 transition-colors duration-150 ${isActive ? 'text-[#cc5500]' : 'opacity-60'}`}>{item.icon}</span>
+                  {item.label}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>

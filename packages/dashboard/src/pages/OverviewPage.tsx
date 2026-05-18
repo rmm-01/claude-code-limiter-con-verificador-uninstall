@@ -175,11 +175,15 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
 /* ---- Sub-components ---- */
 
 function StatCard({ label, value, color, sub }: { label: string; value: number | string; color?: string; sub?: string }) {
+  const borderColor = color === 'text-green-400' ? 'border-t-green-500/60'
+    : color === 'text-yellow-400' ? 'border-t-yellow-500/60'
+    : color === 'text-red-400' ? 'border-t-red-500/60'
+    : 'border-t-[#cc5500]/60';
   return (
     <Card>
-      <div className="p-4">
+      <div className={`p-4 border-t-2 rounded-t-xl ${borderColor}`}>
         <div className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{label}</div>
-        <div className={`text-2xl font-bold mt-1 ${color ?? 'text-zinc-100'}`}>{value}</div>
+        <div className={`text-3xl font-bold mt-1.5 tabular-nums ${color ?? 'text-zinc-100'}`}>{value}</div>
         {sub && <div className="text-xs text-zinc-500 mt-0.5">{sub}</div>}
       </div>
     </Card>
@@ -203,7 +207,7 @@ function UserCard({
 
   return (
     <div
-      className="rounded-lg border border-zinc-800 bg-zinc-800/30 hover:bg-zinc-800/50 hover:border-zinc-700 p-4 cursor-pointer transition-all duration-150"
+      className="rounded-lg border border-zinc-800 bg-zinc-800/30 hover:bg-zinc-800/60 hover:border-[#cc5500]/30 hover:shadow-[0_0_0_1px_rgba(204,85,0,0.15)] p-4 cursor-pointer transition-all duration-200"
       onClick={onClick}
       role="button"
       tabIndex={0}

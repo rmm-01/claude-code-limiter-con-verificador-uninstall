@@ -24,6 +24,11 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Login page radial glow */
+.login-bg {
+  background: radial-gradient(ellipse at 50% 40%, rgba(204,85,0,0.08) 0%, transparent 65%), #09090b;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
