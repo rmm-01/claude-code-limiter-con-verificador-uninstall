@@ -22,7 +22,7 @@
 >
 > Además incluye varios fixes específicos para Windows (ACLs, watchdog, reinstalación sobre instalación previa). Ver `git log` para detalles.
 
-> **Beta temprana** — Proyecto en desarrollo activo. Las cosas pueden romperse, las APIs pueden cambiar. Si encontrás un problema, [abrí un issue](https://github.com/rmm-01/claude-code-limiter-con-verificador-uninstall/issues).
+> **Beta temprana** — Proyecto en desarrollo activo. Las cosas pueden romperse, las APIs pueden cambiar. Si encuentras un problema, [abre un issue](https://github.com/rmm-01/claude-code-limiter-con-verificador-uninstall/issues).
 
 ---
 
