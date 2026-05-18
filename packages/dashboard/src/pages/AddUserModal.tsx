@@ -22,10 +22,18 @@ const PRESETS: Record<Exclude<Preset, 'custom'>, {
   haiku: number;
   desc: string;
 }> = {
-  light: { credits: 50, opus: 3, sonnet: 10, haiku: 30, desc: '50 credits/day. Opus: 3, Sonnet: 10, Haiku: 30.' },
-  medium: { credits: 100, opus: 5, sonnet: 20, haiku: 50, desc: '100 credits/day. Opus: 5, Sonnet: 20, Haiku: 50.' },
-  heavy: { credits: 200, opus: 10, sonnet: 40, haiku: 100, desc: '200 credits/day. Opus: 10, Sonnet: 40, Haiku: 100.' },
-  unlimited: { credits: -1, opus: -1, sonnet: -1, haiku: -1, desc: 'No limits. User has full unrestricted access.' },
+  light: { credits: 50, opus: 3, sonnet: 10, haiku: 30, desc: '50 créditos/día. Opus: 3, Sonnet: 10, Haiku: 30.' },
+  medium: { credits: 100, opus: 5, sonnet: 20, haiku: 50, desc: '100 créditos/día. Opus: 5, Sonnet: 20, Haiku: 50.' },
+  heavy: { credits: 200, opus: 10, sonnet: 40, haiku: 100, desc: '200 créditos/día. Opus: 10, Sonnet: 40, Haiku: 100.' },
+  unlimited: { credits: -1, opus: -1, sonnet: -1, haiku: -1, desc: 'Sin límites. El usuario tiene acceso completo.' },
+};
+
+const PRESET_LABELS: Record<Preset, string> = {
+  light: 'Ligero',
+  medium: 'Medio',
+  heavy: 'Intensivo',
+  unlimited: 'Ilimitado',
+  custom: 'Personalizado',
 };
 
 export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserModalProps) {
@@ -37,8 +45,9 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
   const [customSonnet, setCustomSonnet] = useState('20');
   const [customHaiku, setCustomHaiku] = useState('50');
   const [loading, setLoading] = useState(false);
-  const [installCmd, setInstallCmd] = useState('');
+  const [installCode, setInstallCode] = useState('');
   const [showInstall, setShowInstall] = useState(false);
+  const [serverUrl, setServerUrl] = useState(() => localStorage.getItem('clm_server_url') || window.location.origin);
 
   const resetForm = () => {
     setName('');
@@ -48,7 +57,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
     setCustomOpus('5');
     setCustomSonnet('20');
     setCustomHaiku('50');
-    setInstallCmd('');
+    setInstallCode('');
     setShowInstall(false);
   };
 
@@ -77,15 +86,15 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      showToast('Error', 'Name is required', 'error');
+      showToast('Error', 'El nombre es requerido', 'error');
       return;
     }
     if (!slug.trim()) {
-      showToast('Error', 'Slug is required', 'error');
+      showToast('Error', 'El slug es requerido', 'error');
       return;
     }
     if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
-      showToast('Error', 'Slug must be lowercase letters, numbers, and hyphens', 'error');
+      showToast('Error', 'El slug debe ser minúsculas, números y guiones', 'error');
       return;
     }
 
@@ -97,50 +106,104 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
         limits: buildLimits(),
       });
 
-      showToast('User Created', `${name.trim()} has been added`, 'success');
+      showToast('Usuario Creado', `${name.trim()} ha sido agregado`, 'success');
       onCreated();
-
-      const serverUrl = `${location.protocol}//${location.host}`;
-      const cmd = `sudo npx @howincodes/claude-code-limiter setup --code ${result.install_code} --server ${serverUrl}`;
-      setInstallCmd(cmd);
+      setInstallCode(result.install_code);
       setShowInstall(true);
     } catch (err) {
-      showToast('Error', err instanceof Error ? err.message : 'Failed to create user', 'error');
+      showToast('Error', err instanceof Error ? err.message : 'No se pudo crear el usuario', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCopy = async () => {
+  const copyCmd = async (text: string) => {
     try {
-      await copyToClipboard(installCmd);
-      showToast('Copied', 'Command copied to clipboard', 'success', 2500);
+      await copyToClipboard(text);
+      showToast('Copiado', 'Copiado al portapapeles', 'success', 2500);
     } catch {
-      showToast('Error', 'Could not copy to clipboard', 'error');
+      showToast('Error', 'No se pudo copiar', 'error');
     }
   };
+
+  const effectiveServer = serverUrl.trim() || 'TU-SERVIDOR-AQUÍ';
+  const linuxCmd = `sudo npx @howincodes/claude-code-limiter setup --code ${installCode} --server ${effectiveServer}`;
+  const windowsCmd = `npx @howincodes/claude-code-limiter setup --code ${installCode} --server ${effectiveServer}`;
 
   // Install command screen
   if (showInstall) {
     return (
       <Modal open={open} onClose={handleClose} size="lg">
-        <ModalHeader onClose={handleClose}>Install Command</ModalHeader>
+        <ModalHeader onClose={handleClose}>Comando de Instalación</ModalHeader>
         <ModalBody>
-          <p className="text-sm text-zinc-400 mb-4">
-            Run this command on <span className="font-semibold text-zinc-200">{name}</span>'s machine to set up rate limiting:
-          </p>
-          <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-lg p-4">
-            <code className="text-sm text-blue-400 flex-1 break-all font-mono">{installCmd}</code>
-            <Button size="sm" variant="primary" onClick={handleCopy}>
-              Copy
-            </Button>
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-400">
+              Reemplazá <code className="text-[#cc5500]">TU-SERVIDOR-AQUÍ</code> por la URL que la máquina del usuario use para llegar a este servidor:
+            </p>
+
+            <div className="text-xs text-zinc-500 space-y-1 bg-zinc-900 rounded-lg p-3 border border-zinc-800">
+              <div>• <span className="text-zinc-400">LAN local:</span> <span className="font-mono">http://192.168.x.x:3000</span></div>
+              <div>• <span className="text-zinc-400">VPS / Azure:</span> <span className="font-mono">https://tu-dominio.azurewebsites.net</span></div>
+              <div>• <span className="text-zinc-400">Dashboard actual:</span> <span className="font-mono text-zinc-300">{window.location.origin}</span></div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-zinc-400">URL del servidor para esta invitación (opcional)</label>
+              <input
+                type="text"
+                value={serverUrl}
+                onChange={(e) => {
+                  setServerUrl(e.target.value);
+                  localStorage.setItem('clm_server_url', e.target.value);
+                }}
+                placeholder="https://tu-servidor.com"
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+              />
+              <p className="text-xs text-zinc-600">Si la dejás vacía, los comandos mostrarán TU-SERVIDOR-AQUÍ. Se recuerda para próximas invitaciones.</p>
+            </div>
+
+            <div className="space-y-3">
+              {/* Linux / macOS */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Linux / macOS</span>
+                  <Button size="sm" variant="primary" onClick={() => copyCmd(linuxCmd)}>Copiar</Button>
+                </div>
+                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
+                  <code className="text-xs text-green-400 font-mono break-all">{linuxCmd}</code>
+                </div>
+              </div>
+
+              {/* Windows */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Windows (PowerShell como Administrador)</span>
+                  <Button size="sm" variant="primary" onClick={() => copyCmd(windowsCmd)}>Copiar</Button>
+                </div>
+                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
+                  <code className="text-xs text-blue-400 font-mono break-all">{windowsCmd}</code>
+                </div>
+              </div>
+
+              {/* Code only */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Código de instalación (por si falla copiar)</span>
+                  <Button size="sm" variant="ghost" onClick={() => copyCmd(installCode)}>Copiar</Button>
+                </div>
+                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
+                  <code className="text-sm text-[#cc5500] font-mono">{installCode}</code>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-600">
+              Este código solo puede usarse una vez. Generá uno nuevo desde el detalle del usuario si es necesario.
+            </p>
           </div>
-          <p className="text-xs text-zinc-600 mt-3">
-            This code can only be used once. Generate a new one from the user detail page if needed.
-          </p>
         </ModalBody>
         <ModalFooter>
-          <Button variant="primary" onClick={handleClose}>Done</Button>
+          <Button variant="primary" onClick={handleClose}>Listo</Button>
         </ModalFooter>
       </Modal>
     );
@@ -148,12 +211,12 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
 
   return (
     <Modal open={open} onClose={handleClose} size="md">
-      <ModalHeader onClose={handleClose}>Add User</ModalHeader>
+      <ModalHeader onClose={handleClose}>Agregar Usuario</ModalHeader>
       <ModalBody>
         <div className="space-y-4">
           <Input
-            label="Name"
-            placeholder="e.g. Alice, Dev Team, Intern"
+            label="Nombre"
+            placeholder="ej. Alice, Equipo Dev, Pasante"
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -163,17 +226,17 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
           />
 
           <Input
-            label="Slug (username)"
-            placeholder="e.g. alice, dev-team, intern"
+            label="Slug (usuario)"
+            placeholder="ej. alice, equipo-dev, pasante"
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
-            hint="Lowercase, no spaces. Used in install commands and logs."
+            hint="Minúsculas, sin espacios. Usado en comandos de instalación y logs."
           />
 
           <hr className="border-zinc-800" />
 
           <div>
-            <h4 className="text-sm font-medium text-zinc-300 mb-2">Limits Preset</h4>
+            <h4 className="text-sm font-medium text-zinc-300 mb-2">Preset de Límites</h4>
             <div className="flex flex-wrap gap-2">
               {(['light', 'medium', 'heavy', 'unlimited', 'custom'] as const).map((p) => (
                 <button
@@ -181,27 +244,27 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
                   onClick={() => setPreset(p)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
                     preset === p
-                      ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
+                      ? 'bg-[#cc5500]/20 border-[#cc5500]/40 text-[#e06012]'
                       : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
                   }`}
                 >
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                  {PRESET_LABELS[p]}
                 </button>
               ))}
             </div>
             <p className="text-xs text-zinc-500 mt-2">
-              {preset === 'custom' ? 'Set your own limits below.' : PRESETS[preset].desc}
+              {preset === 'custom' ? 'Configurá tus propios límites abajo.' : PRESETS[preset as Exclude<Preset, 'custom'>]?.desc}
             </p>
           </div>
 
           {preset === 'custom' && (
             <div className="space-y-3 animate-fade-in">
               <Input
-                label="Credit Budget (daily)"
+                label="Presupuesto de Créditos (diario)"
                 type="number"
                 value={customCredits}
                 onChange={(e) => setCustomCredits(e.target.value)}
-                hint="-1 for unlimited"
+                hint="-1 para ilimitado"
               />
               <div className="grid grid-cols-3 gap-3">
                 <Input
@@ -228,9 +291,9 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
         </div>
       </ModalBody>
       <ModalFooter>
-        <Button variant="ghost" onClick={handleClose}>Cancel</Button>
+        <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
         <Button variant="primary" onClick={handleSubmit} disabled={loading}>
-          {loading ? 'Creating...' : 'Create User'}
+          {loading ? 'Creando...' : 'Crear Usuario'}
         </Button>
       </ModalFooter>
     </Modal>

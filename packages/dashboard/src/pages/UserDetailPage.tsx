@@ -12,6 +12,7 @@ import { HorizontalBarChart, TrendLineChart, PeakHoursChart } from '../component
 import { SkeletonPage } from '../components/Skeleton';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EditLimitsModal } from './EditLimitsModal';
+import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 
 interface UserDetailPageProps {
   showToast: (title: string, message: string, type: 'info' | 'success' | 'warning' | 'error') => void;
@@ -26,6 +27,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editLimitsOpen, setEditLimitsOpen] = useState(false);
+  const [creditsModalOpen, setCreditsModalOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     action: string;
     title: string;
@@ -62,8 +64,8 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
     try {
       await api.updateUser(id, { status });
       showToast(
-        status === 'paused' ? 'User Paused' : status === 'killed' ? 'User Killed' : 'User Reinstated',
-        `${user.name} is now ${status}`,
+        status === 'paused' ? 'Usuario Pausado' : status === 'killed' ? 'Acceso Revocado' : 'Usuario Restaurado',
+        `${user.name} ahora está ${status === 'paused' ? 'pausado' : status === 'killed' ? 'revocado' : 'activo'}`,
         status === 'killed' ? 'error' : status === 'paused' ? 'warning' : 'success'
       );
       setConfirmAction(null);
@@ -77,7 +79,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
     if (!id || !user) return;
     try {
       await api.deleteUser(id);
-      showToast('User Deleted', `${user.name} has been removed`, 'success');
+      showToast('Usuario Eliminado', `${user.name} ha sido eliminado`, 'success');
       navigate('/dashboard/');
     } catch (err) {
       showToast('Error', err instanceof Error ? err.message : 'Delete failed', 'error');
@@ -88,8 +90,8 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
-        <p>User not found</p>
-        <Link to="/dashboard/" className="text-blue-400 hover:underline mt-2">Back to overview</Link>
+        <p>Usuario no encontrado</p>
+        <Link to="/dashboard/" className="text-orange-400 hover:underline mt-2">Volver al inicio</Link>
       </div>
     );
   }
@@ -129,7 +131,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
     <div className="space-y-6 animate-fade-in">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-zinc-500">
-        <Link to="/dashboard/" className="hover:text-zinc-300 transition-colors">Overview</Link>
+        <Link to="/dashboard/" className="hover:text-zinc-300 transition-colors">Resumen</Link>
         <span>/</span>
         <span className="text-zinc-300">{user.name}</span>
       </div>
@@ -137,9 +139,12 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-xl font-semibold text-zinc-100">{user.name}</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="ghost" size="sm" onClick={() => setCreditsModalOpen(true)}>
+            ¿Cómo funcionan los créditos?
+          </Button>
           <Button size="sm" onClick={() => setEditLimitsOpen(true)}>
-            Edit Limits
+            Editar Límites
           </Button>
           <Button
             size="sm"
@@ -147,13 +152,13 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
             onClick={() =>
               setConfirmAction({
                 action: 'delete',
-                title: 'Delete User',
-                message: `Permanently delete ${user.name}? This removes all their usage data and cannot be undone.`,
-                confirmLabel: 'Delete',
+                title: 'Eliminar Usuario',
+                message: `¿Eliminar permanentemente a ${user.name}? Se borrán todos sus datos y no se puede deshacer.`,
+                confirmLabel: 'Eliminar',
               })
             }
           >
-            Delete User
+            Eliminar Usuario
           </Button>
         </div>
       </div>
@@ -175,8 +180,8 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
               </div>
               <StatusBadge status={user.status} />
               <div className="text-xs text-zinc-500 space-y-1 w-full text-left pt-2">
-                <div>Last seen: {timeAgo(user.last_seen)}</div>
-                <div>Created: {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</div>
+                <div>Última vez: {timeAgo(user.last_seen)}</div>
+                <div>Creado: {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</div>
               </div>
 
               {/* Action buttons */}
@@ -190,13 +195,13 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                       onClick={() =>
                         setConfirmAction({
                           action: 'paused',
-                          title: 'Pause User',
-                          message: `Pause ${user.name}? They will not be able to use Claude Code until reinstated.`,
-                          confirmLabel: 'Pause',
+                          title: 'Pausar Usuario',
+                          message: `¿Pausar a ${user.name}? No podrá usar Claude Code hasta ser restaurado.`,
+                          confirmLabel: 'Pausar',
                         })
                       }
                     >
-                      Pause User
+                      Pausar Usuario
                     </Button>
                     <Button
                       size="sm"
@@ -205,20 +210,20 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                       onClick={() =>
                         setConfirmAction({
                           action: 'killed',
-                          title: 'Kill User',
-                          message: `Kill ${user.name}? This will revoke their Claude Code access.`,
-                          confirmLabel: 'Kill',
+                          title: 'Revocar Acceso',
+                          message: `¿Revocar acceso a ${user.name}? No podrá usar Claude Code.`,
+                          confirmLabel: 'Revocar',
                         })
                       }
                     >
-                      Kill User
+                      Revocar Acceso
                     </Button>
                   </>
                 )}
                 {user.status === 'paused' && (
                   <>
                     <Button size="sm" variant="success" fullWidth onClick={() => handleStatusAction('active')}>
-                      Reinstate
+                      Restaurar
                     </Button>
                     <Button
                       size="sm"
@@ -227,19 +232,19 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                       onClick={() =>
                         setConfirmAction({
                           action: 'killed',
-                          title: 'Kill User',
-                          message: `Kill ${user.name}?`,
-                          confirmLabel: 'Kill',
+                          title: 'Revocar Acceso',
+                          message: `¿Revocar acceso a ${user.name}?`,
+                          confirmLabel: 'Revocar',
                         })
                       }
                     >
-                      Kill User
+                      Revocar Acceso
                     </Button>
                   </>
                 )}
                 {user.status === 'killed' && (
                   <Button size="sm" variant="success" fullWidth onClick={() => handleStatusAction('active')}>
-                    Reinstate
+                    Restaurar
                   </Button>
                 )}
               </div>
@@ -262,24 +267,24 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
           {/* Per-model usage */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Per-Model Usage (Daily)</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Uso por Modelo (Diario)</h3>
             </CardHeader>
             <CardBody>
               <HorizontalBarChart data={barData} />
             </CardBody>
           </Card>
 
-          {/* Active Limits */}
+          {/* Límites Activos */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Active Limits</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Límites Activos</h3>
               <Button size="sm" variant="ghost" onClick={() => setEditLimitsOpen(true)}>
                 Edit
               </Button>
             </CardHeader>
             <CardBody>
               {limits.length === 0 ? (
-                <p className="text-sm text-zinc-500">No limits configured. This user has unlimited access.</p>
+                <p className="text-sm text-zinc-500">Sin límites configurados. Este usuario tiene acceso ilimitado.</p>
               ) : (
                 <div className="space-y-2">
                   {limits.map((rule, idx) => (
@@ -293,7 +298,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
           {/* 30-day trend */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">30-Day Usage Trend</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Tendencia de Uso (30 días)</h3>
             </CardHeader>
             <CardBody>
               <TrendLineChart data={trendData} />
@@ -304,7 +309,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
           {userDevices.length > 0 && (
             <Card>
               <CardHeader>
-                <h3 className="text-sm font-semibold text-zinc-200">Devices</h3>
+                <h3 className="text-sm font-semibold text-zinc-200">Dispositivos</h3>
               </CardHeader>
               <CardBody flush>
                 <Table
@@ -326,7 +331,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
           {userProjects.length > 0 && (
             <Card>
               <CardHeader>
-                <h3 className="text-sm font-semibold text-zinc-200">Top Projects (30d)</h3>
+                <h3 className="text-sm font-semibold text-zinc-200">Proyectos Principales (30d)</h3>
               </CardHeader>
               <CardBody flush>
                 <Table
@@ -345,7 +350,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
           {userPeakHours.length > 0 && (
             <Card>
               <CardHeader>
-                <h3 className="text-sm font-semibold text-zinc-200">Peak Usage Hours (30d)</h3>
+                <h3 className="text-sm font-semibold text-zinc-200">Horas Pico (30d)</h3>
               </CardHeader>
               <CardBody>
                 <PeakHoursChart data={userPeakHours} />
@@ -356,7 +361,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
           {/* Recent activity */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Recent Activity</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Actividad Reciente</h3>
             </CardHeader>
             <CardBody flush>
               <Table
@@ -367,7 +372,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                 ]}
                 data={events}
                 keyExtractor={(e) => e.id ?? `${e.timestamp}-${e.model}`}
-                emptyMessage="No recent activity"
+                emptyMessage="Sin actividad reciente"
               />
             </CardBody>
           </Card>
@@ -382,6 +387,32 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
         onSaved={loadData}
         showToast={showToast}
       />
+
+      {/* Credits Modal */}
+      <Modal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} size="md">
+        <ModalHeader onClose={() => setCreditsModalOpen(false)}>¿Cómo funcionan los créditos?</ModalHeader>
+        <ModalBody>
+          <div className="space-y-4 text-sm text-zinc-300">
+            <p>Los <span className="text-[#cc5500] font-semibold">créditos</span> son una unidad de medida unificada para comparar el costo de distintos modelos.</p>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-2">
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Peso por defecto</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-purple-500" /><span className="font-medium">Opus</span></div>
+                <span className="font-mono text-zinc-300">10 créditos / turno</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="font-medium">Sonnet</span></div>
+                <span className="font-mono text-zinc-300">3 créditos / turno</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500" /><span className="font-medium">Haiku</span></div>
+                <span className="font-mono text-zinc-300">1 crédito / turno</span>
+              </div>
+            </div>
+            <p className="text-zinc-400">Los pesos se ajustan en <span className="text-zinc-200">Configuración → Pesos de Créditos</span>.</p>
+          </div>
+        </ModalBody>
+      </Modal>
 
       {/* Confirm Dialog */}
       <ConfirmDialog
@@ -406,11 +437,11 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
 function LimitItem({ rule }: { rule: { type: string; model?: string; window?: string; value?: number; schedule_start?: string; schedule_end?: string; schedule_tz?: string } }) {
   let desc = '';
   if (rule.type === 'credits') {
-    desc = `Credit Budget (${rule.window ?? 'daily'})`;
+    desc = `Presupuesto de Créditos (${rule.window ?? 'daily'})`;
   } else if (rule.type === 'per_model') {
-    desc = `${rule.model ?? 'all models'} (${rule.window ?? 'daily'})`;
+    desc = `${rule.model ?? 'todos los modelos'} (${rule.window ?? 'daily'})`;
   } else if (rule.type === 'time_of_day') {
-    desc = `${rule.model ?? 'all'} time restriction`;
+    desc = `${rule.model ?? 'todos'} restricción horaria`;
   }
 
   let valStr = '';

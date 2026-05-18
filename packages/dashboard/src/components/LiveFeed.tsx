@@ -17,7 +17,7 @@ export function LiveFeed({ events }: LiveFeedProps) {
   if (events.length === 0) {
     return (
       <div className="flex items-center justify-center py-12 text-sm text-zinc-500">
-        No events yet. Activity will appear here in real time.
+        Sin actividad aún. Los eventos aparecerán aquí en tiempo real.
       </div>
     );
   }

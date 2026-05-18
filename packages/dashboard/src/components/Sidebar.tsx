@@ -11,7 +11,7 @@ interface SidebarProps {
 const navItems = [
   {
     to: '/dashboard/',
-    label: 'Overview',
+    label: 'Resumen',
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="2" width="5.5" height="5.5" rx="1" />
@@ -24,7 +24,7 @@ const navItems = [
   },
   {
     to: '/dashboard/analytics',
-    label: 'Analytics',
+    label: 'Analíticas',
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 15h14" />
@@ -37,7 +37,7 @@ const navItems = [
   },
   {
     to: '/dashboard/settings',
-    label: 'Settings',
+    label: 'Configuración',
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="9" cy="9" r="2.5" />
@@ -54,9 +54,9 @@ const connectionDotColor = {
 };
 
 const connectionLabels = {
-  connected: 'Live',
-  connecting: 'Reconnecting...',
-  disconnected: 'Disconnected',
+  connected: 'En vivo',
+  connecting: 'Reconectando...',
+  disconnected: 'Desconectado',
 };
 
 export function Sidebar({ teamName, open, onClose, connectionState }: SidebarProps) {
@@ -90,8 +90,8 @@ export function Sidebar({ teamName, open, onClose, connectionState }: SidebarPro
         {/* Logo / Team name */}
         <div className="px-5 py-5 border-b border-zinc-800">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white text-sm font-bold">
-              CL
+            <div className="w-8 h-8 rounded-lg bg-[#cc5500] flex items-center justify-center text-white text-sm font-bold">
+              🦀
             </div>
             <div className="min-w-0">
               <div className="text-sm font-semibold text-zinc-100 truncate">
@@ -138,7 +138,7 @@ export function Sidebar({ teamName, open, onClose, connectionState }: SidebarPro
               <path d="M12 12l3-3-3-3" />
               <path d="M15 9H7" />
             </svg>
-            Sign Out
+            Cerrar Sesión
           </button>
         </div>
       </aside>

@@ -31,16 +31,16 @@ function AuthenticatedLayout() {
     if (!lastEvent) return;
     if (lastEvent.type === 'user_blocked') {
       showToast(
-        'User Blocked',
-        `${lastEvent.userName ?? 'Unknown'} was blocked on ${lastEvent.model ?? 'unknown'}`,
+        'Usuario Bloqueado',
+        `${lastEvent.userName ?? 'Desconocido'} fue bloqueado en ${lastEvent.model ?? 'modelo desconocido'}`,
         'warning',
         8000
       );
     }
     if (lastEvent.type === 'user_killed' || (lastEvent.type === 'user_status_change' && lastEvent.newStatus === 'killed')) {
       showToast(
-        'User Killed',
-        `${lastEvent.userName ?? 'Unknown'} has been killed`,
+        'Acceso Revocado',
+        `${lastEvent.userName ?? 'Desconocido'} ha sido revocado`,
         'error',
         8000
       );

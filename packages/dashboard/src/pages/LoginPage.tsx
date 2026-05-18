@@ -18,7 +18,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!password) {
-      setError('Password is required');
+      setError('La contraseña es requerida');
       return;
     }
 
@@ -46,11 +46,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       >
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white text-lg font-bold mb-4">
-            CL
+          <div className="w-12 h-12 rounded-xl bg-[#cc5500] flex items-center justify-center text-white text-2xl mb-4">
+            🦀
           </div>
-          <h1 className="text-xl font-semibold text-zinc-100">Claude Code Limiter</h1>
-          <p className="text-sm text-zinc-500 mt-1">Sign in to your dashboard</p>
+          <h1 className="text-xl font-semibold text-zinc-100">Claude Limiter</h1>
+          <p className="text-sm text-zinc-500 mt-1">Iniciá sesión en tu dashboard</p>
         </div>
 
         {/* Form */}
@@ -58,8 +58,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-4">
             <Input
               type="password"
-              label="Admin Password"
-              placeholder="Enter your admin password"
+              label="Contraseña de Admin"
+              placeholder="Ingresá tu contraseña"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoFocus
@@ -79,7 +79,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               disabled={loading}
               size="lg"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
           </div>
         </form>

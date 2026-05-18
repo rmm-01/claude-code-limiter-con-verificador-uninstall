@@ -58,30 +58,30 @@ export function AnalyticsPage() {
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-zinc-100">Analytics</h2>
+        <h2 className="text-xl font-semibold text-zinc-100">Analíticas</h2>
         <div className="w-40">
           <Select
             value={String(days)}
             onChange={(e) => setDays(parseInt(e.target.value, 10))}
           >
-            <option value="7">Last 7 days</option>
-            <option value="14">Last 14 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
+            <option value="7">Últimos 7 días</option>
+            <option value="14">Últimos 14 días</option>
+            <option value="30">Últimos 30 días</option>
+            <option value="90">Últimos 90 días</option>
           </Select>
         </div>
       </div>
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Avg Prompt Length" value={data.avg_prompt_length ?? 0} sub="chars" />
-        <StatCard label="Avg Response Length" value={data.avg_response_length ?? 0} sub="chars" />
+        <StatCard label="Prom. Long. Prompt" value={data.avg_prompt_length ?? 0} sub="chars" />
+        <StatCard label="Prom. Long. Respuesta" value={data.avg_response_length ?? 0} sub="chars" />
         <StatCard
-          label="Prompts / Session"
+          label="Prompts / Sesión"
           value={data.avg_prompts_per_session ?? 0}
         />
         <StatCard
-          label="Block Rate"
+          label="Tasa de Bloqueo"
           value={
             data.block_rate
               ? `${(data.block_rate.rate * 100).toFixed(1)}%`
@@ -89,7 +89,7 @@ export function AnalyticsPage() {
           }
           sub={
             data.block_rate
-              ? `${data.block_rate.blocked}/${data.block_rate.total} blocked`
+              ? `${data.block_rate.blocked}/${data.block_rate.total} bloqueados`
               : ''
           }
         />
@@ -102,7 +102,7 @@ export function AnalyticsPage() {
           {/* Model Distribution */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Model Distribution</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Distribución por Modelo</h3>
             </CardHeader>
             <CardBody className="flex justify-center">
               {data.model_distribution ? (
@@ -117,7 +117,7 @@ export function AnalyticsPage() {
           {data.block_rate && (
             <Card>
               <CardHeader>
-                <h3 className="text-sm font-semibold text-zinc-200">Block Rate</h3>
+                <h3 className="text-sm font-semibold text-zinc-200">Tasa de Bloqueo</h3>
               </CardHeader>
               <CardBody className="flex justify-center">
                 <BlockRateGauge total={data.block_rate.total} blocked={data.block_rate.blocked} />
@@ -128,17 +128,17 @@ export function AnalyticsPage() {
           {/* Top Projects */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Top Projects</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Proyectos Principales</h3>
             </CardHeader>
             <CardBody flush>
               <Table
                 columns={[
-                  { key: 'project', header: 'Project', render: (p) => <span className="text-zinc-200">{p.project}</span> },
+                  { key: 'project', header: 'Proyecto', render: (p) => <span className="text-zinc-200">{p.project}</span> },
                   { key: 'count', header: 'Prompts', render: (p) => <span className="font-mono">{p.count}</span>, className: 'text-right' },
                 ]}
                 data={data.project_usage ?? []}
                 keyExtractor={(p) => p.project}
-                emptyMessage="No project data yet"
+                emptyMessage="Sin datos de proyectos aún"
               />
             </CardBody>
           </Card>
@@ -149,7 +149,7 @@ export function AnalyticsPage() {
           {/* Daily Active Users */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Daily Active Users</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Usuarios Activos Diarios</h3>
             </CardHeader>
             <CardBody>
               <TrendLineChart data={dauPts} />
@@ -159,23 +159,23 @@ export function AnalyticsPage() {
           {/* Peak Hours */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Peak Usage Hours</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Horas Pico de Uso</h3>
             </CardHeader>
             <CardBody>
               {data.peak_hours && data.peak_hours.length > 0 ? (
                 <PeakHoursChart data={data.peak_hours} />
               ) : (
-                <p className="text-sm text-zinc-500 py-4 text-center">No peak hour data</p>
+                <p className="text-sm text-zinc-500 py-4 text-center">Sin datos de horas pico</p>
               )}
             </CardBody>
           </Card>
         </div>
       </div>
 
-      {/* Devices table */}
+      {/* Dispositivos table */}
       <Card>
         <CardHeader>
-          <h3 className="text-sm font-semibold text-zinc-200">Devices</h3>
+          <h3 className="text-sm font-semibold text-zinc-200">Dispositivos</h3>
         </CardHeader>
         <CardBody flush>
           <Table
@@ -190,7 +190,7 @@ export function AnalyticsPage() {
             ]}
             data={devices}
             keyExtractor={(d) => d.id}
-            emptyMessage="No devices registered yet"
+            emptyMessage="Sin dispositivos registrados aún"
           />
         </CardBody>
       </Card>

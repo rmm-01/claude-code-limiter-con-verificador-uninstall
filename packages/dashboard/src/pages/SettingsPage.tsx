@@ -39,7 +39,7 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
 
   const handleSaveName = async () => {
     if (!teamName.trim()) {
-      showToast('Error', 'Team name cannot be empty', 'error');
+      showToast('Error', 'El nombre del equipo no puede estar vacío', 'error');
       return;
     }
     setSavingName(true);
@@ -48,7 +48,7 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       setTeam(res.team);
       api.setStoredTeam(res.team);
       onTeamUpdate(res.team);
-      showToast('Saved', 'Team name updated', 'success');
+      showToast('Guardado', 'Nombre del equipo actualizado', 'success');
     } catch (err) {
       showToast('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
     } finally {
@@ -68,7 +68,7 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       setTeam(res.team);
       api.setStoredTeam(res.team);
       onTeamUpdate(res.team);
-      showToast('Saved', 'Credit weights updated', 'success');
+      showToast('Guardado', 'Pesos de créditos actualizados', 'success');
     } catch (err) {
       showToast('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
     } finally {
@@ -78,21 +78,21 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
 
   const handleChangePassword = async () => {
     if (!newPassword) {
-      showToast('Error', 'Password cannot be empty', 'error');
+      showToast('Error', 'La contraseña no puede estar vacía', 'error');
       return;
     }
     if (newPassword !== confirmPassword) {
-      showToast('Error', 'Passwords do not match', 'error');
+      showToast('Error', 'Las contraseñas no coinciden', 'error');
       return;
     }
     if (newPassword.length < 6) {
-      showToast('Error', 'Password must be at least 6 characters', 'error');
+      showToast('Error', 'La contraseña debe tener al menos 6 caracteres', 'error');
       return;
     }
     setSavingPassword(true);
     try {
       await api.updateSettings({ admin_password: newPassword });
-      showToast('Saved', 'Admin password changed. You will need to log in again.', 'success');
+      showToast('Guardado', 'Contraseña cambiada. Debés iniciar sesión nuevamente.', 'success');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
@@ -104,20 +104,20 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
 
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
-      <h2 className="text-xl font-semibold text-zinc-100">Settings</h2>
+      <h2 className="text-xl font-semibold text-zinc-100">Configuración</h2>
 
       {/* Team Name */}
       <Card>
         <CardBody>
-          <h3 className="text-sm font-semibold text-zinc-200 mb-3">Team Name</h3>
+          <h3 className="text-sm font-semibold text-zinc-200 mb-3">Nombre del Equipo</h3>
           <div className="space-y-3">
             <Input
               value={teamName}
               onChange={(e) => setTeamName(e.target.value)}
-              placeholder="Team name"
+              placeholder="Nombre del equipo"
             />
             <Button size="sm" variant="primary" onClick={handleSaveName} disabled={savingName}>
-              {savingName ? 'Saving...' : 'Save Name'}
+              {savingName ? 'Guardando...' : 'Guardar Nombre'}
             </Button>
           </div>
         </CardBody>
@@ -126,9 +126,9 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       {/* Credit Weights */}
       <Card>
         <CardBody>
-          <h3 className="text-sm font-semibold text-zinc-200 mb-1">Credit Weights</h3>
+          <h3 className="text-sm font-semibold text-zinc-200 mb-1">Pesos de Créditos</h3>
           <p className="text-xs text-zinc-500 mb-4">
-            Define how many credits each model costs per turn. Higher weight = more expensive.
+            Define cuántos créditos cuesta cada modelo por turno. Mayor peso = más caro.
           </p>
           <div className="grid grid-cols-3 gap-4 mb-4">
             <WeightCard model="Opus" value={opusWeight} onChange={setOpusWeight} color="bg-purple-500" />
@@ -136,7 +136,7 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
             <WeightCard model="Haiku" value={haikuWeight} onChange={setHaikuWeight} color="bg-green-500" />
           </div>
           <Button size="sm" variant="primary" onClick={handleSaveWeights} disabled={savingWeights}>
-            {savingWeights ? 'Saving...' : 'Save Weights'}
+            {savingWeights ? 'Guardando...' : 'Guardar Pesos'}
           </Button>
         </CardBody>
       </Card>
@@ -144,27 +144,27 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       {/* Change Password */}
       <Card>
         <CardBody>
-          <h3 className="text-sm font-semibold text-zinc-200 mb-3">Change Admin Password</h3>
+          <h3 className="text-sm font-semibold text-zinc-200 mb-3">Cambiar Contraseña de Admin</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             <Input
               type="password"
-              label="New Password"
-              placeholder="New password"
+              label="Nueva Contraseña"
+              placeholder="Nueva contraseña"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               autoComplete="new-password"
             />
             <Input
               type="password"
-              label="Confirm Password"
-              placeholder="Confirm password"
+              label="Confirmar Contraseña"
+              placeholder="Confirmar contraseña"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               autoComplete="new-password"
             />
           </div>
           <Button size="sm" variant="danger" onClick={handleChangePassword} disabled={savingPassword}>
-            {savingPassword ? 'Changing...' : 'Change Password'}
+            {savingPassword ? 'Cambiando...' : 'Cambiar Contraseña'}
           </Button>
         </CardBody>
       </Card>
@@ -172,9 +172,9 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       {/* Server Info */}
       <Card>
         <CardBody>
-          <h3 className="text-sm font-semibold text-zinc-200 mb-3">Server Info</h3>
+          <h3 className="text-sm font-semibold text-zinc-200 mb-3">Info del Servidor</h3>
           <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="text-zinc-500">Server URL</div>
+            <div className="text-zinc-500">URL del Servidor</div>
             <div className="font-mono text-zinc-300">{window.location.origin}</div>
             <div className="text-zinc-500">Team ID</div>
             <div className="font-mono text-zinc-300">{team?.id ?? 'N/A'}</div>

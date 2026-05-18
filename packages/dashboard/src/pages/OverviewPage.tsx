@@ -10,6 +10,7 @@ import { Button } from '../components/Button';
 import { LiveFeed } from '../components/LiveFeed';
 import { SkeletonPage } from '../components/Skeleton';
 import { AddUserModal } from './AddUserModal';
+import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 
 interface OverviewPageProps {
   wsEvents: FeedItem[];
@@ -21,6 +22,7 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [creditsModalOpen, setCreditsModalOpen] = useState(false);
   const navigate = useNavigate();
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -32,12 +34,11 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
       ]);
       setUsers(usersRes.users);
 
-      // Convert API events to feed items
       const items: FeedItem[] = (eventsRes.events ?? []).map((evt: UsageEvent) => ({
         id: nextFeedId(),
         type: 'counted' as const,
-        user: evt.user_name ?? 'Unknown',
-        detail: `${evt.model} (+${evt.credit_cost} credits)`,
+        user: evt.user_name ?? 'Desconocido',
+        detail: `${evt.model} (+${evt.credit_cost} créditos)`,
         time: evt.timestamp,
       }));
       setFeedItems(items);
@@ -48,7 +49,6 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
     }
   }, []);
 
-  // Silent refresh for user cards
   const silentRefresh = useCallback(async () => {
     try {
       const res = await api.getUsers();
@@ -66,7 +66,6 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
     };
   }, [loadData, silentRefresh]);
 
-  // Merge WS events with initial feed
   const allFeedItems = [...wsEvents, ...feedItems].slice(0, 50);
 
   const handleUserAction = async (userId: string, action: 'pause' | 'kill' | 'reinstate', userName: string) => {
@@ -74,13 +73,13 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
     try {
       await api.updateUser(userId, { status: statusMap[action] });
       showToast(
-        action === 'pause' ? 'User Paused' : action === 'kill' ? 'User Killed' : 'User Reinstated',
-        `${userName} has been ${statusMap[action]}`,
+        action === 'pause' ? 'Usuario Pausado' : action === 'kill' ? 'Acceso Revocado' : 'Usuario Restaurado',
+        `${userName} ha sido ${action === 'pause' ? 'pausado' : action === 'kill' ? 'revocado' : 'restaurado'}`,
         action === 'kill' ? 'error' : action === 'pause' ? 'warning' : 'success'
       );
       silentRefresh();
     } catch (err) {
-      showToast('Error', err instanceof Error ? err.message : 'Action failed', 'error');
+      showToast('Error', err instanceof Error ? err.message : 'Acción fallida', 'error');
     }
   };
 
@@ -94,33 +93,37 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-zinc-100">Overview</h2>
-        <Button variant="primary" onClick={() => setAddModalOpen(true)}>
-          + Add User
-        </Button>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-xl font-semibold text-zinc-100">Resumen</h2>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setCreditsModalOpen(true)}>
+            ¿Cómo funcionan los créditos?
+          </Button>
+          <Button variant="primary" onClick={() => setAddModalOpen(true)}>
+            + Agregar Usuario
+          </Button>
+        </div>
       </div>
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Total Users" value={totalUsers} />
-        <StatCard label="Active" value={activeUsers} color="text-green-400" />
-        <StatCard label="Paused" value={pausedUsers} color="text-yellow-400" />
-        <StatCard label="Killed" value={killedUsers} color="text-red-400" />
+        <StatCard label="Total Usuarios" value={totalUsers} />
+        <StatCard label="Activos" value={activeUsers} color="text-green-400" />
+        <StatCard label="Pausados" value={pausedUsers} color="text-yellow-400" />
+        <StatCard label="Eliminados" value={killedUsers} color="text-red-400" />
       </div>
 
       {/* Two columns: users + live feed */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* User cards */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Users</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Usuarios</h3>
             </CardHeader>
             <CardBody>
               {users.length === 0 ? (
                 <div className="flex flex-col items-center py-8 text-zinc-500">
-                  <p className="text-sm">No users yet. Click "Add User" to get started.</p>
+                  <p className="text-sm">Sin usuarios. Click en "Agregar Usuario" para comenzar.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -138,11 +141,10 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
           </Card>
         </div>
 
-        {/* Live Feed */}
         <div>
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Live Feed</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Actividad en Vivo</h3>
             </CardHeader>
             <CardBody flush>
               <LiveFeed events={allFeedItems} />
@@ -155,11 +157,51 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
       <AddUserModal
         open={addModalOpen}
         onClose={() => setAddModalOpen(false)}
-        onCreated={() => {
-          silentRefresh();
-        }}
+        onCreated={() => { silentRefresh(); }}
         showToast={showToast}
       />
+
+      {/* Credits Explainer Modal */}
+      <Modal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} size="md">
+        <ModalHeader onClose={() => setCreditsModalOpen(false)}>¿Cómo funcionan los créditos?</ModalHeader>
+        <ModalBody>
+          <div className="space-y-4 text-sm text-zinc-300">
+            <p>
+              Los <span className="text-[#cc5500] font-semibold">créditos</span> son una unidad de medida unificada que permite comparar el costo de usar distintos modelos de Claude.
+            </p>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-2">
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Peso por defecto</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-500" />
+                  <span className="font-medium">Opus</span>
+                </div>
+                <span className="font-mono text-zinc-300">10 créditos / turno</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  <span className="font-medium">Sonnet</span>
+                </div>
+                <span className="font-mono text-zinc-300">3 créditos / turno</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="font-medium">Haiku</span>
+                </div>
+                <span className="font-mono text-zinc-300">1 crédito / turno</span>
+              </div>
+            </div>
+            <p className="text-zinc-400">
+              Ejemplo: con un límite de <span className="text-zinc-200 font-semibold">50 créditos/día</span>, un usuario puede hacer ~5 turnos con Opus, ~16 con Sonnet, o ~50 con Haiku.
+            </p>
+            <p className="text-zinc-400">
+              Los pesos se pueden ajustar en <span className="text-zinc-200">Configuración → Pesos de Créditos</span>.
+            </p>
+          </div>
+        </ModalBody>
+      </Modal>
     </div>
   );
 }
@@ -201,7 +243,6 @@ function UserCard({
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
     >
-      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3 min-w-0">
           <div
@@ -218,11 +259,10 @@ function UserCard({
         <StatusBadge status={user.status} />
       </div>
 
-      {/* Usage bars */}
       <div className="space-y-2 mb-3">
         {creditRule && user.credit_budget && user.credit_budget > 0 && (
           <ProgressBar
-            label="Credits"
+            label="Créditos"
             used={user.credit_budget - (user.credit_balance ?? 0)}
             limit={user.credit_budget}
           />
@@ -247,11 +287,10 @@ function UserCard({
           const mUsed = dailyUsage[m] ?? 0;
           return mLimit > 0 || mUsed > 0;
         }) && (
-          <p className="text-xs text-zinc-600">No limits configured</p>
+          <p className="text-xs text-zinc-600">Sin límites configurados</p>
         )}
       </div>
 
-      {/* Actions */}
       <div className="flex gap-2">
         {user.status === 'active' ? (
           <>
@@ -260,14 +299,14 @@ function UserCard({
               variant="warning"
               onClick={(e) => { e.stopPropagation(); onAction(user.id, 'pause', user.name); }}
             >
-              Pause
+              Pausar
             </Button>
             <Button
               size="sm"
               variant="danger"
               onClick={(e) => { e.stopPropagation(); onAction(user.id, 'kill', user.name); }}
             >
-              Kill
+              Revocar
             </Button>
           </>
         ) : user.status === 'paused' ? (
@@ -277,14 +316,14 @@ function UserCard({
               variant="success"
               onClick={(e) => { e.stopPropagation(); onAction(user.id, 'reinstate', user.name); }}
             >
-              Reinstate
+              Restaurar
             </Button>
             <Button
               size="sm"
               variant="danger"
               onClick={(e) => { e.stopPropagation(); onAction(user.id, 'kill', user.name); }}
             >
-              Kill
+              Revocar
             </Button>
           </>
         ) : (
@@ -293,7 +332,7 @@ function UserCard({
             variant="success"
             onClick={(e) => { e.stopPropagation(); onAction(user.id, 'reinstate', user.name); }}
           >
-            Reinstate
+            Restaurar
           </Button>
         )}
       </div>

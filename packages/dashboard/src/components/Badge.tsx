@@ -36,5 +36,6 @@ export function StatusBadge({ status }: { status: string }) {
     'default'
   ) as BadgeVariant;
 
-  return <Badge variant={variant}>{status}</Badge>;
+  const labels: Record<string, string> = { active: 'activo', paused: 'pausado', killed: 'revocado' };
+  return <Badge variant={variant}>{labels[status] ?? status}</Badge>;
 }
