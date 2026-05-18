@@ -52,11 +52,11 @@ function generateToken() {
 /**
  * Create a JWT for the admin session.
  * @param {object} payload - e.g., { teamId: '...' }
- * @param {string} [expiresIn] - default '24h'
+ * @param {string} [expiresIn] - default '30d'
  * @returns {string} signed JWT
  */
 function createJWT(payload, expiresIn) {
-  return jwt.sign(payload, getJWTSecret(), { expiresIn: expiresIn || '24h' });
+  return jwt.sign(payload, getJWTSecret(), { expiresIn: expiresIn || '30d' });
 }
 
 /**
