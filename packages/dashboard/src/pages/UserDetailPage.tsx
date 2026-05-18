@@ -312,7 +312,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
             <CardHeader>
               <h3 className="text-sm font-semibold text-zinc-200">Límites Activos</h3>
               <Button size="sm" variant="ghost" onClick={() => setEditLimitsOpen(true)}>
-                Edit
+                Editar
               </Button>
             </CardHeader>
             <CardBody>
@@ -399,9 +399,9 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
             <CardBody flush>
               <Table
                 columns={[
-                  { key: 'time', header: 'Time', render: (e) => <span className="font-mono text-xs">{timeAgo(e.timestamp)}</span> },
-                  { key: 'model', header: 'Model', render: (e) => <Badge variant="model">{e.model}</Badge> },
-                  { key: 'credits', header: 'Credits', render: (e) => <span className="font-mono">{e.credit_cost}</span>, className: 'text-right' },
+                  { key: 'time', header: 'Hora', render: (e) => <span className="font-mono text-xs">{timeAgo(e.timestamp)}</span> },
+                  { key: 'model', header: 'Modelo', render: (e) => <Badge variant="model">{e.model}</Badge> },
+                  { key: 'credits', header: 'Créditos', render: (e) => <span className="font-mono">{e.credit_cost}</span>, className: 'text-right' },
                 ]}
                 data={events}
                 keyExtractor={(e) => e.id ?? `${e.timestamp}-${e.model}`}
@@ -452,9 +452,11 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
 function LimitItem({ rule }: { rule: { type: string; model?: string; window?: string; value?: number; schedule_start?: string; schedule_end?: string; schedule_tz?: string } }) {
   let desc = '';
   if (rule.type === 'credits') {
-    desc = `Presupuesto de Créditos (${rule.window ?? 'daily'})`;
+    const wLabel: Record<string, string> = { daily: 'diario', weekly: 'semanal', monthly: 'mensual', sliding_24h: 'últ. 24h' };
+    desc = `Presupuesto de Créditos (${wLabel[rule.window ?? ''] ?? rule.window ?? 'diario'})`;
   } else if (rule.type === 'per_model') {
-    desc = `${rule.model ?? 'todos los modelos'} (${rule.window ?? 'daily'})`;
+    const wLabel: Record<string, string> = { daily: 'diario', weekly: 'semanal', monthly: 'mensual', sliding_24h: 'últ. 24h' };
+    desc = `${rule.model ?? 'todos los modelos'} (${wLabel[rule.window ?? ''] ?? rule.window ?? 'diario'})`;
   } else if (rule.type === 'time_of_day') {
     desc = `${rule.model ?? 'todos'} restricción horaria`;
   }

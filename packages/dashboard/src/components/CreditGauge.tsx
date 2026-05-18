@@ -70,7 +70,7 @@ export function CreditGauge({ used, total, size = 160 }: CreditGaugeProps) {
           className="fill-zinc-500"
           style={{ fontSize: '11px', fontWeight: 500 }}
         >
-          credits left
+          créditos restantes
         </text>
         <text
           x={cx}
@@ -80,7 +80,7 @@ export function CreditGauge({ used, total, size = 160 }: CreditGaugeProps) {
           className="fill-zinc-600"
           style={{ fontSize: '10px', fontWeight: 500 }}
         >
-          {used} / {total} used
+          {used} / {total} usados
         </text>
       </svg>
     </div>
