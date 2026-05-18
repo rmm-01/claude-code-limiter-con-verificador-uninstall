@@ -92,7 +92,7 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
     setSavingPassword(true);
     try {
       await api.updateSettings({ admin_password: newPassword });
-      showToast('Guardado', 'Contraseña cambiada. Debés iniciar sesión nuevamente.', 'success');
+      showToast('Guardado', 'Contraseña cambiada. Debes iniciar sesión nuevamente.', 'success');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {

@@ -154,7 +154,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
               setConfirmAction({
                 action: 'delete',
                 title: 'Eliminar Usuario',
-                message: `¿Eliminar permanentemente a ${user.name}? Se borrán todos sus datos y no se puede deshacer.`,
+                message: `¿Eliminar permanentemente a ${user.name}? Se borrarán todos sus datos y no se puede deshacer.`,
                 confirmLabel: 'Eliminar',
               })
             }

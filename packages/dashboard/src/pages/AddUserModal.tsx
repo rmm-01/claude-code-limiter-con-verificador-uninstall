@@ -138,7 +138,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
         <ModalBody>
           <div className="space-y-4">
             <p className="text-sm text-zinc-400">
-              Reemplazá <code className="text-[#cc5500]">TU-SERVIDOR-AQUÍ</code> por la URL que la máquina del usuario use para llegar a este servidor:
+              Reemplaza <code className="text-[#cc5500]">TU-SERVIDOR-AQUÍ</code> por la URL que la máquina del usuario use para llegar a este servidor:
             </p>
 
             <div className="text-xs text-zinc-500 space-y-1 bg-zinc-900 rounded-lg p-3 border border-zinc-800">
@@ -198,7 +198,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
             </div>
 
             <p className="text-xs text-zinc-600">
-              Este código solo puede usarse una vez. Generá uno nuevo desde el detalle del usuario si es necesario.
+              Este código solo puede usarse una vez. Genera uno nuevo desde el detalle del usuario si es necesario.
             </p>
           </div>
         </ModalBody>
