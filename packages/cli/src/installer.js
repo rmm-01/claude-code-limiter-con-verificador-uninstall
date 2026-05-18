@@ -133,9 +133,9 @@ function requireElevated(action) {
   fail(`"${action}" requiere privilegios elevados (admin / root).`);
   log("");
   if (IS_WIN) {
-    info("Click derecho en PowerShell → 'Ejecutar como administrador' y reintentá.");
+    info("Click derecho en PowerShell → 'Ejecutar como administrador' y reintenta.");
   } else {
-    info(`Ejecutá con sudo:  sudo node packages/cli/src/installer.js ${action}`);
+    info(`Ejecuta con sudo:  sudo node packages/cli/src/installer.js ${action}`);
   }
   log("");
   process.exit(1);
@@ -455,7 +455,7 @@ async function setup(flags) {
         log(`     ${authRawOut.slice(0, 300)}`);
       }
       log("");
-      info("Si estás seguro de que estás logueado, reintentá con --skip-auth-check");
+      info("Si estás seguro de que estás autenticado, reintenta con --skip-auth-check");
       log("");
       process.exit(1);
     }
@@ -482,7 +482,7 @@ async function setup(flags) {
     if (!flags.yes) {
       const choice = await ask("¿Reinstalar con la configuración existente? (s/N):");
       if (!choice.match(/^(y|yes|s|si|sí)$/i)) {
-        log("\n  Cancelado. Usá --code para configurar otro usuario.\n");
+        log("\n  Cancelado. Usa --code para configurar otro usuario.\n");
         process.exit(0);
       }
     }
@@ -763,7 +763,7 @@ function status() {
     log("");
     warn("El limitador no está instalado en esta máquina.");
     log(C.dim(`  Se esperaba hook en: ${PATHS.hook}`));
-    log(C.dim("  Ejecutá: sudo node packages/cli/src/installer.js setup"));
+    log(C.dim("  Ejecuta: sudo node packages/cli/src/installer.js setup"));
     log("");
     return;
   }
