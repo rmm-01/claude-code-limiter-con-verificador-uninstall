@@ -74,8 +74,8 @@ export function AnalyticsPage() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Prom. Long. Prompt" value={data.avg_prompt_length ?? 0} sub="chars" />
-        <StatCard label="Prom. Long. Respuesta" value={data.avg_response_length ?? 0} sub="chars" />
+        <StatCard label="Prom. Long. Prompt" value={data.avg_prompt_length ?? 0} sub="caracteres" />
+        <StatCard label="Prom. Long. Respuesta" value={data.avg_response_length ?? 0} sub="caracteres" />
         <StatCard
           label="Prompts / Sesión"
           value={data.avg_prompts_per_session ?? 0}
@@ -108,7 +108,7 @@ export function AnalyticsPage() {
               {data.model_distribution ? (
                 <DonutChart data={data.model_distribution} />
               ) : (
-                <p className="text-sm text-zinc-500 py-4">No data</p>
+                <p className="text-sm text-zinc-500 py-4">Sin datos</p>
               )}
             </CardBody>
           </Card>

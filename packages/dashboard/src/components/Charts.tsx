@@ -424,7 +424,7 @@ export function DonutChart({ data }: { data: Record<string, number> }) {
       ctx.font = '500 12px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('No data', cx, cy);
+      ctx.fillText('Sin datos', cx, cy);
       return;
     }
 
@@ -516,10 +516,10 @@ export function BlockRateGauge({ total, blocked }: { total: number; blocked: num
           {(rate * 100).toFixed(1)}%
         </text>
         <text x={cx} y={cy + 8} textAnchor="middle" dominantBaseline="middle" className="fill-zinc-500" style={{ fontSize: '10px', fontWeight: 500 }}>
-          block rate
+          tasa de bloqueo
         </text>
         <text x={cx} y={cy + 22} textAnchor="middle" dominantBaseline="middle" className="fill-zinc-600" style={{ fontSize: '10px', fontWeight: 500 }}>
-          {blocked} / {total} prompts
+          {blocked} / {total} mensajes
         </text>
       </svg>
     </div>
