@@ -19,7 +19,7 @@ function getGradient(pct: number): string {
 
 export function ProgressBar({ label, used, limit, large = false }: ProgressBarProps) {
   const pct = limit > 0 ? Math.min(used / limit, 1) : 0;
-  const valStr = limit > 0 ? `${used} / ${limit}` : limit === -1 ? `${used} / unlimited` : `${used}`;
+  const valStr = limit > 0 ? `${used} / ${limit}` : limit === -1 ? `${used} / ilimitado` : `${used}`;
 
   return (
     <div className="space-y-1">

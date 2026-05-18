@@ -463,7 +463,7 @@ function LimitItem({ rule }: { rule: { type: string; model?: string; window?: st
   if (rule.type === 'time_of_day') {
     valStr = `${rule.schedule_start ?? '?'} - ${rule.schedule_end ?? '?'} ${rule.schedule_tz ?? ''}`;
   } else {
-    valStr = rule.value === -1 ? 'unlimited' : rule.value === 0 ? 'blocked' : String(rule.value ?? '');
+    valStr = rule.value === -1 ? 'ilimitado' : rule.value === 0 ? 'bloqueado' : String(rule.value ?? '');
   }
 
   return (

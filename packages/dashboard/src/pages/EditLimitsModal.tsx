@@ -57,7 +57,7 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
         );
       })
       .catch((err) => {
-        showToast('Error', err instanceof Error ? err.message : 'Failed to load user', 'error');
+        showToast('Error', err instanceof Error ? err.message : 'No se pudo cargar el usuario', 'error');
       })
       .finally(() => setLoading(false));
   }, [open, userId, showToast]);
@@ -91,11 +91,11 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
     setSaving(true);
     try {
       await api.updateUser(userId, { limits });
-      showToast('Limits Updated', 'Limits have been saved', 'success');
+      showToast('Límites Actualizados', 'Los límites han sido guardados', 'success');
       onSaved();
       onClose();
     } catch (err) {
-      showToast('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
+      showToast('Error', err instanceof Error ? err.message : 'No se pudo guardar', 'error');
     } finally {
       setSaving(false);
     }
@@ -119,7 +119,7 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
   return (
     <Modal open={open} onClose={onClose} size="lg">
       <ModalHeader onClose={onClose}>
-        Edit Limits{user ? `: ${user.name}` : ''}
+        Editar Límites{user ? `: ${user.name}` : ''}
       </ModalHeader>
       <ModalBody>
         {loading ? (
@@ -129,35 +129,35 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
           </div>
         ) : (
           <div className="space-y-5">
-            {/* Credit Budget */}
+            {/* Presupuesto de créditos */}
             <div>
-              <h4 className="text-sm font-medium text-zinc-300 mb-3">Credit Budget</h4>
+              <h4 className="text-sm font-medium text-zinc-300 mb-3">Presupuesto de Créditos</h4>
               <div className="grid grid-cols-2 gap-3">
                 <Input
-                  label="Value (-1 = unlimited, 0 = blocked)"
+                  label="Valor (-1 = ilimitado, 0 = bloqueado)"
                   type="number"
                   value={credits}
                   onChange={(e) => setCredits(e.target.value)}
                 />
                 <Select
-                  label="Window"
+                  label="Ventana"
                   value={creditsWindow}
                   onChange={(e) => setCreditsWindow(e.target.value)}
                 >
-                  <option value="daily">daily</option>
-                  <option value="weekly">weekly</option>
-                  <option value="monthly">monthly</option>
-                  <option value="sliding_24h">sliding_24h</option>
+                  <option value="daily">Diaria</option>
+                  <option value="weekly">Semanal</option>
+                  <option value="monthly">Mensual</option>
+                  <option value="sliding_24h">Últimas 24h</option>
                 </Select>
               </div>
             </div>
 
             <hr className="border-zinc-800" />
 
-            {/* Per-model limits */}
+            {/* Límites por modelo */}
             <div>
-              <h4 className="text-sm font-medium text-zinc-300 mb-1">Per-Model Limits (Daily)</h4>
-              <p className="text-xs text-zinc-500 mb-3">-1 = unlimited, 0 = blocked</p>
+              <h4 className="text-sm font-medium text-zinc-300 mb-1">Límites por Modelo (Diario)</h4>
+              <p className="text-xs text-zinc-500 mb-3">-1 = ilimitado, 0 = bloqueado</p>
               <div className="grid grid-cols-3 gap-3">
                 <Input label="Opus" type="number" value={opus} onChange={(e) => setOpus(e.target.value)} />
                 <Input label="Sonnet" type="number" value={sonnet} onChange={(e) => setSonnet(e.target.value)} />
@@ -167,15 +167,15 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
 
             <hr className="border-zinc-800" />
 
-            {/* Time-of-day rules */}
+            {/* Restricciones horarias */}
             <div>
-              <h4 className="text-sm font-medium text-zinc-300 mb-3">Time-of-Day Restrictions</h4>
+              <h4 className="text-sm font-medium text-zinc-300 mb-3">Restricciones Horarias</h4>
               <div className="space-y-3">
                 {timeRules.map((tr, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2 items-end">
                     <div className="col-span-3">
                       <Select
-                        label={idx === 0 ? 'Model' : undefined}
+                        label={idx === 0 ? 'Modelo' : undefined}
                         value={tr.model}
                         onChange={(e) => updateTimeRule(idx, 'model', e.target.value)}
                       >
@@ -186,7 +186,7 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
                     </div>
                     <div className="col-span-3">
                       <Input
-                        label={idx === 0 ? 'Start' : undefined}
+                        label={idx === 0 ? 'Inicio' : undefined}
                         type="time"
                         value={tr.start}
                         onChange={(e) => updateTimeRule(idx, 'start', e.target.value)}
@@ -194,7 +194,7 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
                     </div>
                     <div className="col-span-3">
                       <Input
-                        label={idx === 0 ? 'End' : undefined}
+                        label={idx === 0 ? 'Fin' : undefined}
                         type="time"
                         value={tr.end}
                         onChange={(e) => updateTimeRule(idx, 'end', e.target.value)}
@@ -202,7 +202,7 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
                     </div>
                     <div className="col-span-2">
                       <Input
-                        label={idx === 0 ? 'Timezone' : undefined}
+                        label={idx === 0 ? 'Zona horaria' : undefined}
                         value={tr.tz}
                         onChange={(e) => updateTimeRule(idx, 'tz', e.target.value)}
                       />
@@ -218,16 +218,16 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
                 ))}
               </div>
               <Button size="sm" variant="ghost" onClick={addTimeRule} className="mt-2">
-                + Add Time Rule
+                + Agregar Restricción Horaria
               </Button>
             </div>
           </div>
         )}
       </ModalBody>
       <ModalFooter>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
         <Button variant="primary" onClick={handleSave} disabled={saving || loading}>
-          {saving ? 'Saving...' : 'Save Limits'}
+          {saving ? 'Guardando...' : 'Guardar Límites'}
         </Button>
       </ModalFooter>
     </Modal>
