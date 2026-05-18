@@ -13,6 +13,7 @@ import { SkeletonPage } from '../components/Skeleton';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EditLimitsModal } from './EditLimitsModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
+import { CreditsExplainer } from './OverviewPage';
 
 interface UserDetailPageProps {
   showToast: (title: string, message: string, type: 'info' | 'success' | 'warning' | 'error') => void;
@@ -424,66 +425,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
       <Modal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} size="lg">
         <ModalHeader onClose={() => setCreditsModalOpen(false)}>¿Cómo funcionan los créditos?</ModalHeader>
         <ModalBody>
-          <div className="space-y-5 text-sm text-zinc-300">
-            <p>
-              Los <span className="text-[#cc5500] font-semibold">créditos</span> son una unidad de medida unificada que permite controlar el costo de uso de distintos modelos de Claude con un solo número.
-            </p>
-
-            {/* Pesos */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-2">
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Costo por turno (pesos por defecto)</p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-purple-500" /><span className="font-medium">Opus</span></div>
-                <span className="font-mono text-zinc-300">10 créditos / turno</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="font-medium">Sonnet</span></div>
-                <span className="font-mono text-zinc-300">3 créditos / turno</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500" /><span className="font-medium">Haiku</span></div>
-                <span className="font-mono text-zinc-300">1 crédito / turno</span>
-              </div>
-              <p className="text-xs text-zinc-600 pt-1">Un "turno" es cada vez que el usuario envía un mensaje a Claude Code.</p>
-            </div>
-
-            {/* Ejemplo */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Ejemplo práctico</p>
-              <p className="text-zinc-400 text-xs">Con un presupuesto de <span className="text-zinc-200 font-semibold">50 créditos/día</span>:</p>
-              <div className="mt-2 space-y-1 text-xs font-mono">
-                <div className="flex justify-between"><span className="text-purple-400">Opus</span><span className="text-zinc-400">50 ÷ 10 = <span className="text-zinc-200">5 turnos/día</span></span></div>
-                <div className="flex justify-between"><span className="text-blue-400">Sonnet</span><span className="text-zinc-400">50 ÷ 3 = <span className="text-zinc-200">~16 turnos/día</span></span></div>
-                <div className="flex justify-between"><span className="text-green-400">Haiku</span><span className="text-zinc-400">50 ÷ 1 = <span className="text-zinc-200">50 turnos/día</span></span></div>
-                <div className="flex justify-between pt-1 border-t border-zinc-800"><span className="text-zinc-400">Mezcla</span><span className="text-zinc-400">2 Opus + 10 Sonnet + 10 Haiku = <span className="text-zinc-200">50 créditos</span></span></div>
-              </div>
-            </div>
-
-            {/* Orden de evaluación */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Orden de verificación (primer bloqueo gana)</p>
-              <ol className="space-y-2 text-xs text-zinc-400">
-                <li className="flex gap-2"><span className="text-red-400 font-bold flex-shrink-0">1.</span><span>¿El usuario está <span className="text-red-400">revocado o pausado</span>? → Bloqueo inmediato</span></li>
-                <li className="flex gap-2"><span className="text-yellow-400 font-bold flex-shrink-0">2.</span><span>¿Hay una <span className="text-yellow-400">restricción horaria</span> activa para este modelo? → Bloqueo si fuera del horario</span></li>
-                <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">3.</span><span>¿Se superó el <span className="text-orange-400">límite por modelo</span> (Opus, Sonnet, Haiku)? → Bloqueo si se agotó</span></li>
-                <li className="flex gap-2"><span className="text-[#cc5500] font-bold flex-shrink-0">4.</span><span>¿El <span className="text-[#cc5500]">balance de créditos</span> alcanza para el próximo turno? → Bloqueo si no alcanza</span></li>
-                <li className="flex gap-2"><span className="text-green-400 font-bold flex-shrink-0">5.</span><span className="text-green-400">Permitido ✓</span></li>
-              </ol>
-            </div>
-
-            {/* Ventanas */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Tipos de ventana de tiempo</p>
-              <div className="space-y-1 text-xs">
-                <div className="flex gap-2"><span className="font-mono text-zinc-300 w-24 flex-shrink-0">daily</span><span className="text-zinc-500">Reinicia a medianoche en la zona horaria configurada</span></div>
-                <div className="flex gap-2"><span className="font-mono text-zinc-300 w-24 flex-shrink-0">weekly</span><span className="text-zinc-500">Reinicia cada lunes</span></div>
-                <div className="flex gap-2"><span className="font-mono text-zinc-300 w-24 flex-shrink-0">monthly</span><span className="text-zinc-500">Reinicia el día 1 de cada mes</span></div>
-                <div className="flex gap-2"><span className="font-mono text-zinc-300 w-24 flex-shrink-0">sliding_24h</span><span className="text-zinc-500">Ventana deslizante de las últimas 24 horas</span></div>
-              </div>
-            </div>
-
-            <p className="text-xs text-zinc-500">Los pesos se ajustan en <span className="text-zinc-300">Configuración → Pesos de Créditos</span>. Los límites por modelo y horarios se configuran en <span className="text-zinc-300">Editar Límites</span>.</p>
-          </div>
+          <CreditsExplainer />
         </ModalBody>
       </Modal>
 

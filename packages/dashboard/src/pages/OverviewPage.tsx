@@ -165,48 +165,7 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
       <Modal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} size="lg">
         <ModalHeader onClose={() => setCreditsModalOpen(false)}>¿Cómo funcionan los créditos?</ModalHeader>
         <ModalBody>
-          <div className="space-y-5 text-sm text-zinc-300">
-            <p>
-              Los <span className="text-[#cc5500] font-semibold">créditos</span> son una unidad de medida unificada que permite controlar el costo de uso de distintos modelos de Claude con un solo número.
-            </p>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-2">
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Costo por turno (pesos por defecto)</p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-purple-500" /><span className="font-medium">Opus</span></div>
-                <span className="font-mono text-zinc-300">10 créditos / turno</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="font-medium">Sonnet</span></div>
-                <span className="font-mono text-zinc-300">3 créditos / turno</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500" /><span className="font-medium">Haiku</span></div>
-                <span className="font-mono text-zinc-300">1 crédito / turno</span>
-              </div>
-              <p className="text-xs text-zinc-600 pt-1">Un "turno" es cada vez que el usuario envía un mensaje a Claude Code.</p>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Ejemplo práctico</p>
-              <p className="text-zinc-400 text-xs">Con un presupuesto de <span className="text-zinc-200 font-semibold">50 créditos/día</span>:</p>
-              <div className="mt-2 space-y-1 text-xs font-mono">
-                <div className="flex justify-between"><span className="text-purple-400">Opus</span><span className="text-zinc-400">50 ÷ 10 = <span className="text-zinc-200">5 turnos/día</span></span></div>
-                <div className="flex justify-between"><span className="text-blue-400">Sonnet</span><span className="text-zinc-400">50 ÷ 3 = <span className="text-zinc-200">~16 turnos/día</span></span></div>
-                <div className="flex justify-between"><span className="text-green-400">Haiku</span><span className="text-zinc-400">50 ÷ 1 = <span className="text-zinc-200">50 turnos/día</span></span></div>
-                <div className="flex justify-between pt-1 border-t border-zinc-800"><span className="text-zinc-400">Mezcla</span><span className="text-zinc-400">2 Opus + 10 Sonnet + 10 Haiku = <span className="text-zinc-200">50 créditos</span></span></div>
-              </div>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Orden de verificación (primer bloqueo gana)</p>
-              <ol className="space-y-2 text-xs text-zinc-400">
-                <li className="flex gap-2"><span className="text-red-400 font-bold flex-shrink-0">1.</span><span>¿El usuario está <span className="text-red-400">revocado o pausado</span>? → Bloqueo inmediato</span></li>
-                <li className="flex gap-2"><span className="text-yellow-400 font-bold flex-shrink-0">2.</span><span>¿Hay <span className="text-yellow-400">restricción horaria</span> activa? → Bloqueo si fuera del horario</span></li>
-                <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">3.</span><span>¿Se superó el <span className="text-orange-400">límite por modelo</span>? → Bloqueo si se agotó</span></li>
-                <li className="flex gap-2"><span className="text-[#cc5500] font-bold flex-shrink-0">4.</span><span>¿El <span className="text-[#cc5500]">balance de créditos</span> alcanza para el próximo turno? → Bloqueo si no alcanza</span></li>
-                <li className="flex gap-2"><span className="text-green-400 font-bold flex-shrink-0">5.</span><span className="text-green-400">Permitido ✓</span></li>
-              </ol>
-            </div>
-            <p className="text-xs text-zinc-500">Los pesos se ajustan en <span className="text-zinc-300">Configuración → Pesos de Créditos</span>. Los límites por modelo y horarios se configuran en <span className="text-zinc-300">Editar Límites</span> de cada usuario.</p>
-          </div>
+          <CreditsExplainer />
         </ModalBody>
       </Modal>
     </div>
@@ -343,6 +302,143 @@ function UserCard({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+export function CreditsExplainer() {
+  return (
+    <div className="space-y-5 text-sm text-zinc-300">
+
+      {/* Intro */}
+      <div className="space-y-2">
+        <p>
+          Claude Code es una herramienta de inteligencia artificial que los empleados usan para escribir y revisar código. Existen <span className="text-zinc-100 font-semibold">tres modelos</span> de IA disponibles, cada uno con distinta capacidad y costo:
+        </p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-purple-500 mt-1 flex-shrink-0" />
+            <div>
+              <span className="font-semibold text-zinc-100">Opus</span>
+              <span className="text-zinc-500"> — el más potente y costoso. Ideal para tareas complejas.</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 mt-1 flex-shrink-0" />
+            <div>
+              <span className="font-semibold text-zinc-100">Sonnet</span>
+              <span className="text-zinc-500"> — equilibrio entre capacidad y costo. Es el modelo estándar.</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500 mt-1 flex-shrink-0" />
+            <div>
+              <span className="font-semibold text-zinc-100">Haiku</span>
+              <span className="text-zinc-500"> — el más rápido y económico. Para tareas simples y repetitivas.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Qué es un crédito */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-2">
+        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">¿Qué es un crédito?</p>
+        <p className="text-zinc-400 text-xs leading-relaxed">
+          Un <span className="text-[#cc5500] font-semibold">crédito</span> es una unidad interna de medida que usamos para controlar cuánto usa cada empleado, sin importar qué modelo elija. Es como una moneda virtual: cada vez que un empleado envía un mensaje a Claude Code (llamado un <span className="text-zinc-200">"turno"</span>), se descuentan créditos de su saldo diario según el modelo que usó.
+        </p>
+        <p className="text-zinc-400 text-xs leading-relaxed mt-2">
+          Esto permite que el administrador ponga <span className="text-zinc-200">un solo límite</span> que cubre todos los modelos a la vez, en lugar de tener que configurar restricciones separadas para cada uno.
+        </p>
+      </div>
+
+      {/* Costo por modelo */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-2">
+        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Costo por turno (configuración por defecto)</p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between py-1 border-b border-zinc-800">
+            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-purple-500" /><span className="font-medium text-zinc-200">Opus</span></div>
+            <span className="font-mono text-zinc-300 text-xs">10 créditos por turno</span>
+          </div>
+          <div className="flex items-center justify-between py-1 border-b border-zinc-800">
+            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="font-medium text-zinc-200">Sonnet</span></div>
+            <span className="font-mono text-zinc-300 text-xs">3 créditos por turno</span>
+          </div>
+          <div className="flex items-center justify-between py-1">
+            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500" /><span className="font-medium text-zinc-200">Haiku</span></div>
+            <span className="font-mono text-zinc-300 text-xs">1 crédito por turno</span>
+          </div>
+        </div>
+        <p className="text-xs text-zinc-600 pt-1">Estos valores se pueden cambiar en <span className="text-zinc-400">Configuración → Pesos de Créditos</span>.</p>
+      </div>
+
+      {/* Ejemplo concreto */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Ejemplo concreto</p>
+        <p className="text-zinc-400 text-xs mb-3">
+          Supongamos que le asignamos a un empleado un límite de <span className="text-zinc-200 font-semibold">50 créditos por día</span>. Dependiendo de qué modelo use, su día de trabajo se vería así:
+        </p>
+        <div className="space-y-2 text-xs">
+          <div className="flex items-start gap-3 p-2 rounded-md bg-purple-500/5 border border-purple-500/10">
+            <div className="w-2 h-2 rounded-full bg-purple-500 mt-0.5 flex-shrink-0" />
+            <div><span className="text-purple-300 font-medium">Solo Opus:</span><span className="text-zinc-400"> 50 ÷ 10 = </span><span className="text-zinc-200 font-semibold">5 mensajes al día.</span><span className="text-zinc-500"> Muy restringido — reservado para análisis profundos.</span></div>
+          </div>
+          <div className="flex items-start gap-3 p-2 rounded-md bg-blue-500/5 border border-blue-500/10">
+            <div className="w-2 h-2 rounded-full bg-blue-500 mt-0.5 flex-shrink-0" />
+            <div><span className="text-blue-300 font-medium">Solo Sonnet:</span><span className="text-zinc-400"> 50 ÷ 3 = </span><span className="text-zinc-200 font-semibold">~16 mensajes al día.</span><span className="text-zinc-500"> Uso moderado y productivo para la mayoría de tareas.</span></div>
+          </div>
+          <div className="flex items-start gap-3 p-2 rounded-md bg-green-500/5 border border-green-500/10">
+            <div className="w-2 h-2 rounded-full bg-green-500 mt-0.5 flex-shrink-0" />
+            <div><span className="text-green-300 font-medium">Solo Haiku:</span><span className="text-zinc-400"> 50 ÷ 1 = </span><span className="text-zinc-200 font-semibold">50 mensajes al día.</span><span className="text-zinc-500"> Uso intensivo para tareas repetitivas o simples.</span></div>
+          </div>
+          <div className="flex items-start gap-3 p-2 rounded-md bg-zinc-800/50 border border-zinc-700">
+            <div className="w-2 h-2 rounded-full bg-zinc-400 mt-0.5 flex-shrink-0" />
+            <div><span className="text-zinc-300 font-medium">Uso mixto:</span><span className="text-zinc-400"> 2 Opus (20) + 5 Sonnet (15) + 15 Haiku (15) = </span><span className="text-zinc-200 font-semibold">50 créditos usados.</span><span className="text-zinc-500"> El sistema descuenta automáticamente según cada modelo.</span></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Qué pasa cuando se agotan */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">¿Qué pasa cuando se agotan los créditos?</p>
+        <p className="text-zinc-400 text-xs leading-relaxed">
+          Cuando el saldo de créditos de un empleado llega a cero (o no alcanza para pagar el costo del próximo mensaje), Claude Code le muestra automáticamente un mensaje de bloqueo y <span className="text-zinc-200">no permite continuar usando la IA</span> hasta que el saldo se renueve. El empleado puede ver cuántos créditos le quedan con el comando <span className="font-mono text-zinc-300">claude-limiter status</span>.
+        </p>
+        <p className="text-zinc-400 text-xs leading-relaxed mt-2">
+          El saldo se <span className="text-zinc-200">renueva automáticamente</span> según la ventana configurada: al inicio del día, de la semana, del mes, o pasadas 24 horas desde el primer uso. No requiere intervención manual del administrador.
+        </p>
+      </div>
+
+      {/* Capas de control */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Capas de control disponibles</p>
+        <p className="text-zinc-400 text-xs mb-3">Los créditos son solo una de las formas de controlar el uso. El sistema verifica en este orden — <span className="text-zinc-200">si cualquier condición bloquea, el resto no se evalúa</span>:</p>
+        <ol className="space-y-2.5 text-xs">
+          <li className="flex gap-3">
+            <span className="text-red-400 font-bold flex-shrink-0 w-5">1.</span>
+            <div><span className="text-red-400 font-medium">Estado del usuario</span> — Si el admin pausó o revocó al usuario, queda bloqueado sin importar sus créditos.</div>
+          </li>
+          <li className="flex gap-3">
+            <span className="text-yellow-400 font-bold flex-shrink-0 w-5">2.</span>
+            <div><span className="text-yellow-400 font-medium">Restricción horaria</span> — Se puede limitar el uso a ciertos horarios (ej: solo de 9:00 a 18:00). Fuera de ese rango, el modelo queda bloqueado.</div>
+          </li>
+          <li className="flex gap-3">
+            <span className="text-orange-400 font-bold flex-shrink-0 w-5">3.</span>
+            <div><span className="text-orange-400 font-medium">Límite por modelo</span> — Se puede poner un tope independiente por modelo (ej: máximo 3 mensajes a Opus por día), además del presupuesto de créditos.</div>
+          </li>
+          <li className="flex gap-3">
+            <span className="text-[#cc5500] font-bold flex-shrink-0 w-5">4.</span>
+            <div><span className="text-[#cc5500] font-medium">Presupuesto de créditos</span> — Si el saldo no alcanza para pagar el costo del próximo mensaje, se bloquea.</div>
+          </li>
+          <li className="flex gap-3">
+            <span className="text-green-400 font-bold flex-shrink-0 w-5">5.</span>
+            <div className="text-green-400 font-medium">Acceso permitido ✓</div>
+          </li>
+        </ol>
+      </div>
+
+      <p className="text-xs text-zinc-600 leading-relaxed">
+        Los límites se configuran por usuario desde el botón <span className="text-zinc-400">"Editar Límites"</span> en el perfil de cada empleado. Los pesos de créditos (el costo de cada modelo) se ajustan globalmente en <span className="text-zinc-400">Configuración → Pesos de Créditos</span>.
+      </p>
     </div>
   );
 }
