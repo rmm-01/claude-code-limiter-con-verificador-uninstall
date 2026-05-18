@@ -26,6 +26,9 @@ jobs:
         working-directory: packages/dashboard
         run: npm run build
 
+      - name: Copy dashboard dist to server
+        run: mkdir -p packages/server/dashboard && cp -r packages/dashboard/dist packages/server/dashboard/
+
       - name: Install server dependencies
         working-directory: packages/server
         run: npm ci --omit=dev
