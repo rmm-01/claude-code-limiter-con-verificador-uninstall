@@ -90,9 +90,7 @@ export function Sidebar({ teamName, open, onClose, connectionState }: SidebarPro
         {/* Logo / Team name */}
         <div className="px-5 py-5 border-b border-zinc-800">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#cc5500] flex items-center justify-center text-white text-sm font-bold">
-              🦀
-            </div>
+            <img src="/crab.png" alt="logo" className="w-8 h-8 rounded-lg object-cover" />
             <div className="min-w-0">
               <div className="text-sm font-semibold text-zinc-100 truncate">
                 {teamName || 'Claude Limiter'}

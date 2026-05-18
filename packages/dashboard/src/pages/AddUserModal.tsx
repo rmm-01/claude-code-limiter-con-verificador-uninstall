@@ -159,7 +159,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
                 placeholder="https://tu-servidor.com"
                 className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
               />
-              <p className="text-xs text-zinc-600">Si la dejás vacía, los comandos mostrarán TU-SERVIDOR-AQUÍ. Se recuerda para próximas invitaciones.</p>
+              <p className="text-xs text-zinc-600">Si la dejas vacía, los comandos mostrarán TU-SERVIDOR-AQUÍ. Se recuerda para próximas invitaciones.</p>
             </div>
 
             <div className="space-y-3">
@@ -253,7 +253,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
               ))}
             </div>
             <p className="text-xs text-zinc-500 mt-2">
-              {preset === 'custom' ? 'Configurá tus propios límites abajo.' : PRESETS[preset as Exclude<Preset, 'custom'>]?.desc}
+              {preset === 'custom' ? 'Configura tus propios límites abajo.' : PRESETS[preset as Exclude<Preset, 'custom'>]?.desc}
             </p>
           </div>
 
