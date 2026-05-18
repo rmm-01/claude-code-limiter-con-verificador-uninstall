@@ -42,6 +42,10 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       showToast('Error', 'El nombre del equipo no puede estar vacío', 'error');
       return;
     }
+    if (teamName.trim().length > 50) {
+      showToast('Error', 'El nombre no puede superar los 50 caracteres', 'error');
+      return;
+    }
     setSavingName(true);
     try {
       const res = await api.updateSettings({ name: teamName.trim() });
@@ -115,6 +119,8 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
               value={teamName}
               onChange={(e) => setTeamName(e.target.value)}
               placeholder="Nombre del equipo"
+              maxLength={50}
+              hint={`${teamName.length}/50 caracteres`}
             />
             <Button size="sm" variant="primary" onClick={handleSaveName} disabled={savingName}>
               {savingName ? 'Guardando...' : 'Guardar Nombre'}
