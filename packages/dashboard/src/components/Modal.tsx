@@ -36,7 +36,7 @@ export function Modal({ open, onClose, children, size = 'md' }: ModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
     >
