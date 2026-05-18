@@ -29,6 +29,9 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   const [loading, setLoading] = useState(true);
   const [editLimitsOpen, setEditLimitsOpen] = useState(false);
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
+  const [installCodeModal, setInstallCodeModal] = useState(false);
+  const [installCode, setInstallCode] = useState<string | null>(null);
+  const [installCodeLoading, setInstallCodeLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     action: string;
     title: string;
@@ -59,6 +62,34 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const openInstallCodeModal = async () => {
+    if (!id) return;
+    setInstallCodeLoading(true);
+    setInstallCodeModal(true);
+    try {
+      const res = await api.getInstallCode(id);
+      setInstallCode(res.install_code);
+    } catch {
+      setInstallCode(null);
+    } finally {
+      setInstallCodeLoading(false);
+    }
+  };
+
+  const handleRegenerateCode = async () => {
+    if (!id) return;
+    setInstallCodeLoading(true);
+    try {
+      const res = await api.regenerateInstallCode(id);
+      setInstallCode(res.install_code);
+      showToast('Código generado', 'El código anterior fue invalidado', 'success');
+    } catch (err) {
+      showToast('Error', err instanceof Error ? err.message : 'No se pudo generar', 'error');
+    } finally {
+      setInstallCodeLoading(false);
+    }
+  };
 
   const handleStatusAction = async (status: string) => {
     if (!id || !user) return;
@@ -139,7 +170,18 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-xl font-semibold text-zinc-100">{user.name}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-zinc-100">{user.name}</h2>
+          <button
+            onClick={openInstallCodeModal}
+            title="Código de instalación"
+            className="p-1 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <circle cx="3" cy="8" r="1.5" /><circle cx="8" cy="8" r="1.5" /><circle cx="13" cy="8" r="1.5" />
+            </svg>
+          </button>
+        </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="ghost" size="sm" onClick={() => setCreditsModalOpen(true)}>
             ¿Cómo funcionan los créditos?
@@ -420,6 +462,45 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
         onSaved={loadData}
         showToast={showToast}
       />
+
+      {/* Install Code Modal */}
+      <Modal open={installCodeModal} onClose={() => setInstallCodeModal(false)} size="md">
+        <ModalHeader onClose={() => setInstallCodeModal(false)}>Código de Instalación</ModalHeader>
+        <ModalBody>
+          {installCodeLoading ? (
+            <div className="py-4 text-center text-zinc-500 text-sm">Cargando...</div>
+          ) : installCode ? (
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-400">Código pendiente — aún no ha sido usado para vincular ninguna máquina.</p>
+              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex items-center justify-between gap-3">
+                <code className="text-[#cc5500] font-mono text-sm">{installCode}</code>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(installCode); showToast('Copiado', 'Código copiado al portapapeles', 'success', 2000); }}
+                  className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                >Copiar</button>
+              </div>
+              <button
+                onClick={handleRegenerateCode}
+                disabled={installCodeLoading}
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer underline"
+              >
+                Generar nuevo código (invalida el actual)
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-400">No hay código pendiente para este usuario. El código anterior ya fue usado para vincular una máquina.</p>
+              <button
+                onClick={handleRegenerateCode}
+                disabled={installCodeLoading}
+                className="w-full py-2 px-4 rounded-lg bg-[#cc5500] hover:bg-[#e06012] text-white text-sm font-medium transition-colors cursor-pointer"
+              >
+                {installCodeLoading ? 'Generando...' : 'Generar nuevo código'}
+              </button>
+            </div>
+          )}
+        </ModalBody>
+      </Modal>
 
       {/* Credits Modal */}
       <Modal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} size="lg">

@@ -154,6 +154,16 @@ async function deleteUser(id: string): Promise<{ deleted: boolean }> {
   });
 }
 
+async function getInstallCode(id: string): Promise<{ install_code: string | null }> {
+  return request<{ install_code: string | null }>(`/api/admin/users/${id}/install-code`);
+}
+
+async function regenerateInstallCode(id: string): Promise<{ install_code: string }> {
+  return request<{ install_code: string }>(`/api/admin/users/${id}/install-code`, {
+    method: 'POST',
+  });
+}
+
 async function getUsage(params?: {
   user_id?: string;
   window?: string;
@@ -195,6 +205,8 @@ export const api = {
   createUser,
   updateUser,
   deleteUser,
+  getInstallCode,
+  regenerateInstallCode,
   getUsage,
   getEvents,
   getAnalytics,

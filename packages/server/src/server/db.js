@@ -490,6 +490,18 @@ function useInstallCode(code) {
   return row;
 }
 
+function getUnusedInstallCode(userId) {
+  return getDb().prepare(
+    'SELECT code FROM install_code WHERE user_id = ? AND used = 0 ORDER BY created_at DESC LIMIT 1'
+  ).get(userId) || null;
+}
+
+function invalidateUnusedInstallCodes(userId) {
+  getDb().prepare(
+    'UPDATE install_code SET used = 1 WHERE user_id = ? AND used = 0'
+  ).run(userId);
+}
+
 // --------------- Device helpers ---------------
 
 /**
@@ -771,6 +783,8 @@ module.exports = {
   // Install Codes
   createInstallCode,
   useInstallCode,
+  getUnusedInstallCode,
+  invalidateUnusedInstallCodes,
   // Device
   upsertDevice,
   getDevices,

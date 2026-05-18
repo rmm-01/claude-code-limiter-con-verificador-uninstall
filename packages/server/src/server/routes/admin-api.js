@@ -264,6 +264,43 @@ router.put('/users/:id', (req, res) => {
 });
 
 /**
+ * GET /api/admin/users/:id/install-code
+ * Returns the pending unused install code for a user, if any.
+ */
+router.get('/users/:id/install-code', (req, res) => {
+  try {
+    const user = db.getUser(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.team_id !== req.teamId) return res.status(403).json({ error: 'Forbidden' });
+
+    const row = db.getUnusedInstallCode(req.params.id);
+    res.json({ install_code: row ? row.code : null });
+  } catch (err) {
+    console.error('GET /users/:id/install-code error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/admin/users/:id/install-code
+ * Invalidates any existing unused codes and generates a new one.
+ */
+router.post('/users/:id/install-code', (req, res) => {
+  try {
+    const user = db.getUser(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.team_id !== req.teamId) return res.status(403).json({ error: 'Forbidden' });
+
+    db.invalidateUnusedInstallCodes(req.params.id);
+    const code = db.createInstallCode(req.params.id);
+    res.json({ install_code: code });
+  } catch (err) {
+    console.error('POST /users/:id/install-code error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * DELETE /api/admin/users/:id
  * Remove a user and all related data.
  */
