@@ -48,6 +48,7 @@ export interface User {
   credit_balance: number | null;
   credit_budget: number | null;
   devices: Device[];
+  allow_self_uninstall: boolean;
 }
 
 export interface Team {
@@ -108,6 +109,7 @@ export interface UpdateUserPayload {
   slug?: string;
   status?: string;
   limits?: LimitRule[];
+  allow_self_uninstall?: boolean;
 }
 
 export interface UpdateSettingsPayload {
