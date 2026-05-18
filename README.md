@@ -582,4 +582,4 @@ Modificaciones del fork: Ricardo Mendoza, 2026.
 
 ## Créditos
 
-- [@Ageb1234](https://github.com/Ageb1234) (Angello) — por ayudar a testear
+- [@Ageb1234](https://github.com/Ageb1234) (Angello Espinoza) — por ayudar a testear
