@@ -441,7 +441,12 @@ router.put('/settings', (req, res) => {
     const { name, credit_weights, admin_password } = req.body;
 
     const updates = {};
-    if (name !== undefined) updates.name = name;
+    if (name !== undefined) {
+      if (typeof name === 'string' && name.trim().length > 50) {
+        return res.status(400).json({ error: 'El nombre del equipo no puede superar los 50 caracteres' });
+      }
+      updates.name = name;
+    }
     if (credit_weights !== undefined) updates.credit_weights = credit_weights;
     if (admin_password !== undefined) {
       updates.admin_password = hashPassword(admin_password);

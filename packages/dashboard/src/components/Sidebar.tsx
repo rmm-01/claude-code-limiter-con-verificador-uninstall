@@ -93,7 +93,7 @@ export function Sidebar({ teamName, open, onClose, connectionState }: SidebarPro
           <div className="flex items-center gap-3">
             <img src={`${import.meta.env.BASE_URL}crab.png`} alt="logo" className="w-8 h-8 rounded-lg object-cover" />
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-zinc-100 truncate">
+              <div className="text-sm font-semibold text-zinc-100 line-clamp-2 leading-snug">
                 {teamName || 'Claude Limiter'}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
