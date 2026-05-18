@@ -54,7 +54,7 @@ body {
 }
 
 .animate-float {
-  animation: float 3s ease-in-out infinite;
+  animation: float 1.8s ease-in-out infinite;
 }
 
 @keyframes fadeIn {
