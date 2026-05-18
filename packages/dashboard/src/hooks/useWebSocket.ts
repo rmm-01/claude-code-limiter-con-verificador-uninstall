@@ -7,47 +7,69 @@ type ConnectionState = 'connected' | 'connecting' | 'disconnected';
 
 const MAX_EVENTS = 50;
 
+const STATUS_LABELS: Record<string, string> = {
+  active: 'activo',
+  paused: 'pausado',
+  killed: 'revocado',
+};
+
+function translateReason(reason: string): string {
+  return reason
+    .replace(/Daily (\w+) limit reached for .+/i, 'Límite diario de $1 alcanzado')
+    .replace(/Daily credits limit reached for .+/i, 'Límite diario de créditos alcanzado')
+    .replace(/User is paused/i, 'Usuario pausado')
+    .replace(/User is killed/i, 'Usuario revocado')
+    .replace(/Outside allowed hours/i, 'Fuera del horario permitido')
+    .replace(/Insufficient credits/i, 'Créditos insuficientes');
+}
+
 function wsEventToFeed(evt: WSEvent): FeedItem | null {
   switch (evt.type) {
     case 'user_check':
       return {
         id: nextFeedId(),
         type: 'check',
-        user: evt.userName ?? 'Unknown',
-        detail: `Checking ${evt.model ?? ''}`,
+        user: evt.userName ?? 'Desconocido',
+        detail: `Verificando ${evt.model ?? ''}`,
         time: evt.timestamp,
       };
-    case 'user_blocked':
+    case 'user_blocked': {
+      const rawReason = evt.reason ? evt.reason.split('\n')[0] : '';
+      const reason = rawReason ? ': ' + translateReason(rawReason) : '';
       return {
         id: nextFeedId(),
         type: 'blocked',
-        user: evt.userName ?? 'Unknown',
-        detail: `Blocked on ${evt.model ?? ''}${evt.reason ? ': ' + evt.reason.split('\n')[0] : ''}`,
+        user: evt.userName ?? 'Desconocido',
+        detail: `Bloqueado en ${evt.model ?? ''}${reason}`,
         time: evt.timestamp,
       };
+    }
     case 'user_counted':
       return {
         id: nextFeedId(),
         type: 'counted',
-        user: evt.userName ?? 'Unknown',
-        detail: `${evt.model ?? ''} (+${evt.creditCost ?? 0} credits)`,
+        user: evt.userName ?? 'Desconocido',
+        detail: `${evt.model ?? ''} (+${evt.creditCost ?? 0} créditos)`,
         time: evt.timestamp,
       };
     case 'user_status_change':
-    case 'user_killed':
+    case 'user_killed': {
+      const oldS = STATUS_LABELS[evt.oldStatus ?? ''] ?? evt.oldStatus ?? '?';
+      const newS = STATUS_LABELS[evt.newStatus ?? ''] ?? evt.newStatus ?? '?';
       return {
         id: nextFeedId(),
         type: 'status',
-        user: evt.userName ?? 'Unknown',
-        detail: `${evt.oldStatus ?? '?'} -> ${evt.newStatus ?? '?'}`,
+        user: evt.userName ?? 'Desconocido',
+        detail: `${oldS} → ${newS}`,
         time: evt.timestamp,
       };
+    }
     case 'user_status':
       return {
         id: nextFeedId(),
         type: 'check',
-        user: evt.userName ?? 'Unknown',
-        detail: `Session start (${evt.model ?? ''})`,
+        user: evt.userName ?? 'Desconocido',
+        detail: `Inicio de sesión (${evt.model ?? ''})`,
         time: evt.timestamp,
       };
     default:
