@@ -108,6 +108,28 @@ function readStdin() {
   }
 }
 
+function readStdinAsync(timeoutMs) {
+  return new Promise((resolve) => {
+    if (process.stdin.isTTY) return resolve({});
+    const chunks = [];
+    const timer = setTimeout(() => {
+      process.stdin.destroy();
+      resolve({});
+    }, timeoutMs || 2000);
+    process.stdin.on("data", (chunk) => chunks.push(chunk));
+    process.stdin.on("end", () => {
+      clearTimeout(timer);
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf-8").trim()));
+      } catch {
+        resolve({});
+      }
+    });
+    process.stdin.on("error", () => { clearTimeout(timer); resolve({}); });
+    process.stdin.resume();
+  });
+}
+
 // ════════════════════════════════════════════════════════════
 // MODEL DETECTION
 //
@@ -496,7 +518,7 @@ function triggerLogout() {
  * Cache model, sync config from server.
  */
 async function actionSync(config) {
-  const stdinData = readStdin();
+  const stdinData = await readStdinAsync();
   const model = detectModel(stdinData, config);
   writeText(MODEL_FILE, model);
   debugLog(`SYNC model=${model} source=${stdinData.source || "unknown"}`);
@@ -532,7 +554,7 @@ async function actionSync(config) {
  * Gate: block prompt if over limit.
  */
 async function actionCheck(config) {
-  const stdinData = readStdin();
+  const stdinData = await readStdinAsync();
 
   if (isPersonalAccount(config)) {
     debugLog("CHECK bypassed — personal account");
@@ -594,7 +616,7 @@ async function actionCheck(config) {
  * Increment counter, report to server.
  */
 async function actionCount(config) {
-  const stdinData = readStdin();
+  const stdinData = await readStdinAsync();
 
   if (isPersonalAccount(config)) {
     debugLog("COUNT bypassed — personal account");
@@ -623,7 +645,7 @@ async function actionCount(config) {
  * to see if the admin reinstated — prevents permanent lockout.
  */
 async function actionEnforce() {
-  const stdinData = readStdin();
+  const stdinData = await readStdinAsync();
   const config = readJSON(CONFIG_FILE);
 
   if (isPersonalAccount(config)) {
