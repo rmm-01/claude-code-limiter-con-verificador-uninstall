@@ -186,14 +186,31 @@ function reclaimPath(p) {
 // MANAGED-SETTINGS.JSON GENERATOR
 // ════════════════════════════════════════════════════════════
 
+function nodeSupportsSystemCa() {
+  // --use-system-ca was added in Node 22.10. Older versions reject it
+  // with "bad option" and abort the hook entirely.
+  const parts = process.versions.node.split(".").map((n) => parseInt(n, 10));
+  const major = parts[0] || 0;
+  const minor = parts[1] || 0;
+  return major > 22 || (major === 22 && minor >= 10);
+}
+
 function generateManagedSettings(existingSettings) {
   const hookPath = PATHS.hook;
   // --use-system-ca makes Node trust the OS certificate store (needed on
   // corporate networks that MITM TLS, since their CA is in Windows/macOS
-  // store but not in Node's bundled one). Requires Node >= 22.10.
+  // store but not in Node's bundled one). Requires Node >= 22.10 — older
+  // versions reject the flag and the whole hook fails ("Stop Hook Error
+  // bad option, --use-system-ca").
+  const caFlag = nodeSupportsSystemCa() ? "--use-system-ca " : "";
+  if (!nodeSupportsSystemCa()) {
+    warn(`Node ${process.versions.node} no soporta --use-system-ca (requiere >= 22.10).`);
+    warn(`Si tu red intercepta TLS (proxy corporativo, antivirus con HTTPS inspection), las requests del hook al server pueden fallar.`);
+    warn(`Considerá actualizar Node a una versión LTS reciente.`);
+  }
   const nodeCmd = IS_WIN
-    ? `"${process.execPath.replace(/\\/g, "\\\\")}" --use-system-ca "${hookPath.replace(/\\/g, "\\\\")}"`
-    : `node --use-system-ca "${hookPath}"`;
+    ? `"${process.execPath.replace(/\\/g, "\\\\")}" ${caFlag}"${hookPath.replace(/\\/g, "\\\\")}"`
+    : `node ${caFlag}"${hookPath}"`;
 
   const base = existingSettings || {};
   return {
