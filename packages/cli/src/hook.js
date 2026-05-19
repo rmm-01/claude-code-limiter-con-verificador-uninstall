@@ -586,31 +586,35 @@ async function actionCheck(config) {
     const fullMessage = buildBlockMessage(config, model, usage, reason);
     process.stdout.write(JSON.stringify({ decision: "block", reason: fullMessage }));
     debugLog(`CHECK BLOCKED: ${reason}`);
+  }
+}
+
+/**
+ * COUNT — Stop hook.
+ * Increment counter, report to server.
+ */
+async function actionCount(config) {
+  const stdinData = readStdin();
+
+  if (isPersonalAccount(config)) {
+    debugLog("COUNT bypassed — personal account");
     return;
   }
 
-  // Allowed — count this prompt now (Stop event is unreliable in Claude Code 2.1+)
-  usage[model] = (usage[model] || 0) + 1;
+  const model = detectModel(stdinData, config);
+  const usage = loadUsage();
+  const prev = usage[model] || 0;
+  usage[model] = prev + 1;
   saveUsage(usage);
   cleanupOldUsage();
-  debugLog(`COUNT (via check) model=${model} → ${usage[model]}`);
+  debugLog(`COUNT model=${model} ${prev} → ${prev + 1}`);
 
   serverRequest("/api/v1/count", {
     model,
     timestamp: new Date().toISOString(),
     session_id: stdinData.session_id || null,
-    prompt_length: (stdinData.prompt || "").length,
+    response_length: (stdinData.last_assistant_message || "").length,
   }, 3000);
-}
-
-/**
- * COUNT — Stop hook.
- * Conteo movido a actionCheck (UserPromptSubmit) por ser más confiable.
- * Este hook queda como no-op para evitar doble conteo.
- */
-async function actionCount(config) {
-  readStdin(); // consume stdin
-  debugLog("COUNT (Stop) — no-op, counting is done in check");
 }
 
 /**
