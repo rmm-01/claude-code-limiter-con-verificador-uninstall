@@ -100,6 +100,21 @@ function debugLog(msg) {
   } catch {}
 }
 
+function bootLog(msg) {
+  try {
+    fs.mkdirSync(path.dirname(DEBUG_LOG), { recursive: true });
+    const ts = new Date().toISOString();
+    fs.appendFileSync(DEBUG_LOG, `[${ts}] BOOT ${msg}\n`);
+  } catch {}
+}
+
+process.on("uncaughtException", (err) => {
+  bootLog(`UNCAUGHT ${err && (err.stack || err.message) || err}`);
+});
+process.on("unhandledRejection", (err) => {
+  bootLog(`UNHANDLED ${err && (err.stack || err.message) || err}`);
+});
+
 function readStdin() {
   try {
     if (process.stdin.isTTY) return {};
@@ -772,8 +787,10 @@ function actionStatus(config) {
 
 async function main() {
   const action = process.argv[2] || "check";
+  bootLog(`ENTER action=${action} argv=${JSON.stringify(process.argv)} cwd=${process.cwd()}`);
   const config = readJSON(CONFIG_FILE);
   _debugEnabled = !!(config && config.debug);
+  bootLog(`config_loaded=${!!config} debug=${_debugEnabled}`);
 
   if (!config || Object.keys(config).length === 0) {
     if (action === "status") {
