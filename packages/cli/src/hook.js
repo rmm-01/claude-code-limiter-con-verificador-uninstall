@@ -42,10 +42,10 @@ const LIMITER_DIR =
 
 const CONFIG_FILE = path.join(LIMITER_DIR, "config.json");
 const SERVER_FILE = path.join(LIMITER_DIR, "server.json");
-const CACHE_FILE = path.join(LIMITER_DIR, "cache.json");
-const MODEL_FILE = path.join(LIMITER_DIR, "session-model.txt");
 const USAGE_DIR = path.join(LIMITER_DIR, "usage");
-const DEBUG_LOG = path.join(LIMITER_DIR, "debug.log");
+const CACHE_FILE = path.join(USAGE_DIR, ".cache.json");
+const MODEL_FILE = path.join(USAGE_DIR, ".session-model.txt");
+const DEBUG_LOG = path.join(USAGE_DIR, "debug.log");
 
 const DEVICE_CACHE_FILE = path.join(LIMITER_DIR, "device-cache.json");
 
@@ -94,6 +94,7 @@ let _debugEnabled = false;
 function debugLog(msg) {
   if (!_debugEnabled) return;
   try {
+    fs.mkdirSync(path.dirname(DEBUG_LOG), { recursive: true });
     const ts = new Date().toISOString();
     fs.appendFileSync(DEBUG_LOG, `[${ts}] ${msg}\n`);
   } catch {}
@@ -252,7 +253,13 @@ function getDeviceInfo(stdinData) {
 
 function serverRequest(endpoint, payload, timeoutMs) {
   const serverConfig = readJSON(SERVER_FILE);
-  if (!serverConfig || !serverConfig.url) return Promise.resolve(null);
+  if (!serverConfig || !serverConfig.url) {
+    debugLog(`HTTP ${endpoint} ABORT no_server_config`);
+    return Promise.resolve(null);
+  }
+
+  const startedAt = Date.now();
+  debugLog(`HTTP ${endpoint} START url=${serverConfig.url}`);
 
   return new Promise((resolve) => {
     try {
@@ -274,24 +281,32 @@ function serverRequest(endpoint, payload, timeoutMs) {
           let data = "";
           res.on("data", (chunk) => (data += chunk));
           res.on("end", () => {
+            const dt = Date.now() - startedAt;
+            debugLog(`HTTP ${endpoint} END status=${res.statusCode} dt=${dt}ms body=${data.slice(0,300)}`);
             try {
               resolve(JSON.parse(data));
-            } catch {
+            } catch (err) {
+              debugLog(`HTTP ${endpoint} JSON_PARSE_ERR ${err.message}`);
               resolve(null);
             }
           });
         },
       );
 
-      req.on("error", () => resolve(null));
+      req.on("error", (err) => {
+        debugLog(`HTTP ${endpoint} ERROR ${err.code || ''} ${err.message}`);
+        resolve(null);
+      });
       req.setTimeout(timeoutMs || 3000, () => {
+        debugLog(`HTTP ${endpoint} TIMEOUT after ${timeoutMs || 3000}ms`);
         req.destroy();
         resolve(null);
       });
 
       req.write(body);
       req.end();
-    } catch {
+    } catch (err) {
+      debugLog(`HTTP ${endpoint} CATCH ${err.message}`);
       resolve(null);
     }
   });
