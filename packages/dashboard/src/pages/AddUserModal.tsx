@@ -126,9 +126,13 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
     }
   };
 
+  const REPO_URL = 'https://github.com/rmm-01/claude-code-limiter-con-verificador-uninstall.git';
+  const REPO_DIR = 'claude-code-limiter-con-verificador-uninstall';
+
   const effectiveServer = serverUrl.trim() || 'TU-SERVIDOR-AQUÍ';
-  const linuxCmd = `sudo npx @howincodes/claude-code-limiter setup --code ${installCode} --server ${effectiveServer}`;
-  const windowsCmd = `npx @howincodes/claude-code-limiter setup --code ${installCode} --server ${effectiveServer}`;
+  const cloneCmd = `git clone ${REPO_URL}`;
+  const linuxCmd = `cd ${REPO_DIR} && sudo node packages/cli/src/installer.js setup --code ${installCode} --server ${effectiveServer}`;
+  const windowsCmd = `cd ${REPO_DIR}; node packages\\cli\\src\\installer.js setup --code ${installCode} --server ${effectiveServer}`;
 
   // Install command screen
   if (showInstall) {
@@ -137,11 +141,15 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
         <ModalHeader onClose={handleClose}>Comando de Instalación</ModalHeader>
         <ModalBody>
           <div className="space-y-4">
-            <p className="text-sm text-zinc-400">
-              Reemplaza <code className="text-[#cc5500]">TU-SERVIDOR-AQUÍ</code> por la URL que la máquina del usuario use para llegar a este servidor:
-            </p>
+            {/* Why-clone notice */}
+            <div className="text-xs text-zinc-400 bg-amber-950/30 border border-amber-900/40 rounded-lg p-3 leading-relaxed">
+              <div className="font-semibold text-amber-300 mb-1">Importante — usar este repo, NO <code>npx @howincodes</code></div>
+              Este fork incluye fixes específicos sobre el upstream (TLS con CA del sistema, paths escribibles en Windows, verificador de auto-uninstall). El package de npm <code>@howincodes/claude-code-limiter</code> es el original y no tiene estos parches. Por eso el comando usa <code>git clone</code> + <code>node installer.js</code>.
+            </div>
 
+            {/* Server URL setup */}
             <div className="text-xs text-zinc-500 space-y-1 bg-zinc-900 rounded-lg p-3 border border-zinc-800">
+              <div className="text-zinc-300 font-medium mb-1">¿Qué URL del servidor usar?</div>
               <div>• <span className="text-zinc-400">LAN local:</span> <span className="font-mono">http://192.168.x.x:3000</span></div>
               <div>• <span className="text-zinc-400">VPS / Azure:</span> <span className="font-mono">https://tu-dominio.azurewebsites.net</span></div>
               <div>• <span className="text-zinc-400">Dashboard actual:</span> <span className="font-mono text-zinc-300">{window.location.origin}</span></div>
@@ -162,11 +170,28 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
               <p className="text-xs text-zinc-600">Si la dejas vacía, los comandos mostrarán TU-SERVIDOR-AQUÍ. Se recuerda para próximas invitaciones.</p>
             </div>
 
+            <hr className="border-zinc-800" />
+
+            {/* Step 1 — clone */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Paso 1 — Clonar el repo (solo la primera vez)</span>
+                <Button size="sm" variant="primary" onClick={() => copyCmd(cloneCmd)}>Copiar</Button>
+              </div>
+              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
+                <code className="text-xs text-zinc-200 font-mono break-all">{cloneCmd}</code>
+              </div>
+              <p className="text-xs text-zinc-600 mt-1">Si ya tenés el repo clonado, salteá este paso y andá directo al Paso 2 dentro de esa carpeta.</p>
+            </div>
+
+            {/* Step 2 — setup */}
             <div className="space-y-3">
+              <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider block">Paso 2 — Setup (elegí tu OS)</span>
+
               {/* Linux / macOS */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Linux / macOS</span>
+                  <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Linux / macOS</span>
                   <Button size="sm" variant="primary" onClick={() => copyCmd(linuxCmd)}>Copiar</Button>
                 </div>
                 <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
@@ -177,7 +202,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
               {/* Windows */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Windows (PowerShell como Administrador)</span>
+                  <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Windows (PowerShell como Administrador)</span>
                   <Button size="sm" variant="primary" onClick={() => copyCmd(windowsCmd)}>Copiar</Button>
                 </div>
                 <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
@@ -188,7 +213,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
               {/* Code only */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Código de instalación (por si falla copiar)</span>
+                  <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Código de instalación (por si falla copiar)</span>
                   <Button size="sm" variant="ghost" onClick={() => copyCmd(installCode)}>Copiar</Button>
                 </div>
                 <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
@@ -198,7 +223,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
             </div>
 
             <p className="text-xs text-zinc-600">
-              Este código solo puede usarse una vez. Genera uno nuevo desde el detalle del usuario si es necesario.
+              Este código solo puede usarse una vez. Generá uno nuevo desde el detalle del usuario si es necesario. Después del Paso 2 hay que reiniciar Claude Code para que los hooks tomen efecto.
             </p>
           </div>
         </ModalBody>
