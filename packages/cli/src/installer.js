@@ -46,6 +46,33 @@ const PATHS = (() => {
 })();
 
 // ════════════════════════════════════════════════════════════
+// FORCE UNINSTALL (offline, no server required)
+// ════════════════════════════════════════════════════════════
+// Hash scrypt de la contraseña de emergencia. Permite ejecutar
+// `installer.js uninstall --force` (o `--password <pwd>`) sin que el
+// servidor sea alcanzable y sin necesidad de que el toggle "Allow
+// self-uninstall" esté ON. Pensado para uso interno: este repo es
+// privado y la contraseña vive solo entre el equipo.
+//
+// Para rotar: generar uno nuevo con
+//   node -e "const c=require('crypto');const s=c.randomBytes(16);console.log('scrypt$'+s.toString('hex')+'$'+c.scryptSync('TU_PWD',s,64,{N:16384,r:8,p:1}).toString('hex'))"
+const FORCE_UNINSTALL_HASH = "scrypt$ed5b5e633c409e744d07cbb7d23b9693$98ac17273b980d187272c62f99d582fd6d461f99b700d44a61f20d7c0c4eb7770ad0b32383163f0f3a75d8925b5bd7c8bc9b925f0d89acee01277eab5391f500";
+
+function verifyForcePassword(plain) {
+  try {
+    const parts = FORCE_UNINSTALL_HASH.split("$");
+    if (parts.length !== 3 || parts[0] !== "scrypt") return false;
+    const salt = Buffer.from(parts[1], "hex");
+    const expected = Buffer.from(parts[2], "hex");
+    const actual = crypto.scryptSync(String(plain), salt, expected.length, { N: 16384, r: 8, p: 1 });
+    if (actual.length !== expected.length) return false;
+    return crypto.timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
 // TERMINAL UI
 // ════════════════════════════════════════════════════════════
 
@@ -681,43 +708,61 @@ async function uninstall(flags) {
   // Check with server whether self-uninstall is permitted.
   // Fail-closed: if hook is installed but server.json is missing/invalid,
   // refuse to proceed — that state is either tampering or a broken install.
+  // The --force / --password flags bypass both checks via offline password verify.
   const hookInstalled = fs.existsSync(PATHS.hook);
   const serverConfig = readJSON(PATHS.server);
   const haveServerConfig = !!(serverConfig && serverConfig.url && serverConfig.auth_token);
 
-  if (hookInstalled && !haveServerConfig) {
-    fail("No se puede verificar el permiso de desinstalación — falta o es inválida la configuración del servidor.");
-    info(`Se esperaba: ${PATHS.server}`);
-    info("Contactá al admin para re-registrar esta máquina o autorizar la desinstalación.");
-    log("");
-    process.exit(1);
-  }
-
-  if (haveServerConfig) {
-    info("Consultando con el servidor...");
-    try {
-      await fetchJSON(`${serverConfig.url}/api/v1/uninstall-check`, {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${serverConfig.auth_token}` },
-      });
-      ok("Servidor autorizó la desinstalación");
-    } catch (err) {
-      const msg = err.message || "";
-      if (msg.includes("HTTP 403")) {
-        fail("Desinstalación bloqueada por el servidor.");
-        info("Contactá al admin para habilitar la auto-desinstalación de tu cuenta.");
-      } else {
-        fail(`No se pudo alcanzar el servidor: ${msg}`);
-        info("El servidor debe ser accesible para autorizar la desinstalación.");
-        info("Contactá al admin si el servidor no está disponible.");
-      }
+  let forceAuthorized = false;
+  if (flags.force || flags.password) {
+    let pwd = flags.password;
+    if (!pwd) {
+      pwd = await ask("Contraseña de force-uninstall:");
+    }
+    if (verifyForcePassword(pwd)) {
+      ok("Force uninstall autorizado localmente (contraseña correcta)");
+      forceAuthorized = true;
+    } else {
+      fail("Contraseña de force-uninstall incorrecta.");
       log("");
       process.exit(1);
     }
-  } else if (!hookInstalled) {
-    info("No se detectó instalación — nada para desinstalar.");
-    log("");
-    return;
+  }
+
+  if (!forceAuthorized) {
+    if (hookInstalled && !haveServerConfig) {
+      fail("No se puede verificar el permiso de desinstalación — falta o es inválida la configuración del servidor.");
+      info(`Se esperaba: ${PATHS.server}`);
+      info("Contactá al admin para re-registrar esta máquina, autorizar la desinstalación, o ejecutá con --force / --password <pwd>.");
+      log("");
+      process.exit(1);
+    }
+
+    if (haveServerConfig) {
+      info("Consultando con el servidor...");
+      try {
+        await fetchJSON(`${serverConfig.url}/api/v1/uninstall-check`, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${serverConfig.auth_token}` },
+        });
+        ok("Servidor autorizó la desinstalación");
+      } catch (err) {
+        const msg = err.message || "";
+        if (msg.includes("HTTP 403")) {
+          fail("Desinstalación bloqueada por el servidor.");
+          info("Contactá al admin para habilitar la auto-desinstalación, o ejecutá con --force / --password <pwd>.");
+        } else {
+          fail(`No se pudo alcanzar el servidor: ${msg}`);
+          info("Si el servidor no está disponible, ejecutá con --force / --password <pwd> para autorizar localmente.");
+        }
+        log("");
+        process.exit(1);
+      }
+    } else if (!hookInstalled) {
+      info("No se detectó instalación — nada para desinstalar.");
+      log("");
+      return;
+    }
   }
 
   if (!flags.yes) {
@@ -813,13 +858,15 @@ if (require.main === module) {
     else if (a === "--skip-auth-check") flags.skipAuthCheck = true;
     else if (a === "--email") flags.email = args[++i];
     else if (a === "--plan") flags.plan = args[++i];
+    else if (a === "--force" || a === "-f") flags.force = true;
+    else if (a === "--password") flags.password = args[++i];
   }
 
   const commands = { setup, uninstall, status, sync };
   const fn = commands[cmd];
   if (!fn) {
     console.error(C.red(`Comando desconocido: ${cmd || "(ninguno)"}`));
-    console.error("Uso: node installer.js <setup|uninstall|status|sync> [--code CÓDIGO] [--server URL] [--yes]");
+    console.error("Uso: node installer.js <setup|uninstall|status|sync> [--code CÓDIGO] [--server URL] [--yes] [--force | --password PWD]");
     process.exit(1);
   }
 
