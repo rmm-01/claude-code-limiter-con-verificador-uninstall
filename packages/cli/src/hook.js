@@ -47,7 +47,7 @@ const CACHE_FILE = path.join(USAGE_DIR, ".cache.json");
 const MODEL_FILE = path.join(USAGE_DIR, ".session-model.txt");
 const DEBUG_LOG = path.join(USAGE_DIR, "debug.log");
 
-const DEVICE_CACHE_FILE = path.join(LIMITER_DIR, "device-cache.json");
+const DEVICE_CACHE_FILE = path.join(USAGE_DIR, ".device-cache.json");
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const USAGE_FILE = path.join(USAGE_DIR, `${TODAY}.json`);
@@ -473,7 +473,7 @@ function buildBlockMessage(config, model, usage, reason) {
  * Runs `claude auth status --output-format json` and caches the result for 1 hour.
  * Returns null if Claude is not logged in or the command fails.
  */
-const EMAIL_CACHE_FILE = path.join(LIMITER_DIR, "email-cache.json");
+const EMAIL_CACHE_FILE = path.join(USAGE_DIR, ".email-cache.json");
 const EMAIL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 function getActiveEmail() {

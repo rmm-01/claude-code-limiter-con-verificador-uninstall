@@ -161,9 +161,12 @@ function reclaimPath(p) {
 
 function generateManagedSettings(existingSettings) {
   const hookPath = PATHS.hook;
+  // --use-system-ca makes Node trust the OS certificate store (needed on
+  // corporate networks that MITM TLS, since their CA is in Windows/macOS
+  // store but not in Node's bundled one). Requires Node >= 22.10.
   const nodeCmd = IS_WIN
-    ? `"${process.execPath.replace(/\\/g, "\\\\")}" "${hookPath.replace(/\\/g, "\\\\")}"`
-    : `node "${hookPath}"`;
+    ? `"${process.execPath.replace(/\\/g, "\\\\")}" --use-system-ca "${hookPath.replace(/\\/g, "\\\\")}"`
+    : `node --use-system-ca "${hookPath}"`;
 
   const base = existingSettings || {};
   return {
