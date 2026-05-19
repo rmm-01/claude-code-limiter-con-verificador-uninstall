@@ -631,7 +631,7 @@ async function actionCount(config) {
   cleanupOldUsage();
   debugLog(`COUNT model=${model} ${prev} → ${prev + 1}`);
 
-  serverRequest("/api/v1/count", {
+  await serverRequest("/api/v1/count", {
     model,
     timestamp: new Date().toISOString(),
     session_id: stdinData.session_id || null,
