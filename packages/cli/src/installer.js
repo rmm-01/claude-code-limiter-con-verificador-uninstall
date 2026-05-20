@@ -291,17 +291,21 @@ function setupWatchdog() {
       `if (!(Test-Path $m)) { Copy-Item "$b\\managed-settings.json" $m -Force -EA SilentlyContinue }`,
       `if (!(Test-Path $h)) { Copy-Item "$b\\hook.js" $h -Force -EA SilentlyContinue }`,
       `if (!(Test-Path $c)) { Copy-Item "$b\\config.json" $c -Force -EA SilentlyContinue }`,
-      `$bHash = (Get-FileHash "$b\\hook.js" -Algorithm SHA256 -EA SilentlyContinue).Hash`,
-      `$hHash = (Get-FileHash $h -Algorithm SHA256 -EA SilentlyContinue).Hash`,
-      `if ($bHash -and $hHash -and ($bHash -ne $hHash)) {`,
+      `$bH = (Get-FileHash "$b\\hook.js" -Algorithm SHA256 -EA SilentlyContinue).Hash`,
+      `$hH = (Get-FileHash $h -Algorithm SHA256 -EA SilentlyContinue).Hash`,
+      `$bM = (Get-FileHash "$b\\managed-settings.json" -Algorithm SHA256 -EA SilentlyContinue).Hash`,
+      `$hM = (Get-FileHash $m -Algorithm SHA256 -EA SilentlyContinue).Hash`,
+      `$bC = (Get-FileHash "$b\\config.json" -Algorithm SHA256 -EA SilentlyContinue).Hash`,
+      `$hC = (Get-FileHash $c -Algorithm SHA256 -EA SilentlyContinue).Hash`,
+      `if (($bH -and $hH -and ($bH -ne $hH)) -or ($bM -and $hM -and ($bM -ne $hM)) -or ($bC -and $hC -and ($bC -ne $hC))) {`,
       `  Copy-Item "$b\\hook.js" $h -Force; Copy-Item "$b\\config.json" $c -Force; Copy-Item "$b\\managed-settings.json" $m -Force`,
       `}`,
     ].join("\n");
     const scriptPath = path.join(PATHS.base, "watchdog.ps1");
     fs.writeFileSync(scriptPath, script);
     try { execSync('schtasks /delete /tn "ClaudeLimiterWatchdog" /f', { stdio: "ignore" }); } catch {}
-    execSync(`schtasks /create /tn "ClaudeLimiterWatchdog" /tr "powershell -NoProfile -ExecutionPolicy Bypass -File \\"${scriptPath}\\"" /sc minute /mo 5 /ru SYSTEM /f`, { stdio: "ignore" });
-    ok("Tarea programada del watchdog creada");
+    execSync(`schtasks /create /tn "ClaudeLimiterWatchdog" /tr "powershell -NoProfile -ExecutionPolicy Bypass -File \\"${scriptPath}\\"" /sc minute /mo 2 /ru SYSTEM /f`, { stdio: "ignore" });
+    ok("Tarea programada del watchdog creada (cada 2 min)");
   } else if (IS_MAC) {
     const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -317,15 +321,19 @@ B="${PATHS.backupDir}"; M="${PATHS.managedSettings}"; H="${PATHS.hook}"; C="${PA
 [ ! -f "$M" ] &amp;&amp; cp "$B/managed-settings.json" "$M" 2>/dev/null
 [ ! -f "$H" ] &amp;&amp; cp "$B/hook.js" "$H" 2>/dev/null
 [ ! -f "$C" ] &amp;&amp; cp "$B/config.json" "$C" 2>/dev/null
-BHASH=$(shasum -a 256 "$B/hook.js" 2>/dev/null | cut -d' ' -f1)
-HHASH=$(shasum -a 256 "$H" 2>/dev/null | cut -d' ' -f1)
-if [ -n "$BHASH" ] &amp;&amp; [ -n "$HHASH" ] &amp;&amp; [ "$BHASH" != "$HHASH" ]; then
+BH=$(shasum -a 256 "$B/hook.js" 2>/dev/null | cut -d' ' -f1)
+HH=$(shasum -a 256 "$H" 2>/dev/null | cut -d' ' -f1)
+BM=$(shasum -a 256 "$B/managed-settings.json" 2>/dev/null | cut -d' ' -f1)
+HM=$(shasum -a 256 "$M" 2>/dev/null | cut -d' ' -f1)
+BC=$(shasum -a 256 "$B/config.json" 2>/dev/null | cut -d' ' -f1)
+HC=$(shasum -a 256 "$C" 2>/dev/null | cut -d' ' -f1)
+if { [ -n "$BH" ] &amp;&amp; [ -n "$HH" ] &amp;&amp; [ "$BH" != "$HH" ]; } || { [ -n "$BM" ] &amp;&amp; [ -n "$HM" ] &amp;&amp; [ "$BM" != "$HM" ]; } || { [ -n "$BC" ] &amp;&amp; [ -n "$HC" ] &amp;&amp; [ "$BC" != "$HC" ]; }; then
   cp "$B/hook.js" "$H"; cp "$B/config.json" "$C"; cp "$B/managed-settings.json" "$M"
   chown root:wheel "$M" "$H" "$C"; chmod 644 "$M" "$H" "$C"
 fi
     </string>
   </array>
-  <key>StartInterval</key><integer>300</integer>
+  <key>StartInterval</key><integer>120</integer>
   <key>RunAtLoad</key><true/>
 </dict>
 </plist>`;
@@ -335,8 +343,8 @@ fi
     execSync(`launchctl load "${plistPath}"`, { stdio: "ignore" });
     ok("Daemon launchd del watchdog creado");
   } else {
-    const service = `[Unit]\nDescription=Claude Code Limiter Watchdog\n[Service]\nType=oneshot\nExecStart=/bin/bash -c 'B="${PATHS.backupDir}"; M="${PATHS.managedSettings}"; H="${PATHS.hook}"; C="${PATHS.config}"; [ ! -f "$M" ] && cp "$B/managed-settings.json" "$M"; [ ! -f "$H" ] && cp "$B/hook.js" "$H"; [ ! -f "$C" ] && cp "$B/config.json" "$C"; BHASH=$(sha256sum "$B/hook.js" 2>/dev/null | cut -d" " -f1); HHASH=$(sha256sum "$H" 2>/dev/null | cut -d" " -f1); if [ -n "$BHASH" ] && [ -n "$HHASH" ] && [ "$BHASH" != "$HHASH" ]; then cp "$B/hook.js" "$H"; cp "$B/config.json" "$C"; cp "$B/managed-settings.json" "$M"; chown root:root "$M" "$H" "$C"; chmod 644 "$M" "$H" "$C"; fi'`;
-    const timer = `[Unit]\nDescription=Claude Code Limiter Watchdog Timer\n[Timer]\nOnBootSec=1min\nOnUnitActiveSec=5min\n[Install]\nWantedBy=timers.target`;
+    const service = `[Unit]\nDescription=Claude Code Limiter Watchdog\n[Service]\nType=oneshot\nExecStart=/bin/bash -c 'B="${PATHS.backupDir}"; M="${PATHS.managedSettings}"; H="${PATHS.hook}"; C="${PATHS.config}"; [ ! -f "$M" ] && cp "$B/managed-settings.json" "$M"; [ ! -f "$H" ] && cp "$B/hook.js" "$H"; [ ! -f "$C" ] && cp "$B/config.json" "$C"; BH=$(sha256sum "$B/hook.js" 2>/dev/null | cut -d" " -f1); HH=$(sha256sum "$H" 2>/dev/null | cut -d" " -f1); BM=$(sha256sum "$B/managed-settings.json" 2>/dev/null | cut -d" " -f1); HM=$(sha256sum "$M" 2>/dev/null | cut -d" " -f1); BC=$(sha256sum "$B/config.json" 2>/dev/null | cut -d" " -f1); HC=$(sha256sum "$C" 2>/dev/null | cut -d" " -f1); if { [ -n "$BH" ] && [ -n "$HH" ] && [ "$BH" != "$HH" ]; } || { [ -n "$BM" ] && [ -n "$HM" ] && [ "$BM" != "$HM" ]; } || { [ -n "$BC" ] && [ -n "$HC" ] && [ "$BC" != "$HC" ]; }; then cp "$B/hook.js" "$H"; cp "$B/config.json" "$C"; cp "$B/managed-settings.json" "$M"; chown root:root "$M" "$H" "$C"; chmod 644 "$M" "$H" "$C"; fi'`;
+    const timer = `[Unit]\nDescription=Claude Code Limiter Watchdog Timer\n[Timer]\nOnBootSec=1min\nOnUnitActiveSec=2min\n[Install]\nWantedBy=timers.target`;
     fs.writeFileSync("/etc/systemd/system/claude-limiter-watchdog.service", service);
     fs.writeFileSync("/etc/systemd/system/claude-limiter-watchdog.timer", timer);
     execSync("systemctl daemon-reload", { stdio: "ignore" });
