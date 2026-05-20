@@ -114,7 +114,15 @@ router.get('/users', (req, res) => {
     res.json({ users: result });
   } catch (err) {
     console.error('GET /users error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('  message:', err && err.message);
+    console.error('  code:   ', err && err.code);
+    console.error('  stack:  ', err && err.stack);
+    // TEMPORARY: echo detail in the response so we can debug from the browser.
+    res.status(500).json({
+      error: 'Internal server error',
+      detail: err && err.message,
+      code: err && err.code,
+    });
   }
 });
 
