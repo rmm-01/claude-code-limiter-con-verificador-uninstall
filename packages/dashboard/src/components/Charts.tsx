@@ -314,9 +314,18 @@ export function PeakHoursChart({ data }: { data: Array<{ hour: number; count: nu
     const container = containerRef.current;
     if (!canvas || !container || !data) return;
 
+    // The server bucketizes prompts by UTC hour (strftime('%H', timestamp)).
+    // Convert each UTC bucket to the local hour of whoever is viewing this
+    // dashboard, so the chart matches the wall-clock the admin actually sees.
+    // getTimezoneOffset() is positive for zones west of UTC (e.g. 180 for UTC-3),
+    // so local = UTC - offsetHours.
+    const tzOffsetHours = Math.round(new Date().getTimezoneOffset() / 60);
     const hourMap: Record<number, number> = {};
     for (let h = 0; h < 24; h++) hourMap[h] = 0;
-    for (const d of data) hourMap[d.hour] = d.count;
+    for (const d of data) {
+      const localHour = ((d.hour - tzOffsetHours) % 24 + 24) % 24;
+      hourMap[localHour] = (hourMap[localHour] || 0) + d.count;
+    }
 
     const barHeight = 16;
     const barGap = 4;
