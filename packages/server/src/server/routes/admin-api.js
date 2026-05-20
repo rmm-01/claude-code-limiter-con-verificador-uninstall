@@ -426,7 +426,18 @@ router.get('/analytics', (req, res) => {
     res.json(analytics);
   } catch (err) {
     console.error('GET /analytics error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('  message:', err && err.message);
+    console.error('  code:   ', err && err.code);
+    console.error('  stack:  ', err && err.stack);
+    console.error('  query:  ', req.query);
+    console.error('  teamId: ', req.team && req.team.id);
+    // TEMPORARY: echo detail in the response so we can debug from the browser
+    // without needing Azure log access. Remove once /analytics is stable.
+    res.status(500).json({
+      error: 'Internal server error',
+      detail: err && err.message,
+      code: err && err.code,
+    });
   }
 });
 
