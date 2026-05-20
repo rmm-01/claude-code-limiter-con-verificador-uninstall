@@ -40,16 +40,17 @@ function init(dbPath) {
     );
 
     CREATE TABLE IF NOT EXISTS user (
-      id                   TEXT PRIMARY KEY,
-      team_id              TEXT NOT NULL REFERENCES team(id),
-      slug                 TEXT NOT NULL,
-      name                 TEXT NOT NULL,
-      auth_token           TEXT NOT NULL UNIQUE,
-      status               TEXT NOT NULL DEFAULT 'active',
-      killed_at            DATETIME,
-      last_seen            DATETIME,
-      created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
-      allow_self_uninstall INTEGER NOT NULL DEFAULT 0,
+      id                            TEXT PRIMARY KEY,
+      team_id                       TEXT NOT NULL REFERENCES team(id),
+      slug                          TEXT NOT NULL,
+      name                          TEXT NOT NULL,
+      auth_token                    TEXT NOT NULL UNIQUE,
+      status                        TEXT NOT NULL DEFAULT 'active',
+      killed_at                     DATETIME,
+      last_seen                     DATETIME,
+      created_at                    DATETIME DEFAULT CURRENT_TIMESTAMP,
+      allow_self_uninstall          INTEGER NOT NULL DEFAULT 0,
+      pending_uninstall_expires_at  DATETIME,
       UNIQUE(team_id, slug)
     );
 
@@ -130,6 +131,9 @@ function init(dbPath) {
   const cols = db.pragma('table_info(user)').map(c => c.name);
   if (!cols.includes('allow_self_uninstall')) {
     db.exec('ALTER TABLE user ADD COLUMN allow_self_uninstall INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!cols.includes('pending_uninstall_expires_at')) {
+    db.exec('ALTER TABLE user ADD COLUMN pending_uninstall_expires_at DATETIME');
   }
 
   console.log(`Database initialized at ${dbPath}`);
@@ -242,6 +246,10 @@ function updateUser(userId, fields) {
   }
   if (fields.last_seen !== undefined) { sets.push('last_seen = ?'); values.push(fields.last_seen); }
   if (fields.allow_self_uninstall !== undefined) { sets.push('allow_self_uninstall = ?'); values.push(fields.allow_self_uninstall ? 1 : 0); }
+  if (fields.pending_uninstall_expires_at !== undefined) {
+    sets.push('pending_uninstall_expires_at = ?');
+    values.push(fields.pending_uninstall_expires_at);
+  }
   if (sets.length === 0) return;
   values.push(userId);
   getDb().prepare(`UPDATE user SET ${sets.join(', ')} WHERE id = ?`).run(...values);

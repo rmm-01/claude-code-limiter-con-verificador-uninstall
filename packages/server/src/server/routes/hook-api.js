@@ -379,11 +379,27 @@ router.post('/register', (req, res) => {
 /**
  * GET /api/v1/uninstall-check
  * Check whether this user is permitted to self-uninstall.
+ * Allowed if either:
+ *   (a) user.allow_self_uninstall is true (admin toggle from dashboard), or
+ *   (b) user.pending_uninstall_expires_at is set and still in the future
+ *       (one-shot grant from the /install/update.ps1 flow).
+ * In case (b) the pending grant is consumed (cleared) on success so it
+ * cannot be reused.
  */
 router.get('/uninstall-check', hookAuth, (req, res) => {
   const user = req.user;
-  if (user.allow_self_uninstall) {
-    return res.json({ allowed: true });
+  const now = Date.now();
+  const pendingExpiry = user.pending_uninstall_expires_at
+    ? Date.parse(user.pending_uninstall_expires_at)
+    : null;
+  const pendingValid = pendingExpiry && pendingExpiry > now;
+
+  if (user.allow_self_uninstall || pendingValid) {
+    if (pendingValid) {
+      // Consume the one-shot grant so a stolen script can't reuse it.
+      try { db.updateUser(user.id, { pending_uninstall_expires_at: null }); } catch {}
+    }
+    return res.json({ allowed: true, source: pendingValid ? 'pending' : 'toggle' });
   }
   return res.status(403).json({
     allowed: false,

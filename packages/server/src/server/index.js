@@ -6,6 +6,7 @@ const http = require('http');
 const db = require('./db');
 const hookApi = require('./routes/hook-api');
 const adminApi = require('./routes/admin-api');
+const installRoutes = require('./routes/install-routes');
 const { setupWebSocket } = require('./ws');
 
 const app = express();
@@ -41,6 +42,9 @@ app.use('/api/v1', hookApi);
 
 // Admin API (JWT session auth)
 app.use('/api/admin', adminApi);
+
+// Install/update scripts served to client machines (per-user one-shot URLs)
+app.use('/install', installRoutes);
 
 // --- Health check ---
 app.get('/health', (req, res) => {
