@@ -141,18 +141,22 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
     limit: getModelLimit(limits, m) > 0 ? getModelLimit(limits, m) : 0,
   }));
 
-  // Build trend data
-  const dayMap: Record<string, number> = {};
+  // Build trend data — promptsByDay (count) and creditsByDay (credit_cost sum)
+  const promptsByDay: Record<string, number> = {};
+  const creditsByDay: Record<string, number> = {};
   for (const row of usageDaily) {
-    dayMap[row.day] = (dayMap[row.day] ?? 0) + row.count;
+    promptsByDay[row.day] = (promptsByDay[row.day] ?? 0) + row.count;
+    creditsByDay[row.day] = (creditsByDay[row.day] ?? 0) + (row.credits ?? 0);
   }
   const trendData: Array<{ day: string; value: number }> = [];
+  const creditsTrendData: Array<{ day: string; value: number }> = [];
   const today = new Date();
   for (let td = 29; td >= 0; td--) {
     const d = new Date(today);
     d.setDate(d.getDate() - td);
     const key = d.toISOString().split('T')[0];
-    trendData.push({ day: key, value: dayMap[key] ?? 0 });
+    trendData.push({ day: key, value: promptsByDay[key] ?? 0 });
+    creditsTrendData.push({ day: key, value: creditsByDay[key] ?? 0 });
   }
 
   const userDevices = user.devices ?? [];
@@ -370,13 +374,23 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
             </CardBody>
           </Card>
 
-          {/* 30-day trend */}
+          {/* 30-day trend — prompts */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Tendencia de Uso (30 días)</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Tendencia de Uso (30 días) — prompts</h3>
             </CardHeader>
             <CardBody>
               <TrendLineChart data={trendData} />
+            </CardBody>
+          </Card>
+
+          {/* 30-day trend — credits consumed (historic) */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-zinc-200">Créditos Consumidos (30 días)</h3>
+            </CardHeader>
+            <CardBody>
+              <TrendLineChart data={creditsTrendData} />
             </CardBody>
           </Card>
 

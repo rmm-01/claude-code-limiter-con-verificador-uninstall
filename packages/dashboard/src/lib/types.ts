@@ -94,6 +94,7 @@ export interface AnalyticsData {
   model_distribution: { [model: string]: number };
   peak_hours: Array<{ hour: number; count: number }>;
   daily_active: Array<{ date: string; users: number }>;
+  daily_credits?: Array<{ date: string; credits: number; prompts: number }>;
   project_usage: Array<{ project: string; count: number }>;
   devices: Array<Device & { user_name?: string; user_slug?: string }>;
 }

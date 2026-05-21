@@ -746,11 +746,25 @@ function getAnalytics(teamId, opts) {
     ? getDb().prepare('SELECT * FROM device WHERE user_id = ? ORDER BY last_seen DESC').all(opts.user_id)
     : getDevicesByTeam(teamId);
 
+  // Daily credits — sum of credit_cost per day from usage_event.
+  // Lets the dashboard show historic token spend (jefe asked for this).
+  // Filter uses ue.* (usage_event) instead of se.* (session_event).
+  const ueUserFilter = opts.user_id ? ' AND ue.user_id = ?' : '';
+  const dailyCredits = getDb().prepare(
+    `SELECT DATE(ue.timestamp) AS date, SUM(ue.credit_cost) AS credits, COUNT(*) AS prompts
+     FROM usage_event ue
+     JOIN user u ON ue.user_id = u.id
+     WHERE u.team_id = ? AND ue.timestamp >= ?${ueUserFilter}
+     GROUP BY DATE(ue.timestamp)
+     ORDER BY date`
+  ).all(teamId, since, ...userFilterParams);
+
   return {
     peak_hours: peakHours,
     model_distribution: modelDistribution,
     project_usage: projectUsage,
     daily_active: dailyActive,
+    daily_credits: dailyCredits,
     block_rate: blockRate,
     avg_prompt_length: avgPromptLength,
     avg_response_length: avgResponseLength,

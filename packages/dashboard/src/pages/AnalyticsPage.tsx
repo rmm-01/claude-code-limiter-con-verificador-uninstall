@@ -44,12 +44,19 @@ export function AnalyticsPage() {
   for (const d of data.daily_active ?? []) {
     dayMap[d.date] = d.users;
   }
+  // Build team credits trend
+  const creditsByDay: Record<string, number> = {};
+  for (const d of data.daily_credits ?? []) {
+    creditsByDay[d.date] = d.credits;
+  }
+  const creditsPts: Array<{ day: string; value: number }> = [];
   const today = new Date();
   for (let td = Math.min(days, 30) - 1; td >= 0; td--) {
     const d = new Date(today);
     d.setDate(d.getDate() - td);
     const key = d.toISOString().split('T')[0];
     dauPts.push({ day: key, value: dayMap[key] ?? 0 });
+    creditsPts.push({ day: key, value: creditsByDay[key] ?? 0 });
   }
 
   const devices: Array<Device & { user_name?: string; user_slug?: string }> = data.devices ?? [];
@@ -153,6 +160,16 @@ export function AnalyticsPage() {
             </CardHeader>
             <CardBody>
               <TrendLineChart data={dauPts} />
+            </CardBody>
+          </Card>
+
+          {/* Team credits consumed per day */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-zinc-200">Consumo del Equipo (créditos/día)</h3>
+            </CardHeader>
+            <CardBody>
+              <TrendLineChart data={creditsPts} />
             </CardBody>
           </Card>
 
