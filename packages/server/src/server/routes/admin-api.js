@@ -358,7 +358,14 @@ router.delete('/users/:id', (req, res) => {
     res.json({ deleted: true, userId });
   } catch (err) {
     console.error('DELETE /users/:id error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('  message:', err && err.message);
+    console.error('  code:   ', err && err.code);
+    console.error('  stack:  ', err && err.stack);
+    res.status(500).json({
+      error: 'Internal server error',
+      detail: err && err.message,
+      code: err && err.code,
+    });
   }
 });
 

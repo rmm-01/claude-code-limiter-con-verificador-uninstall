@@ -256,8 +256,22 @@ function updateUser(userId, fields) {
 }
 
 function deleteUser(userId) {
-  // Foreign keys with ON DELETE CASCADE handle related rows
-  getDb().prepare('DELETE FROM user WHERE id = ?').run(userId);
+  // session_event.device_id references device(id) WITHOUT ON DELETE CASCADE,
+  // so the CASCADE-driven device delete (when we remove the user) would fail
+  // with "FOREIGN KEY constraint failed" if any session_event row points at
+  // one of this user's devices. Null those references first so the cascade
+  // can proceed cleanly. We keep the session_event rows themselves — they're
+  // already covered by their own ON DELETE CASCADE on user_id, which will
+  // remove them as part of the same statement.
+  const db = getDb();
+  const tx = db.transaction((uid) => {
+    db.prepare(
+      `UPDATE session_event SET device_id = NULL
+       WHERE device_id IN (SELECT id FROM device WHERE user_id = ?)`
+    ).run(uid);
+    db.prepare('DELETE FROM user WHERE id = ?').run(uid);
+  });
+  tx(userId);
 }
 
 // --------------- Limit Rule helpers ---------------
