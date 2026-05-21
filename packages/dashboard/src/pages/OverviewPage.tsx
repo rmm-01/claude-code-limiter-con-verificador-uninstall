@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import type { User, FeedItem, UsageEvent } from '../lib/types';
 import { hashColor, getInitials, getModelLimit, getCreditRule, nextFeedId } from '../lib/utils';
 import { Card, CardHeader, CardBody } from '../components/Card';
-import { StatusBadge } from '../components/Badge';
+import { StatusBadge, Badge } from '../components/Badge';
 import { ProgressBar } from '../components/ProgressBar';
 import { Button } from '../components/Button';
 import { LiveFeed } from '../components/LiveFeed';
@@ -206,6 +206,13 @@ function UserCard({
   const creditRule = getCreditRule(limits);
   const color = hashColor(user.name || user.slug);
 
+  // Show a "Manipulación" badge if the hook reported a managed-settings hash
+  // mismatch in the last 2 hours. After that, the badge fades out so a
+  // single old incident doesn't permanently flag the user.
+  const tamperRecent = user.last_tampering_at
+    ? Date.now() - new Date(user.last_tampering_at).getTime() < 2 * 60 * 60 * 1000
+    : false;
+
   return (
     <div
       className="rounded-lg border border-zinc-800 bg-zinc-800/30 hover:bg-zinc-800/60 hover:border-[#cc5500]/30 hover:shadow-[0_0_0_1px_rgba(204,85,0,0.15)] p-4 cursor-pointer transition-all duration-200"
@@ -227,7 +234,16 @@ function UserCard({
             <div className="text-xs text-zinc-500 truncate">@{user.slug}</div>
           </div>
         </div>
-        <StatusBadge status={user.status} />
+        <div className="flex flex-col items-end gap-1">
+          <StatusBadge status={user.status} />
+          {tamperRecent && (
+            <span title="El hook reportó un managed-settings.json modificado">
+              <Badge variant="killed" className="!normal-case">
+                ⚠ manipulación
+              </Badge>
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2 mb-3">

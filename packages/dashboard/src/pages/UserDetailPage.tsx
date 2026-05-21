@@ -174,6 +174,16 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
         <span className="text-zinc-300">{user.name}</span>
       </div>
 
+      {/* Tamper banner — visible only when the hook recently reported a
+          managed-settings hash that doesn't match the expected one. */}
+      {user.last_tampering_at && Date.now() - new Date(user.last_tampering_at).getTime() < 2 * 60 * 60 * 1000 && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+          <strong>⚠ Manipulación detectada.</strong>{' '}
+          El hook reportó que <code>managed-settings.json</code> de este usuario no coincide con el hash esperado.
+          Última detección: {new Date(user.last_tampering_at).toLocaleString()}.
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">

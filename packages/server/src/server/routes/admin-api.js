@@ -121,6 +121,7 @@ router.get('/users', (req, res) => {
         last_session: lastSession ? lastSession.last_session : null,
         created_at: user.created_at,
         allow_self_uninstall: !!user.allow_self_uninstall,
+        last_tampering_at: user.last_tampering_at || null,
         limits,
         usage: usageSummary,
         credit_balance: creditBalance,

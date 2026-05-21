@@ -23,6 +23,7 @@ const os = require("os");
 const http = require("http");
 const https = require("https");
 const { execSync } = require("child_process");
+const crypto = require("crypto");
 
 // ════════════════════════════════════════════════════════════
 // PATHS — System-protected locations per platform
@@ -39,6 +40,10 @@ const LIMITER_DIR =
     : IS_MAC
       ? path.join("/Library", "Application Support", "ClaudeCode", "limiter")
       : path.join("/etc", "claude-code", "limiter"));
+
+// managed-settings.json lives one directory up from LIMITER_DIR
+// (e.g. C:\Program Files\ClaudeCode\managed-settings.json).
+const MANAGED_SETTINGS_FILE = path.join(path.dirname(LIMITER_DIR), "managed-settings.json");
 
 const CONFIG_FILE = path.join(LIMITER_DIR, "config.json");
 const SERVER_FILE = path.join(LIMITER_DIR, "server.json");
@@ -547,6 +552,22 @@ function triggerLogout() {
  * SYNC — SessionStart hook.
  * Cache model, sync config from server.
  */
+/**
+ * SHA-256 of the local managed-settings.json file. Used by the server to
+ * detect local tampering: if this hash differs from the one the server saw
+ * the first time, somebody modified managed-settings.json out from under
+ * the watchdog. Returns null if the file is missing or unreadable — server
+ * treats null as "no report" and skips the check (no false positives).
+ */
+function getManagedSettingsHash() {
+  try {
+    const buf = fs.readFileSync(MANAGED_SETTINGS_FILE);
+    return crypto.createHash("sha256").update(buf).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
 async function actionSync(config) {
   const stdinData = await readStdinAsync();
   const model = detectModel(stdinData, config);
@@ -554,6 +575,7 @@ async function actionSync(config) {
   debugLog(`SYNC model=${model} source=${stdinData.source || "unknown"}`);
 
   const deviceInfo = getDeviceInfo(stdinData);
+  const managedSettingsHash = getManagedSettingsHash();
 
   const serverResp = await serverRequest("/api/v1/sync", {
     model,
@@ -564,6 +586,7 @@ async function actionSync(config) {
     node_version: deviceInfo.node_version,
     claude_version: deviceInfo.claude_version,
     session_id: stdinData.session_id || null,
+    managed_settings_hash: managedSettingsHash,
   }, 8000);
 
   if (serverResp) {

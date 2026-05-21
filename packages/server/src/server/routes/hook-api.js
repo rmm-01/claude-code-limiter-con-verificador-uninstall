@@ -33,6 +33,35 @@ router.post('/sync', hookAuth, (req, res) => {
     // Update last_seen
     db.updateUser(user.id, { last_seen: now });
 
+    // Tamper detection — compare reported managed-settings hash vs the
+    // first one we ever saw for this user (trust-on-first-use). If the
+    // hook reports a different hash later, somebody locally edited
+    // managed-settings.json (e.g. flipped disableAgentView to false).
+    // The watchdog will undo it within 2 minutes, but we want a permanent
+    // record that the attempt happened so an admin can see it on the
+    // dashboard. Hooks that don't report a hash (older client builds)
+    // skip this check entirely — no false positives.
+    const reportedHash = typeof req.body.managed_settings_hash === 'string'
+      ? req.body.managed_settings_hash
+      : null;
+    if (reportedHash) {
+      if (!user.expected_managed_settings_hash) {
+        // First time we see this user's hash — store it as the reference.
+        db.updateUser(user.id, { expected_managed_settings_hash: reportedHash });
+      } else if (reportedHash !== user.expected_managed_settings_hash) {
+        // Mismatch → mark tampering. Don't overwrite the reference: we
+        // want the hash to stay anchored to what was first reported, so
+        // every future mismatch keeps flagging until the file is restored.
+        db.updateUser(user.id, { last_tampering_at: now });
+        broadcast({
+          type: 'user_tampering',
+          userId: user.id,
+          userName: user.name,
+          timestamp: now,
+        });
+      }
+    }
+
     // Upsert device info
     let device = null;
     if (req.body.hostname) {

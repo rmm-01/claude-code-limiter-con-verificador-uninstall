@@ -52,6 +52,10 @@ export interface User {
   // Credits consumed on each of the last 7 days (oldest first).
   // Optional — older server builds don't include it.
   daily_credits_7d?: number[];
+  // Timestamp (UTC ISO) of the last time the hook reported a
+  // managed-settings.json hash that did not match the expected one.
+  // Null = never tampered (or older client/server without tamper detection).
+  last_tampering_at?: string | null;
 }
 
 export interface Team {

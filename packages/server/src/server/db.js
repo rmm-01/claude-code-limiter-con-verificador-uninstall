@@ -44,17 +44,19 @@ function init(dbPath) {
     );
 
     CREATE TABLE IF NOT EXISTS user (
-      id                            TEXT PRIMARY KEY,
-      team_id                       TEXT NOT NULL REFERENCES team(id),
-      slug                          TEXT NOT NULL,
-      name                          TEXT NOT NULL,
-      auth_token                    TEXT NOT NULL UNIQUE,
-      status                        TEXT NOT NULL DEFAULT 'active',
-      killed_at                     DATETIME,
-      last_seen                     DATETIME,
-      created_at                    DATETIME DEFAULT CURRENT_TIMESTAMP,
-      allow_self_uninstall          INTEGER NOT NULL DEFAULT 0,
-      pending_uninstall_expires_at  DATETIME,
+      id                              TEXT PRIMARY KEY,
+      team_id                         TEXT NOT NULL REFERENCES team(id),
+      slug                            TEXT NOT NULL,
+      name                            TEXT NOT NULL,
+      auth_token                      TEXT NOT NULL UNIQUE,
+      status                          TEXT NOT NULL DEFAULT 'active',
+      killed_at                       DATETIME,
+      last_seen                       DATETIME,
+      created_at                      DATETIME DEFAULT CURRENT_TIMESTAMP,
+      allow_self_uninstall            INTEGER NOT NULL DEFAULT 0,
+      pending_uninstall_expires_at    DATETIME,
+      expected_managed_settings_hash  TEXT,
+      last_tampering_at               DATETIME,
       UNIQUE(team_id, slug)
     );
 
@@ -138,6 +140,12 @@ function init(dbPath) {
   }
   if (!cols.includes('pending_uninstall_expires_at')) {
     db.exec('ALTER TABLE user ADD COLUMN pending_uninstall_expires_at DATETIME');
+  }
+  if (!cols.includes('expected_managed_settings_hash')) {
+    db.exec('ALTER TABLE user ADD COLUMN expected_managed_settings_hash TEXT');
+  }
+  if (!cols.includes('last_tampering_at')) {
+    db.exec('ALTER TABLE user ADD COLUMN last_tampering_at DATETIME');
   }
 
   console.log(`Database initialized at ${dbPath}`);
@@ -313,6 +321,14 @@ function updateUser(userId, fields) {
   if (fields.pending_uninstall_expires_at !== undefined) {
     sets.push('pending_uninstall_expires_at = ?');
     values.push(fields.pending_uninstall_expires_at);
+  }
+  if (fields.expected_managed_settings_hash !== undefined) {
+    sets.push('expected_managed_settings_hash = ?');
+    values.push(fields.expected_managed_settings_hash);
+  }
+  if (fields.last_tampering_at !== undefined) {
+    sets.push('last_tampering_at = ?');
+    values.push(fields.last_tampering_at);
   }
   if (sets.length === 0) return;
   values.push(userId);
