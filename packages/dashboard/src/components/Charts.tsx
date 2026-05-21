@@ -534,3 +534,50 @@ export function BlockRateGauge({ total, blocked }: { total: number; blocked: num
     </div>
   );
 }
+
+/* ================================================================
+   Sparkline — tiny inline trend chart for UserCard
+   Renders an N-point line (typically 7 days of credits) inside a fixed
+   pixel box. No axes, no labels — meant to live next to text and convey
+   "is this user trending up or down right now".
+   ================================================================ */
+export function Sparkline({
+  data,
+  width = 120,
+  height = 28,
+  color,
+}: {
+  data: number[];
+  width?: number;
+  height?: number;
+  color?: string;
+}) {
+  if (!data || data.length === 0) {
+    return <div className="text-xs text-zinc-600">sin datos</div>;
+  }
+
+  const maxVal = Math.max(...data, 1);
+  const step = data.length > 1 ? width / (data.length - 1) : 0;
+  const pad = 2;
+  const innerH = height - pad * 2;
+
+  const points = data.map((v, i) => {
+    const x = i * step;
+    const y = pad + innerH * (1 - v / maxVal);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const total = data.reduce((s, n) => s + n, 0);
+  const stroke = color || (total > 0 ? '#cc5500' : '#52525b');
+
+  // Build an area path (line + close down to baseline) so we can fill it.
+  const linePath = `M ${points.join(' L ')}`;
+  const areaPath = `${linePath} L ${(data.length - 1) * step},${height} L 0,${height} Z`;
+
+  return (
+    <svg width={width} height={height} style={{ display: 'block' }}>
+      <path d={areaPath} fill={stroke} fillOpacity={0.15} />
+      <path d={linePath} fill="none" stroke={stroke} strokeWidth={1.5} strokeLinejoin="round" />
+    </svg>
+  );
+}

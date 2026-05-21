@@ -49,6 +49,9 @@ export interface User {
   credit_budget: number | null;
   devices: Device[];
   allow_self_uninstall: boolean;
+  // Credits consumed on each of the last 7 days (oldest first).
+  // Optional — older server builds don't include it.
+  daily_credits_7d?: number[];
 }
 
 export interface Team {

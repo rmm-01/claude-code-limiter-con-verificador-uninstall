@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
-import type { AnalyticsData, Device } from '../lib/types';
+import type { AnalyticsData, Device, DailyUsageRow } from '../lib/types';
 import { timeAgo } from '../lib/utils';
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { Select } from '../components/Input';
@@ -11,13 +11,18 @@ import { SkeletonPage } from '../components/Skeleton';
 export function AnalyticsPage() {
   const [days, setDays] = useState(30);
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [usageDaily, setUsageDaily] = useState<DailyUsageRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.getAnalytics({ days });
-      setData(res);
+      const [analyticsRes, usageRes] = await Promise.all([
+        api.getAnalytics({ days }),
+        api.getUsage({ days }),
+      ]);
+      setData(analyticsRes);
+      setUsageDaily(usageRes.daily ?? []);
     } catch {
       // handled by interceptor
     } finally {
@@ -58,6 +63,26 @@ export function AnalyticsPage() {
     dauPts.push({ day: key, value: dayMap[key] ?? 0 });
     creditsPts.push({ day: key, value: creditsByDay[key] ?? 0 });
   }
+
+  // Build Top Consumers ranking — group usageDaily rows by user_id,
+  // sum credits and prompts across the entire selected range.
+  type Consumer = { user_id: string; user_name: string; credits: number; prompts: number };
+  const consumerMap: Record<string, Consumer> = {};
+  for (const row of usageDaily) {
+    if (!row.user_id) continue;
+    const key = row.user_id;
+    if (!consumerMap[key]) {
+      consumerMap[key] = {
+        user_id: row.user_id,
+        user_name: row.user_name ?? row.user_id,
+        credits: 0,
+        prompts: 0,
+      };
+    }
+    consumerMap[key].credits += row.credits ?? 0;
+    consumerMap[key].prompts += row.count ?? 0;
+  }
+  const topConsumers = Object.values(consumerMap).sort((a, b) => b.credits - a.credits);
 
   const devices: Array<Device & { user_name?: string; user_slug?: string }> = data.devices ?? [];
 
@@ -131,6 +156,25 @@ export function AnalyticsPage() {
               </CardBody>
             </Card>
           )}
+
+          {/* Top Consumers — ranking by credits in the selected range */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-zinc-200">Top Consumidores ({days} días)</h3>
+            </CardHeader>
+            <CardBody flush>
+              <Table
+                columns={[
+                  { key: 'user_name', header: 'Usuario', render: (c) => <span className="text-zinc-200">{c.user_name}</span> },
+                  { key: 'credits', header: 'Créditos', render: (c) => <span className="font-mono text-zinc-100">{c.credits}</span>, className: 'text-right' },
+                  { key: 'prompts', header: 'Prompts', render: (c) => <span className="font-mono text-zinc-400">{c.prompts}</span>, className: 'text-right' },
+                ]}
+                data={topConsumers}
+                keyExtractor={(c) => c.user_id}
+                emptyMessage="Sin consumo registrado en este rango"
+              />
+            </CardBody>
+          </Card>
 
           {/* Top Projects */}
           <Card>

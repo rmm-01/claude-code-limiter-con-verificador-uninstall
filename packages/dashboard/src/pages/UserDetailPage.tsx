@@ -6,6 +6,7 @@ import { hashColor, getInitials, getModelLimit, getCreditRule, timeAgo } from '.
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { StatusBadge, Badge } from '../components/Badge';
 import { Button } from '../components/Button';
+import { Select } from '../components/Input';
 import { Table } from '../components/Table';
 import { CreditGauge } from '../components/CreditGauge';
 import { HorizontalBarChart, TrendLineChart, PeakHoursChart } from '../components/Charts';
@@ -27,6 +28,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   const [events, setEvents] = useState<UsageEvent[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
   const [editLimitsOpen, setEditLimitsOpen] = useState(false);
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
   const [installCodeModal, setInstallCodeModal] = useState(false);
@@ -44,9 +46,9 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
     try {
       const [u, usageRes, eventsRes, analyticsRes] = await Promise.all([
         api.getUser(id),
-        api.getUsage({ user_id: id, days: 30 }),
+        api.getUsage({ user_id: id, days }),
         api.getEvents({ user_id: id, limit: 20 }),
-        api.getAnalytics({ user_id: id, days: 30 }),
+        api.getAnalytics({ user_id: id, days }),
       ]);
       setUser(u);
       setUsageDaily(usageRes.daily ?? []);
@@ -57,7 +59,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [id, showToast]);
+  }, [id, days, showToast]);
 
   useEffect(() => {
     loadData();
@@ -151,7 +153,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   const trendData: Array<{ day: string; value: number }> = [];
   const creditsTrendData: Array<{ day: string; value: number }> = [];
   const today = new Date();
-  for (let td = 29; td >= 0; td--) {
+  for (let td = days - 1; td >= 0; td--) {
     const d = new Date(today);
     d.setDate(d.getDate() - td);
     const key = d.toISOString().split('T')[0];
@@ -186,7 +188,18 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
             </svg>
           </button>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <div className="w-36">
+            <Select
+              value={String(days)}
+              onChange={(e) => setDays(parseInt(e.target.value, 10))}
+            >
+              <option value="7">Últimos 7 días</option>
+              <option value="14">Últimos 14 días</option>
+              <option value="30">Últimos 30 días</option>
+              <option value="90">Últimos 90 días</option>
+            </Select>
+          </div>
           <Button variant="ghost" size="sm" onClick={() => setCreditsModalOpen(true)}>
             ¿Cómo funcionan los créditos?
           </Button>
@@ -374,20 +387,20 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
             </CardBody>
           </Card>
 
-          {/* 30-day trend — prompts */}
+          {/* Trend — prompts */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Tendencia de Uso (30 días) — prompts</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Tendencia de Uso ({days} días) — prompts</h3>
             </CardHeader>
             <CardBody>
               <TrendLineChart data={trendData} />
             </CardBody>
           </Card>
 
-          {/* 30-day trend — credits consumed (historic) */}
+          {/* Trend — credits consumed (historic) */}
           <Card>
             <CardHeader>
-              <h3 className="text-sm font-semibold text-zinc-200">Créditos Consumidos (30 días)</h3>
+              <h3 className="text-sm font-semibold text-zinc-200">Créditos Consumidos ({days} días)</h3>
             </CardHeader>
             <CardBody>
               <TrendLineChart data={creditsTrendData} />

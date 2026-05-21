@@ -9,6 +9,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { Button } from '../components/Button';
 import { LiveFeed } from '../components/LiveFeed';
 import { SkeletonPage } from '../components/Skeleton';
+import { Sparkline } from '../components/Charts';
 import { AddUserModal } from './AddUserModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 
@@ -260,6 +261,20 @@ function UserCard({
           <p className="text-xs text-zinc-600">Sin límites configurados</p>
         )}
       </div>
+
+      {/* 7-day credits sparkline — quick visual of this user's trend.
+          Hidden when there's nothing to draw so cards stay compact. */}
+      {user.daily_credits_7d && user.daily_credits_7d.some((v) => v > 0) && (
+        <div className="mb-3 flex items-center justify-between gap-3" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-wider text-zinc-500">Últimos 7 días</span>
+            <span className="text-xs font-mono text-zinc-300">
+              {user.daily_credits_7d.reduce((s, n) => s + n, 0)} créditos
+            </span>
+          </div>
+          <Sparkline data={user.daily_credits_7d} width={120} height={28} />
+        </div>
+      )}
 
       <div className="flex gap-2">
         {user.status === 'active' ? (

@@ -64,6 +64,29 @@ router.get('/users', (req, res) => {
     const creditWeights = JSON.parse(team.credit_weights);
     const users = db.getAllUsers(team.id);
 
+    // Build the date keys for the last 7 days (inclusive of today), oldest first.
+    // Used to render sparklines in the Resumen UserCard.
+    const sparkDayKeys = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      sparkDayKeys.push(d.toISOString().split('T')[0]);
+    }
+    const sparkSince = sparkDayKeys[0] + 'T00:00:00.000Z';
+    // Single batch query: credits per (user, day) for all users in the team.
+    const sparkRows = db.getDb().prepare(
+      `SELECT ue.user_id, DATE(ue.timestamp) AS date, SUM(ue.credit_cost) AS credits
+       FROM usage_event ue
+       JOIN user u ON ue.user_id = u.id
+       WHERE u.team_id = ? AND ue.timestamp >= ?
+       GROUP BY ue.user_id, DATE(ue.timestamp)`
+    ).all(team.id, sparkSince);
+    const sparkMap = {};
+    for (const r of sparkRows) {
+      if (!sparkMap[r.user_id]) sparkMap[r.user_id] = {};
+      sparkMap[r.user_id][r.date] = r.credits;
+    }
+
     const result = users.map(user => {
       const limits = db.getLimitRules(user.id);
       const usageSummary = getUsageSummary(user.id);
@@ -84,6 +107,10 @@ router.get('/users', (req, res) => {
         creditBudget = cb.budget;
       }
 
+      // 7-day credits array (one number per day, oldest first) for the sparkline.
+      const userSpark = sparkMap[user.id] || {};
+      const dailyCredits7d = sparkDayKeys.map(k => userSpark[k] || 0);
+
       return {
         id: user.id,
         slug: user.slug,
@@ -98,6 +125,7 @@ router.get('/users', (req, res) => {
         usage: usageSummary,
         credit_balance: creditBalance,
         credit_budget: creditBudget,
+        daily_credits_7d: dailyCredits7d,
         devices: devices.map(d => ({
           id: d.id,
           hostname: d.hostname,
