@@ -26,7 +26,11 @@ function init(dbPath) {
   }
 
   db = new Database(dbPath);
+  // Durability / resilience pragmas. WAL survives a crash mid-write much
+  // better than the default rollback journal; synchronous=NORMAL is the
+  // recommended pairing with WAL (fsync at checkpoint, not on every commit).
   db.pragma('journal_mode = WAL');
+  db.pragma('synchronous = NORMAL');
   db.pragma('foreign_keys = ON');
 
   // Create tables
@@ -137,7 +141,67 @@ function init(dbPath) {
   }
 
   console.log(`Database initialized at ${dbPath}`);
+
+  // Auto-repair on startup. Twice already we've seen index corruption
+  // ("row N missing from index ...") after an abrupt App Service restart
+  // mid-write. integrity_check is fast on databases of this size (<10MB)
+  // and lets us self-heal without manual SSH intervention.
+  try {
+    autoRepairIfNeeded(db);
+  } catch (err) {
+    console.error('[db] auto-repair failed:', err && err.message);
+  }
+
   return db;
+}
+
+/**
+ * Run PRAGMA integrity_check; if SQLite reports anything other than the
+ * single "ok" row, run REINDEX + VACUUM to rebuild any damaged indexes and
+ * compact orphaned pages. Logs every step so it's visible in App Service
+ * log stream after a restart.
+ *
+ * Pure recovery for the corruption pattern we've actually hit
+ * ("row N missing from index ..."). For deeper corruption (malformed
+ * pages, schema damage) integrity_check still reports here and an admin
+ * can decide whether to restore from backup.
+ */
+function autoRepairIfNeeded(database) {
+  const startedAt = Date.now();
+  const rows = database.pragma('integrity_check');
+  const messages = rows.map((r) => r.integrity_check);
+  const isOk = messages.length === 1 && messages[0] === 'ok';
+
+  if (isOk) {
+    console.log(`[db] integrity check: ok (${Date.now() - startedAt}ms)`);
+    return;
+  }
+
+  // Truncate the log output so a huge corruption report doesn't spam the
+  // entire console — first few lines are enough to identify the pattern.
+  const preview = messages.slice(0, 5).join(' | ');
+  console.warn(`[db] integrity check found ${messages.length} issue(s). First: ${preview}`);
+  console.warn('[db] running REINDEX + VACUUM to self-repair...');
+
+  try {
+    database.exec('REINDEX;');
+    database.exec('VACUUM;');
+  } catch (err) {
+    console.error('[db] REINDEX/VACUUM failed:', err && err.message);
+    return;
+  }
+
+  const after = database.pragma('integrity_check');
+  const afterMessages = after.map((r) => r.integrity_check);
+  const afterOk = afterMessages.length === 1 && afterMessages[0] === 'ok';
+
+  if (afterOk) {
+    console.log(`[db] auto-repair completed in ${Date.now() - startedAt}ms`);
+  } else {
+    console.error(
+      `[db] auto-repair could not fully fix the database. Remaining issues: ${afterMessages.slice(0, 5).join(' | ')}`
+    );
+  }
 }
 
 /**

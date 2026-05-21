@@ -89,6 +89,41 @@ function start(port) {
     console.log(`Admin API: http://localhost:${port}/api/admin`);
     console.log(`WebSocket: ws://localhost:${port}/ws`);
   });
+
+  // Graceful shutdown — Azure App Service sends SIGTERM before killing the
+  // container on restart / deploy / scale. We want to (a) stop accepting
+  // new connections, (b) let in-flight requests finish, and (c) close the
+  // SQLite handle cleanly so the WAL gets checkpointed and the main DB file
+  // ends up in a consistent state. Skipping this is one of the ways the
+  // database picked up "row N missing from index ..." corruption in the past.
+  let shuttingDown = false;
+  function gracefulShutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[shutdown] received ${signal}, flushing WAL and closing...`);
+
+    // Safety net: if shutdown takes >10s, force exit so the platform's
+    // SIGKILL window doesn't catch us with the DB half-closed.
+    const forceTimer = setTimeout(() => {
+      console.error('[shutdown] timed out after 10s, forcing exit');
+      process.exit(1);
+    }, 10000);
+    forceTimer.unref();
+
+    server.close((err) => {
+      if (err) console.error('[shutdown] server.close error:', err.message);
+      try {
+        db.close();
+        console.log('[shutdown] db closed cleanly');
+      } catch (e) {
+        console.error('[shutdown] db.close error:', e.message);
+      }
+      process.exit(0);
+    });
+  }
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
 // If run directly: node src/server/index.js
