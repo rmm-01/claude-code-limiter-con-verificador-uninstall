@@ -115,14 +115,17 @@ sudo npx @howincodes/claude-code-limiter uninstall
 
 ## Funcionalidades incluidas
 
-- Límites por modelo (`opus`, `sonnet`, `haiku`) con ventanas `daily`, `weekly`, `monthly`, `sliding_24h`
-- Presupuesto de créditos unificado (opus=10, sonnet=3, haiku=1 por defecto)
+- Límites por modelo (`fable`, `opus`, `sonnet`, `haiku`) con ventanas `daily`, `weekly`, `monthly`, `sliding_24h`
+- Presupuesto de créditos unificado (fable=15, opus=10, sonnet=3, haiku=1 por defecto)
 - Restricciones horarias por modelo
 - Dashboard en tiempo real con WebSocket
 - Kill switch remoto + logout forzado
 - Pausa y reactivación de usuarios
 - **Protección de desinstalación**: el usuario no puede desinstalar sin autorización del admin (toggle en dashboard → User Detail → "Allow self-uninstall")
 - **Bypass por cuenta personal**: si el usuario cambia a su cuenta personal de Anthropic, los límites no aplican
+- **Control de Agent View / Remote Control**: toggle por usuario (OFF por defecto). El admin activa desde User Detail → "Permitir Agent View / Remote Control"
+- **Tracking por versión de modelo**: registra la versión específica usada (ej. `opus-4-6`, `fable-5`), visible en User Detail → "Uso por Versión"
+- **Detección de tampering**: alerta en dashboard si el usuario manipula `managed-settings.json`
 
 ---
 

@@ -38,6 +38,7 @@ Daily opus limit reached.
 Used 5/5 prompts today.
 
 All usage today:
+  fable:   0/2   (2 left)
   opus:    5/5   (0 left)
   sonnet: 12/20  (8 left)
   haiku:  3/40   (37 left)

@@ -15,10 +15,14 @@
 </p>
 
 > **Fork**
-> Este repositorio es un fork de [howincodes/claude-code-limiter](https://github.com/howincodes/claude-code-limiter) con dos cambios principales sobre el upstream:
+> Este repositorio es un fork de [howincodes/claude-code-limiter](https://github.com/howincodes/claude-code-limiter) con los siguientes cambios principales sobre el upstream:
 >
 > 1. **Verificador de desinstalación** — el cliente no puede desinstalar el limiter sin que el admin haya habilitado el toggle `Allow self-uninstall` en el dashboard. La autorización se valida contra el servidor antes de borrar archivos.
 > 2. **Bypass por cuenta personal** — si el usuario cambia su sesión de Claude Code a otra cuenta de Anthropic distinta a la registrada durante el setup, el hook pasa de largo (no cuenta ni bloquea). Los límites solo aplican a la cuenta con la que se registró el equipo.
+> 3. **Soporte para Fable 5** — modelo incluido en el conteo con peso de créditos configurable (15 por defecto) y color teal en ambos dashboards.
+> 4. **Tracking por versión de modelo** — el uso se registra por versión específica (ej. `opus-4-6`, `fable-5`) mientras los límites se aplican a nivel de familia (opus, sonnet, etc.).
+> 5. **Control de Agent View / Remote Control** — toggle por usuario en el dashboard (OFF por defecto). El admin habilita Agent View y Remote Control por usuario; el hook sincroniza el estado a `managed-settings.json` y su backup.
+> 6. **Detección de tampering** — el servidor compara hashes SHA-256 de `managed-settings.json` para detectar manipulación. Se muestra un banner de alerta en ambos dashboards.
 >
 > Además incluye varios fixes específicos para Windows (ACLs, watchdog, reinstalación sobre instalación previa). Ver `git log` para detalles.
 
@@ -140,6 +144,7 @@ Daily sonnet limit reached for Alice.
 Used 20/20 prompts today.
 
 All usage today:
+  fable:   0/2   (2 left)
   haiku:  12/40  (28 left)
   opus:    5/5   (0 left)
   sonnet: 20/20  (0 left)
@@ -190,11 +195,12 @@ Current time: 8:15 PM. Try sonnet or haiku instead.
 
 | Modelo | Costo por defecto |
 |--------|-------------------|
+| Fable | 15 créditos |
 | Opus | 10 créditos |
 | Sonnet | 3 créditos |
 | Haiku | 1 crédito |
 
-Con un presupuesto de **100 créditos/día**, un usuario puede hacer: **10 Opus**, **o 33 Sonnet**, **o 100 Haiku**, o cualquier mezcla.
+Con un presupuesto de **100 créditos/día**, un usuario puede hacer: **6 Fable**, **o 10 Opus**, **o 33 Sonnet**, **o 100 Haiku**, o cualquier mezcla.
 
 ### Controles de admin
 
@@ -204,6 +210,9 @@ Con un presupuesto de **100 créditos/día**, un usuario puede hacer: **10 Opus*
 - :gear: **Push de configuración en vivo** — cambia límites en el servidor; los usuarios los reciben en el próximo prompt (sin reinstalar)
 - :shield: **Verificador de desinstalación** (fork) — el usuario no puede desinstalar el limiter sin que el admin habilite el toggle en User Detail
 - :bust_in_silhouette: **Bypass por cuenta personal** (fork) — si el usuario cambia a otra cuenta de Anthropic distinta a la registrada, los límites no aplican
+- :robot: **Control de Agent View / Remote Control** (fork) — toggle por usuario, OFF por defecto. Sincroniza a `managed-settings.json` + backup
+- :mag: **Tracking por versión** (fork) — registra la versión específica de modelo usada (ej. `opus-4-6`, `fable-5`), visible en el detalle del usuario
+- :warning: **Detección de tampering** (fork) — alerta en dashboard cuando el hash de `managed-settings.json` no coincide con el esperado
 
 ---
 
@@ -216,7 +225,7 @@ Usuario escribe un prompt
         │
         ▼
 ┌─ SessionStart ───────────────────────────────────┐
-│  Captura modelo activo (opus/sonnet/haiku)       │
+│  Captura modelo activo (fable/opus/sonnet/haiku)  │
 │  Sincroniza config + límites desde servidor      │
 └──────────────────────────────────────────────────┘
         │
@@ -380,7 +389,7 @@ Los límites se configuran por usuario vía dashboard. Las reglas se apilan — 
 Configurados por equipo en el servidor. Default:
 
 ```json
-{ "opus": 10, "sonnet": 3, "haiku": 1 }
+{ "fable": 15, "opus": 10, "sonnet": 3, "haiku": 1 }
 ```
 
 Cambialos en **Dashboard → Settings** para que coincidan con tus prioridades de uso.

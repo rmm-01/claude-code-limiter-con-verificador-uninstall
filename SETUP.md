@@ -171,14 +171,17 @@ node src\installer.js uninstall        # Windows admin
 
 ## Funcionalidades
 
-- **Límites por modelo**: opus, sonnet, haiku con ventanas daily/weekly/monthly/sliding_24h
-- **Presupuesto de créditos**: un budget unificado entre modelos
+- **Límites por modelo**: fable, opus, sonnet, haiku con ventanas daily/weekly/monthly/sliding_24h
+- **Presupuesto de créditos**: un budget unificado entre modelos (fable=15, opus=10, sonnet=3, haiku=1)
 - **Restricciones horarias**: por modelo y zona horaria
 - **Dashboard en tiempo real**: WebSocket con feed de actividad
 - **Kill switch**: bloqueo remoto + logout forzado
 - **Pausa / reactivación**: suspensión temporal sin revocar acceso
 - **Protección de desinstalación**: toggle `Allow self-uninstall` por usuario en el dashboard
 - **Bypass por cuenta personal**: si el usuario cambia a su cuenta personal de Anthropic, los límites no aplican
+- **Control de Agent View / Remote Control**: toggle por usuario, OFF por defecto
+- **Tracking por versión de modelo**: registra versión específica (ej. `opus-4-6`, `fable-5`)
+- **Detección de tampering**: alerta si el usuario manipula `managed-settings.json`
 
 ---
 
@@ -191,3 +194,4 @@ node src\installer.js uninstall        # Windows admin
 | VM no alcanza el servidor | Verificar con `Invoke-WebRequest http://IP:3000/api/v1/health -UseBasicParsing` |
 | Código de instalación ya usado | Generar nuevo desde User Detail → "Generate Install Code" |
 | `allow_self_uninstall` bloqueado | Habilitar en Dashboard → User Detail → toggle "Allow self-uninstall" |
+| Agent View / Remote Control deshabilitado | Habilitar en Dashboard → User Detail → toggle "Permitir Agent View / Remote Control" |

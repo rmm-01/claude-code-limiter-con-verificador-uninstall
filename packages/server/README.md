@@ -59,7 +59,7 @@ Open `https://your-server/dashboard` and log in with your admin password.
 
 **Add User** — Create a user, set limits, get an install code to copy
 
-**Settings** — Credit weights (opus/sonnet/haiku costs), team name, password
+**Settings** — Credit weights (fable/opus/sonnet/haiku costs), team name, password
 
 ## API
 
@@ -83,6 +83,7 @@ Open `https://your-server/dashboard` and log in with your admin password.
 | `PUT /api/admin/users/:id` | Update limits, kill, pause, reinstate |
 | `DELETE /api/admin/users/:id` | Remove user |
 | `GET /api/admin/usage` | Usage history for charts |
+| `GET /api/admin/usage/versions` | Usage breakdown by model version |
 | `PUT /api/admin/settings` | Update credit weights, team name |
 
 ### WebSocket
@@ -91,8 +92,11 @@ Connect to `/ws` for real-time events: `user_check`, `user_blocked`, `user_count
 
 ## Features
 
-- **Per-model limits** — opus: 5/day, sonnet: 20/day, haiku: 50/day
-- **Credit budgets** — 100 credits/day (opus=10, sonnet=3, haiku=1)
+- **Per-model limits** — fable: 2/day, opus: 5/day, sonnet: 20/day, haiku: 50/day
+- **Credit budgets** — 100 credits/day (fable=15, opus=10, sonnet=3, haiku=1)
+- **Model version tracking** — records specific version (e.g. `opus-4-6`, `fable-5`)
+- **Agent View / Remote Control toggle** — per-user, OFF by default
+- **Tamper detection** — alerts when managed-settings.json hash doesn't match expected
 - **Sliding windows** — rolling 24h, or daily/weekly/monthly resets
 - **Time-of-day rules** — opus only 9am-6pm
 - **Kill switch** — instantly block a user + force logout
