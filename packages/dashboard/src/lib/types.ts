@@ -49,6 +49,7 @@ export interface User {
   credit_budget: number | null;
   devices: Device[];
   allow_self_uninstall: boolean;
+  allow_agents: boolean;
   // Credits consumed on each of the last 7 days (oldest first).
   // Optional — older server builds don't include it.
   daily_credits_7d?: number[];
@@ -65,6 +66,7 @@ export interface Team {
 }
 
 export interface CreditWeights {
+  fable: number;
   opus: number;
   sonnet: number;
   haiku: number;
@@ -118,6 +120,7 @@ export interface UpdateUserPayload {
   status?: string;
   limits?: LimitRule[];
   allow_self_uninstall?: boolean;
+  allow_agents?: boolean;
 }
 
 export interface UpdateSettingsPayload {

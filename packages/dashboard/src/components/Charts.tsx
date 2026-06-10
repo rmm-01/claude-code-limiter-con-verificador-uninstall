@@ -16,10 +16,12 @@ const COLORS = {
   blue: '#3b82f6',
   purple: '#a855f7',
   orange: '#f97316',
+  teal: '#2dd4bf',
   track: '#1c1c1e',
 };
 
 const MODEL_COLORS: Record<string, string> = {
+  fable: COLORS.teal,
   opus: COLORS.purple,
   sonnet: COLORS.blue,
   haiku: COLORS.green,
@@ -411,6 +413,7 @@ export function DonutChart({ data }: { data: Record<string, number> }) {
     let total = 0;
     const entries: Array<{ label: string; value: number; color: string }> = [];
     const chartColors: Record<string, string> = {
+      fable: COLORS.teal,
       opus: COLORS.purple,
       sonnet: COLORS.blue,
       haiku: COLORS.green,

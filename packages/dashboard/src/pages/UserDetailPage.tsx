@@ -28,6 +28,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   const [events, setEvents] = useState<UsageEvent[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [versionData, setVersionData] = useState<Array<{ model: string; model_version: string | null; count: number; total_credits: number }>>([]);
   const [days, setDays] = useState(30);
   const [editLimitsOpen, setEditLimitsOpen] = useState(false);
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
@@ -44,16 +45,18 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   const loadData = useCallback(async () => {
     if (!id) return;
     try {
-      const [u, usageRes, eventsRes, analyticsRes] = await Promise.all([
+      const [u, usageRes, eventsRes, analyticsRes, versionsRes] = await Promise.all([
         api.getUser(id),
         api.getUsage({ user_id: id, days }),
         api.getEvents({ user_id: id, limit: 20 }),
         api.getAnalytics({ user_id: id, days }),
+        api.getUsageVersions({ user_id: id, days }),
       ]);
       setUser(u);
       setUsageDaily(usageRes.daily ?? []);
       setEvents(eventsRes.events ?? []);
       setAnalytics(analyticsRes);
+      setVersionData(versionsRes.versions ?? []);
     } catch (err) {
       showToast('Error', err instanceof Error ? err.message : 'Failed to load user', 'error');
     } finally {
@@ -137,7 +140,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   const color = hashColor(user.name || user.slug);
 
   // Build bar chart data
-  const barData = ['opus', 'sonnet', 'haiku'].map((m) => ({
+  const barData = ['fable', 'opus', 'sonnet', 'haiku'].map((m) => ({
     label: m.charAt(0).toUpperCase() + m.slice(1),
     value: dailyUsage[m] ?? 0,
     limit: getModelLimit(limits, m) > 0 ? getModelLimit(limits, m) : 0,
@@ -351,6 +354,38 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                 </div>
               </div>
 
+              {/* Agent View / Remote Control toggle */}
+              <div className="w-full pt-2 border-t border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-medium text-zinc-300">Permitir Agent View / Remote Control</div>
+                    <div className="text-xs text-zinc-600 mt-0.5">El conteo de uso podría no ser preciso en estos modos</div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.updateUser(user.id, { allow_agents: !user.allow_agents });
+                        showToast('Guardado', `Agent View / Remote Control ${!user.allow_agents ? 'habilitado' : 'deshabilitado'}`, 'success');
+                        loadData();
+                      } catch (err) {
+                        showToast('Error', err instanceof Error ? err.message : 'Falló', 'error');
+                      }
+                    }}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                      user.allow_agents ? 'bg-[#cc5500]' : 'bg-zinc-700'
+                    }`}
+                    role="switch"
+                    aria-checked={user.allow_agents}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
+                        user.allow_agents ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
               {/* Credit gauge */}
               {creditRule && user.credit_budget && user.credit_budget > 0 && (
                 <div className="pt-4">
@@ -375,6 +410,28 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
               <HorizontalBarChart data={barData} />
             </CardBody>
           </Card>
+
+          {/* Uso por Versión */}
+          {versionData.length > 0 && (
+            <Card>
+              <CardHeader>
+                <h3 className="text-sm font-semibold text-zinc-200">Uso por Versión</h3>
+              </CardHeader>
+              <CardBody>
+                <div className="space-y-1.5">
+                  {versionData.map((v, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-zinc-800 last:border-0">
+                      <span className="text-zinc-300 font-mono">{v.model_version || v.model}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-zinc-400">{v.count} turnos</span>
+                        <span className="text-zinc-500">{v.total_credits} cr</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardBody>
+            </Card>
+          )}
 
           {/* Límites Activos */}
           <Card>

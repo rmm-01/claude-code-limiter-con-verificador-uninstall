@@ -17,15 +17,16 @@ type Preset = 'light' | 'medium' | 'heavy' | 'unlimited' | 'custom';
 
 const PRESETS: Record<Exclude<Preset, 'custom'>, {
   credits: number;
+  fable: number;
   opus: number;
   sonnet: number;
   haiku: number;
   desc: string;
 }> = {
-  light: { credits: 50, opus: 3, sonnet: 10, haiku: 30, desc: '50 créditos/día. Opus: 3, Sonnet: 10, Haiku: 30.' },
-  medium: { credits: 100, opus: 5, sonnet: 20, haiku: 50, desc: '100 créditos/día. Opus: 5, Sonnet: 20, Haiku: 50.' },
-  heavy: { credits: 200, opus: 10, sonnet: 40, haiku: 100, desc: '200 créditos/día. Opus: 10, Sonnet: 40, Haiku: 100.' },
-  unlimited: { credits: -1, opus: -1, sonnet: -1, haiku: -1, desc: 'Sin límites. El usuario tiene acceso completo.' },
+  light: { credits: 50, fable: 2, opus: 3, sonnet: 10, haiku: 30, desc: '50 créditos/día. Fable: 2, Opus: 3, Sonnet: 10, Haiku: 30.' },
+  medium: { credits: 100, fable: 4, opus: 5, sonnet: 20, haiku: 50, desc: '100 créditos/día. Fable: 4, Opus: 5, Sonnet: 20, Haiku: 50.' },
+  heavy: { credits: 200, fable: 8, opus: 10, sonnet: 40, haiku: 100, desc: '200 créditos/día. Fable: 8, Opus: 10, Sonnet: 40, Haiku: 100.' },
+  unlimited: { credits: -1, fable: -1, opus: -1, sonnet: -1, haiku: -1, desc: 'Sin límites. El usuario tiene acceso completo.' },
 };
 
 const PRESET_LABELS: Record<Preset, string> = {
@@ -41,6 +42,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
   const [slug, setSlug] = useState('');
   const [preset, setPreset] = useState<Preset>('light');
   const [customCredits, setCustomCredits] = useState('100');
+  const [customFable, setCustomFable] = useState('3');
   const [customOpus, setCustomOpus] = useState('5');
   const [customSonnet, setCustomSonnet] = useState('20');
   const [customHaiku, setCustomHaiku] = useState('50');
@@ -54,6 +56,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
     setSlug('');
     setPreset('light');
     setCustomCredits('100');
+    setCustomFable('3');
     setCustomOpus('5');
     setCustomSonnet('20');
     setCustomHaiku('50');
@@ -70,6 +73,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
     const p = preset === 'custom'
       ? {
           credits: parseInt(customCredits, 10) || -1,
+          fable: parseInt(customFable, 10) || -1,
           opus: parseInt(customOpus, 10) || -1,
           sonnet: parseInt(customSonnet, 10) || -1,
           haiku: parseInt(customHaiku, 10) || -1,
@@ -78,6 +82,7 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
 
     const limits: LimitRule[] = [];
     if (p.credits !== -1) limits.push({ type: 'credits', window: 'daily', value: p.credits });
+    if (p.fable !== -1) limits.push({ type: 'per_model', model: 'fable', window: 'daily', value: p.fable });
     if (p.opus !== -1) limits.push({ type: 'per_model', model: 'opus', window: 'daily', value: p.opus });
     if (p.sonnet !== -1) limits.push({ type: 'per_model', model: 'sonnet', window: 'daily', value: p.sonnet });
     if (p.haiku !== -1) limits.push({ type: 'per_model', model: 'haiku', window: 'daily', value: p.haiku });
@@ -291,7 +296,13 @@ export function AddUserModal({ open, onClose, onCreated, showToast }: AddUserMod
                 onChange={(e) => setCustomCredits(e.target.value)}
                 hint="-1 para ilimitado"
               />
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-3">
+                <Input
+                  label="Fable"
+                  type="number"
+                  value={customFable}
+                  onChange={(e) => setCustomFable(e.target.value)}
+                />
                 <Input
                   label="Opus"
                   type="number"

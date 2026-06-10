@@ -254,7 +254,7 @@ function UserCard({
             limit={user.credit_budget}
           />
         )}
-        {['opus', 'sonnet', 'haiku'].map((m) => {
+        {['fable', 'opus', 'sonnet', 'haiku'].map((m) => {
           const mLimit = getModelLimit(limits, m);
           const mUsed = dailyUsage[m] ?? 0;
           if (mLimit > 0 || mUsed > 0) {
@@ -269,7 +269,7 @@ function UserCard({
           }
           return null;
         })}
-        {!creditRule && !['opus', 'sonnet', 'haiku'].some((m) => {
+        {!creditRule && !['fable', 'opus', 'sonnet', 'haiku'].some((m) => {
           const mLimit = getModelLimit(limits, m);
           const mUsed = dailyUsage[m] ?? 0;
           return mLimit > 0 || mUsed > 0;
@@ -348,9 +348,16 @@ export function CreditsExplainer() {
       {/* Intro */}
       <div className="space-y-2">
         <p>
-          Claude Code es una herramienta de inteligencia artificial que los empleados usan para escribir y revisar código. Existen <span className="text-zinc-100 font-semibold">tres modelos</span> de IA disponibles, cada uno con distinta capacidad y costo:
+          Claude Code es una herramienta de inteligencia artificial que los empleados usan para escribir y revisar código. Existen <span className="text-zinc-100 font-semibold">cuatro modelos</span> de IA disponibles, cada uno con distinta capacidad y costo:
         </p>
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-teal-400 mt-1 flex-shrink-0" />
+            <div>
+              <span className="font-semibold text-zinc-100">Fable</span>
+              <span className="text-zinc-500"> — modelo creativo, el más costoso en tokens. Para tareas de generación avanzada.</span>
+            </div>
+          </div>
           <div className="flex items-start gap-3">
             <div className="w-2.5 h-2.5 rounded-full bg-purple-500 mt-1 flex-shrink-0" />
             <div>
@@ -391,6 +398,10 @@ export function CreditsExplainer() {
         <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Costo por turno (configuración por defecto)</p>
         <div className="space-y-2">
           <div className="flex items-center justify-between py-1 border-b border-zinc-800">
+            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-teal-400" /><span className="font-medium text-zinc-200">Fable</span></div>
+            <span className="font-mono text-zinc-300 text-xs">15 créditos por turno</span>
+          </div>
+          <div className="flex items-center justify-between py-1 border-b border-zinc-800">
             <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-purple-500" /><span className="font-medium text-zinc-200">Opus</span></div>
             <span className="font-mono text-zinc-300 text-xs">10 créditos por turno</span>
           </div>
@@ -413,6 +424,10 @@ export function CreditsExplainer() {
           Supongamos que le asignamos a un empleado un límite de <span className="text-zinc-200 font-semibold">50 créditos por día</span>. Dependiendo de qué modelo use, su día de trabajo se vería así:
         </p>
         <div className="space-y-2 text-xs">
+          <div className="flex items-start gap-3 p-2 rounded-md bg-teal-400/5 border border-teal-400/10">
+            <div className="w-2 h-2 rounded-full bg-teal-400 mt-0.5 flex-shrink-0" />
+            <div><span className="text-teal-300 font-medium">Solo Fable:</span><span className="text-zinc-400"> 50 ÷ 15 = </span><span className="text-zinc-200 font-semibold">3 mensajes al día.</span><span className="text-zinc-500"> El más restringido — modelo creativo premium.</span></div>
+          </div>
           <div className="flex items-start gap-3 p-2 rounded-md bg-purple-500/5 border border-purple-500/10">
             <div className="w-2 h-2 rounded-full bg-purple-500 mt-0.5 flex-shrink-0" />
             <div><span className="text-purple-300 font-medium">Solo Opus:</span><span className="text-zinc-400"> 50 ÷ 10 = </span><span className="text-zinc-200 font-semibold">5 mensajes al día.</span><span className="text-zinc-500"> Muy restringido — reservado para análisis profundos.</span></div>
@@ -427,7 +442,7 @@ export function CreditsExplainer() {
           </div>
           <div className="flex items-start gap-3 p-2 rounded-md bg-zinc-800/50 border border-zinc-700">
             <div className="w-2 h-2 rounded-full bg-zinc-400 mt-0.5 flex-shrink-0" />
-            <div><span className="text-zinc-300 font-medium">Uso mixto:</span><span className="text-zinc-400"> 2 Opus (20) + 5 Sonnet (15) + 15 Haiku (15) = </span><span className="text-zinc-200 font-semibold">50 créditos usados.</span><span className="text-zinc-500"> El sistema descuenta automáticamente según cada modelo.</span></div>
+            <div><span className="text-zinc-300 font-medium">Uso mixto:</span><span className="text-zinc-400"> 1 Fable (15) + 2 Opus (20) + 3 Sonnet (9) + 6 Haiku (6) = </span><span className="text-zinc-200 font-semibold">50 créditos usados.</span><span className="text-zinc-500"> El sistema descuenta automáticamente según cada modelo.</span></div>
           </div>
         </div>
       </div>

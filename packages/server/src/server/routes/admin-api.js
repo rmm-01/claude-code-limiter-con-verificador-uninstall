@@ -7,6 +7,14 @@ const { verifyPassword, hashPassword, createJWT, adminAuth } = require('../servi
 const { getUsageSummary, getCreditBalance } = require('../services/usage');
 const { broadcast } = require('../ws');
 
+function pickDefined(obj, keys) {
+  const result = {};
+  for (const k of keys) {
+    if (obj[k] !== undefined) result[k] = obj[k];
+  }
+  return result;
+}
+
 /**
  * POST /api/admin/login
  * Verify admin password, return JWT.
@@ -121,6 +129,7 @@ router.get('/users', (req, res) => {
         last_session: lastSession ? lastSession.last_session : null,
         created_at: user.created_at,
         allow_self_uninstall: !!user.allow_self_uninstall,
+        allow_agents: !!user.allow_agents,
         last_tampering_at: user.last_tampering_at || null,
         limits,
         usage: usageSummary,
@@ -237,19 +246,20 @@ router.put('/users/:id', (req, res) => {
       return res.status(403).json({ error: 'User does not belong to your team' });
     }
 
-    const { name, slug, status, limits, allow_self_uninstall } = req.body;
-    const updates = {};
-    if (name !== undefined) updates.name = name;
-    if (slug !== undefined) updates.slug = slug;
-    if (status !== undefined) updates.status = status;
-    if (allow_self_uninstall !== undefined) updates.allow_self_uninstall = allow_self_uninstall;
+    const { limits } = req.body;
+    const updates = pickDefined(req.body, ['name', 'slug', 'status', 'allow_self_uninstall', 'allow_agents']);
+
+    // Reset expected hash when toggling agents — the hook will modify
+    // managed-settings.json on next sync, so the old hash is stale.
+    if (updates.allow_agents !== undefined) {
+      updates.expected_managed_settings_hash = null;
+    }
 
     if (Object.keys(updates).length > 0) {
       db.updateUser(userId, updates);
     }
 
-    // Replace limits if provided
-    if (limits !== undefined && Array.isArray(limits)) {
+    if (Array.isArray(limits)) {
       db.deleteLimitRulesForUser(userId);
       for (const rule of limits) {
         db.createLimitRule({
@@ -291,6 +301,7 @@ router.put('/users/:id', (req, res) => {
         last_seen: updatedUser.last_seen,
         created_at: updatedUser.created_at,
         allow_self_uninstall: !!updatedUser.allow_self_uninstall,
+        allow_agents: !!updatedUser.allow_agents,
       },
       limits: updatedLimits,
     });
@@ -419,6 +430,43 @@ router.get('/usage', (req, res) => {
     }
   } catch (err) {
     console.error('GET /usage error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/usage/versions
+ * Usage breakdown by model version.
+ * Query: ?user_id=X&days=30
+ */
+router.get('/usage/versions', (req, res) => {
+  try {
+    const team = req.team;
+    const { user_id, days } = req.query;
+    const numDays = parseInt(days, 10) || 30;
+    const since = new Date(Date.now() - numDays * 24 * 60 * 60 * 1000).toISOString();
+
+    if (user_id) {
+      const user = db.getUser(user_id);
+      if (!user || user.team_id !== team.id) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const rows = db.getUsageByVersion(user_id, since);
+      res.json({ user_id, versions: rows });
+    } else {
+      const rows = db.getDb().prepare(
+        `SELECT e.model, e.model_version, e.user_id, u.name AS user_name,
+                COUNT(*) AS count, SUM(e.credit_cost) AS total_credits
+         FROM usage_event e
+         JOIN user u ON e.user_id = u.id
+         WHERE u.team_id = ? AND e.timestamp >= ?
+         GROUP BY e.model, e.model_version, e.user_id
+         ORDER BY e.model, count DESC`
+      ).all(team.id, since);
+      res.json({ versions: rows });
+    }
+  } catch (err) {
+    console.error('GET /usage/versions error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

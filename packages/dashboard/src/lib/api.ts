@@ -176,6 +176,16 @@ async function getUsage(params?: {
   return request(`/api/admin/usage${buildQS(params)}`);
 }
 
+async function getUsageVersions(params?: {
+  user_id?: string;
+  days?: number;
+}): Promise<{
+  user_id?: string;
+  versions: Array<{ model: string; model_version: string | null; count: number; total_credits: number; user_id?: string; user_name?: string }>;
+}> {
+  return request(`/api/admin/usage/versions${buildQS(params)}`);
+}
+
 async function getEvents(params?: {
   limit?: number;
   user_id?: string;
@@ -208,6 +218,7 @@ export const api = {
   getInstallCode,
   regenerateInstallCode,
   getUsage,
+  getUsageVersions,
   getEvents,
   getAnalytics,
   updateSettings,

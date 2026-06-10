@@ -676,7 +676,7 @@ async function setup(flags) {
     subscriptionType,
     allowed_email: authStatus.email || null,
     limits: limits || [],
-    credit_weights: credit_weights || { opus: 10, sonnet: 3, haiku: 1 },
+    credit_weights: credit_weights || { fable: 15, opus: 10, sonnet: 3, haiku: 1 },
   };
   fs.writeFileSync(PATHS.config, JSON.stringify(localConfig, null, 2));
   ok(`Config → ${PATHS.config}`);

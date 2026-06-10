@@ -23,10 +23,12 @@
     blue:        '#58a6ff',
     purple:      '#bc8cff',
     orange:      '#f0883e',
+    teal:        '#2dd4bf',
     track:       '#1c2129',
   };
 
   var MODEL_COLORS = {
+    fable:   COLORS.teal,
     opus:    COLORS.purple,
     sonnet:  COLORS.blue,
     haiku:   COLORS.green,
@@ -467,6 +469,7 @@
     var total = 0;
     var entries = [];
     var chartColors = {
+      fable: COLORS.teal,
       opus: COLORS.purple,
       sonnet: COLORS.blue,
       haiku: COLORS.green,

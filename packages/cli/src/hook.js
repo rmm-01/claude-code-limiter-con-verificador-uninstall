@@ -165,39 +165,49 @@ function readStdinAsync(timeoutMs) {
 //   8. config.defaultModel (detected during setup: Pro=sonnet, Max=opus)
 //   9. Falls back to "default"
 //
-// Normalization: string containing "opus"/"sonnet"/"haiku"
+// Normalization: string containing "fable"/"opus"/"sonnet"/"haiku"
 // maps to that family. Everything else → "default".
 // ════════════════════════════════════════════════════════════
 
 function normalizeModel(raw) {
   const lower = String(raw || "").toLowerCase();
+  if (lower.includes("fable")) return "fable";
   if (lower.includes("opus")) return "opus";
   if (lower.includes("sonnet")) return "sonnet";
   if (lower.includes("haiku")) return "haiku";
   return "default";
 }
 
-function detectModel(stdinData, config) {
+// Extract a normalized version string from a raw model ID.
+// "claude-opus-4-6" → "opus-4-6", "claude-fable-5" → "fable-5",
+// "claude-sonnet-4-6-20250101" → "sonnet-4-6"
+// Falls back to the family name if no version found.
+function extractModelVersion(raw) {
+  const lower = String(raw || "").toLowerCase().trim();
+  // Match family + version digits: e.g. "opus-4-6", "sonnet-4-6", "fable-5", "haiku-4-5"
+  const match = lower.match(/(fable|opus|sonnet|haiku)[- ](\d[\d.-]*\d)/);
+  if (match) {
+    return match[1] + "-" + match[2].replace(/\./g, "-");
+  }
+  return normalizeModel(raw);
+}
+
+// Returns the raw model string from the best available source.
+function detectModelRaw(stdinData, config) {
   // Source 1: Hook input (SessionStart only — always accurate)
   if (stdinData && stdinData.model) {
-    return normalizeModel(stdinData.model);
+    return stdinData.model;
   }
 
   // Source 2: User settings (updated by /model command)
-  // KEY INSIGHT: /model writes "model" key for non-default models.
-  // Selecting the default model REMOVES the key.
-  // So: key exists → that's the model. Key absent → it's the plan default.
   const home = os.homedir();
   const userSettings = readJSON(path.join(home, ".claude", "settings.json"));
   if (userSettings) {
     if (userSettings.model) {
-      // User explicitly switched to this model
-      return normalizeModel(userSettings.model);
+      return userSettings.model;
     }
-    // settings.json exists but no model key = user chose the default.
-    // Use the plan default immediately — don't fall through to stale caches.
     if (config && config.defaultModel) {
-      return normalizeModel(config.defaultModel);
+      return config.defaultModel;
     }
   }
 
@@ -206,28 +216,32 @@ function detectModel(stdinData, config) {
     path.join(process.cwd(), ".claude", "settings.local.json"),
   );
   if (localSettings && localSettings.model) {
-    return normalizeModel(localSettings.model);
+    return localSettings.model;
   }
 
   const projectSettings = readJSON(
     path.join(process.cwd(), ".claude", "settings.json"),
   );
   if (projectSettings && projectSettings.model) {
-    return normalizeModel(projectSettings.model);
+    return projectSettings.model;
   }
 
-  // Source 4: Cached from SessionStart (fallback if settings unreadable)
+  // Source 4: Cached from SessionStart
   const cached = readText(MODEL_FILE);
-  if (cached) return normalizeModel(cached);
+  if (cached) return cached;
 
   // Source 5: Environment variables
-  if (process.env.ANTHROPIC_MODEL) return normalizeModel(process.env.ANTHROPIC_MODEL);
-  if (process.env.CLAUDE_MODEL) return normalizeModel(process.env.CLAUDE_MODEL);
+  if (process.env.ANTHROPIC_MODEL) return process.env.ANTHROPIC_MODEL;
+  if (process.env.CLAUDE_MODEL) return process.env.CLAUDE_MODEL;
 
   // Source 6: Plan default from config
-  if (config && config.defaultModel) return normalizeModel(config.defaultModel);
+  if (config && config.defaultModel) return config.defaultModel;
 
   return "default";
+}
+
+function detectModel(stdinData, config) {
+  return normalizeModel(detectModelRaw(stdinData, config));
 }
 
 // ════════════════════════════════════════════════════════════
@@ -367,7 +381,7 @@ function evaluateLimitsLocally(config, model, usage) {
   if (!config || !config.limits) return { allowed: true };
 
   const limits = config.limits;
-  const creditWeights = config.credit_weights || { opus: 10, sonnet: 3, haiku: 1 };
+  const creditWeights = config.credit_weights || { fable: 15, opus: 10, sonnet: 3, haiku: 1 };
 
   // Check kill/pause status
   if (config.status === "killed" || config.status === "paused") {
@@ -435,12 +449,12 @@ function evaluateLimitsLocally(config, model, usage) {
 // ════════════════════════════════════════════════════════════
 
 function buildBlockMessage(config, model, usage, reason) {
-  const creditWeights = config.credit_weights || { opus: 10, sonnet: 3, haiku: 1 };
+  const creditWeights = config.credit_weights || { fable: 15, opus: 10, sonnet: 3, haiku: 1 };
   const limits = config.limits || [];
   const lines = [reason, ""];
 
   // Usage summary
-  const models = ["opus", "sonnet", "haiku"];
+  const models = ["fable", "opus", "sonnet", "haiku"];
   const summaryLines = [];
   for (const m of models) {
     const used = usage[m] || 0;
@@ -552,6 +566,34 @@ function triggerLogout() {
  * SYNC — SessionStart hook.
  * Cache model, sync config from server.
  */
+// Update managed-settings.json to enable/disable Agent View and Remote Control
+// based on the server's allow_agents flag. Only writes if state actually changed.
+// Also updates the watchdog backup so it doesn't revert the change.
+function syncAgentSettings(allowAgents) {
+  try {
+    const ms = readJSON(MANAGED_SETTINGS_FILE);
+    if (!ms) return;
+
+    const shouldDisable = !allowAgents;
+    const currentAgent = ms.disableAgentView !== undefined ? ms.disableAgentView : true;
+    const currentRemote = ms.disableRemoteControl !== undefined ? ms.disableRemoteControl : true;
+
+    if (currentAgent === shouldDisable && currentRemote === shouldDisable) return;
+
+    ms.disableAgentView = shouldDisable;
+    ms.disableRemoteControl = shouldDisable;
+    writeJSON(MANAGED_SETTINGS_FILE, ms);
+
+    // Update watchdog backup to prevent revert
+    const backupFile = path.join(path.dirname(LIMITER_DIR), ".backup", "managed-settings.json");
+    writeJSON(backupFile, ms);
+
+    debugLog(`SYNC_AGENTS updated managed-settings + backup: disableAgentView=${shouldDisable} disableRemoteControl=${shouldDisable}`);
+  } catch (err) {
+    debugLog(`SYNC_AGENTS error: ${err.message}`);
+  }
+}
+
 /**
  * SHA-256 of the local managed-settings.json file. Used by the server to
  * detect local tampering: if this hash differs from the one the server saw
@@ -570,15 +612,18 @@ function getManagedSettingsHash() {
 
 async function actionSync(config) {
   const stdinData = await readStdinAsync();
-  const model = detectModel(stdinData, config);
-  writeText(MODEL_FILE, model);
-  debugLog(`SYNC model=${model} source=${stdinData.source || "unknown"}`);
+  const rawModel = detectModelRaw(stdinData, config);
+  const model = normalizeModel(rawModel);
+  const modelVersion = extractModelVersion(rawModel);
+  writeText(MODEL_FILE, rawModel);
+  debugLog(`SYNC model=${model} version=${modelVersion} source=${stdinData.source || "unknown"}`);
 
   const deviceInfo = getDeviceInfo(stdinData);
   const managedSettingsHash = getManagedSettingsHash();
 
   const serverResp = await serverRequest("/api/v1/sync", {
     model,
+    model_version: modelVersion,
     hostname: deviceInfo.hostname,
     platform: deviceInfo.platform,
     arch: deviceInfo.arch,
@@ -598,7 +643,8 @@ async function actionSync(config) {
       if (serverResp.user_name) updated.user_name = serverResp.user_name;
       writeJSON(CONFIG_FILE, updated);
     }
-    debugLog(`SYNC server_response status=${serverResp.status}`);
+    syncAgentSettings(serverResp.allow_agents);
+    debugLog(`SYNC server_response status=${serverResp.status} allow_agents=${serverResp.allow_agents}`);
   }
 }
 
@@ -614,12 +660,15 @@ async function actionCheck(config) {
     return; // no output = allow
   }
 
-  const model = detectModel(stdinData, config);
+  const rawModel = detectModelRaw(stdinData, config);
+  const model = normalizeModel(rawModel);
+  const modelVersion = extractModelVersion(rawModel);
   const usage = loadUsage();
-  debugLog(`CHECK model=${model} usage=${JSON.stringify(usage)}`);
+  debugLog(`CHECK model=${model} version=${modelVersion} usage=${JSON.stringify(usage)}`);
 
   const serverResp = await serverRequest("/api/v1/check", {
     model,
+    model_version: modelVersion,
     local_usage: usage,
     prompt_length: (stdinData.prompt || "").length,
     project_dir: path.basename(stdinData.cwd || ""),
@@ -676,16 +725,19 @@ async function actionCount(config) {
     return;
   }
 
-  const model = detectModel(stdinData, config);
+  const rawModel = detectModelRaw(stdinData, config);
+  const model = normalizeModel(rawModel);
+  const modelVersion = extractModelVersion(rawModel);
   const usage = loadUsage();
   const prev = usage[model] || 0;
   usage[model] = prev + 1;
   saveUsage(usage);
   cleanupOldUsage();
-  debugLog(`COUNT model=${model} ${prev} → ${prev + 1}`);
+  debugLog(`COUNT model=${model} version=${modelVersion} ${prev} → ${prev + 1}`);
 
   await serverRequest("/api/v1/count", {
     model,
+    model_version: modelVersion,
     timestamp: new Date().toISOString(),
     session_id: stdinData.session_id || null,
     response_length: (stdinData.last_assistant_message || "").length,
@@ -762,7 +814,7 @@ function actionStatus(config) {
   console.log("");
 
   const limits = (config && config.limits) || [];
-  const creditWeights = (config && config.credit_weights) || { opus: 10, sonnet: 3, haiku: 1 };
+  const creditWeights = (config && config.credit_weights) || { fable: 15, opus: 10, sonnet: 3, haiku: 1 };
 
   if (limits.length === 0) {
     console.log("  Sin límites configurados — modo ilimitado\n");
@@ -773,7 +825,7 @@ function actionStatus(config) {
   console.log("  │ Modelo     │ Uso   │ Tope  │ Progreso             │ Restan   │");
   console.log("  ├────────────┼───────┼───────┼──────────────────────┼──────────┤");
 
-  for (const m of ["opus", "sonnet", "haiku"]) {
+  for (const m of ["fable", "opus", "sonnet", "haiku"]) {
     const used = usage[m] || 0;
     const rule = limits.find((r) => r.type === "per_model" && (r.model === m || !r.model));
     const limit = rule ? rule.value : -1;

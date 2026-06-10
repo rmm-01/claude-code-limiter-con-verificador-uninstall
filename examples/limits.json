@@ -1,5 +1,6 @@
 {
   "credit_weights": {
+    "fable": 15,
     "opus": 10,
     "sonnet": 3,
     "haiku": 1

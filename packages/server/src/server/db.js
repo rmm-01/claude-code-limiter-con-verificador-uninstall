@@ -39,7 +39,7 @@ function init(dbPath) {
       id              TEXT PRIMARY KEY,
       name            TEXT NOT NULL,
       admin_password  TEXT NOT NULL,
-      credit_weights  TEXT NOT NULL DEFAULT '{"opus":10,"sonnet":3,"haiku":1}',
+      credit_weights  TEXT NOT NULL DEFAULT '{"fable":15,"opus":10,"sonnet":3,"haiku":1}',
       created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -54,6 +54,7 @@ function init(dbPath) {
       last_seen                       DATETIME,
       created_at                      DATETIME DEFAULT CURRENT_TIMESTAMP,
       allow_self_uninstall            INTEGER NOT NULL DEFAULT 0,
+      allow_agents                    INTEGER NOT NULL DEFAULT 0,
       pending_uninstall_expires_at    DATETIME,
       expected_managed_settings_hash  TEXT,
       last_tampering_at               DATETIME,
@@ -74,12 +75,13 @@ function init(dbPath) {
     );
 
     CREATE TABLE IF NOT EXISTS usage_event (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id     TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
-      model       TEXT NOT NULL,
-      credit_cost INTEGER NOT NULL,
-      timestamp   DATETIME NOT NULL,
-      source      TEXT NOT NULL DEFAULT 'hook'
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id         TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+      model           TEXT NOT NULL,
+      model_version   TEXT,
+      credit_cost     INTEGER NOT NULL,
+      timestamp       DATETIME NOT NULL,
+      source          TEXT NOT NULL DEFAULT 'hook'
     );
 
     CREATE TABLE IF NOT EXISTS install_code (
@@ -112,6 +114,7 @@ function init(dbPath) {
       device_id       TEXT REFERENCES device(id),
       type            TEXT NOT NULL,
       model           TEXT,
+      model_version   TEXT,
       prompt_length   INTEGER,
       project_dir     TEXT,
       tools_used      INTEGER,
@@ -146,6 +149,21 @@ function init(dbPath) {
   }
   if (!cols.includes('last_tampering_at')) {
     db.exec('ALTER TABLE user ADD COLUMN last_tampering_at DATETIME');
+  }
+
+  // Add allow_agents to user (v1.4)
+  if (!cols.includes('allow_agents')) {
+    db.exec('ALTER TABLE user ADD COLUMN allow_agents INTEGER NOT NULL DEFAULT 0');
+  }
+
+  // Add model_version to usage_event and session_event (v1.4)
+  const usageCols = db.pragma('table_info(usage_event)').map(c => c.name);
+  if (!usageCols.includes('model_version')) {
+    db.exec('ALTER TABLE usage_event ADD COLUMN model_version TEXT');
+  }
+  const sessionCols = db.pragma('table_info(session_event)').map(c => c.name);
+  if (!sessionCols.includes('model_version')) {
+    db.exec('ALTER TABLE session_event ADD COLUMN model_version TEXT');
   }
 
   console.log(`Database initialized at ${dbPath}`);
@@ -227,7 +245,7 @@ function seed(adminPassword) {
 
   conn.prepare(
     'INSERT INTO team (id, name, admin_password, credit_weights) VALUES (?, ?, ?, ?)'
-  ).run(teamId, 'Default Team', hash, JSON.stringify({ opus: 10, sonnet: 3, haiku: 1 }));
+  ).run(teamId, 'Default Team', hash, JSON.stringify({ fable: 15, opus: 10, sonnet: 3, haiku: 1 }));
 
   console.log(`Default team created (id: ${teamId})`);
   if (password === 'changeme') {
@@ -378,12 +396,12 @@ function deleteLimitRulesForUser(userId) {
 
 // --------------- Usage Event helpers ---------------
 
-function recordUsage({ userId, model, creditCost, timestamp, source }) {
+function recordUsage({ userId, model, modelVersion, creditCost, timestamp, source }) {
   const ts = timestamp || new Date().toISOString();
   const src = source || 'hook';
   return getDb().prepare(
-    'INSERT INTO usage_event (user_id, model, credit_cost, timestamp, source) VALUES (?, ?, ?, ?, ?)'
-  ).run(userId, model, creditCost, ts, src);
+    'INSERT INTO usage_event (user_id, model, model_version, credit_cost, timestamp, source) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(userId, model, modelVersion || null, creditCost, ts, src);
 }
 
 /**
@@ -395,7 +413,7 @@ function getUsage(userId, since) {
     'SELECT model, COUNT(*) AS count FROM usage_event WHERE user_id = ? AND timestamp >= ? GROUP BY model'
   ).all(userId, since);
 
-  const result = { opus: 0, sonnet: 0, haiku: 0, default: 0 };
+  const result = { fable: 0, opus: 0, sonnet: 0, haiku: 0, default: 0 };
   for (const row of rows) {
     result[row.model] = row.count;
   }
@@ -410,13 +428,26 @@ function getUsageWithCredits(userId, since) {
     'SELECT model, COUNT(*) AS count, SUM(credit_cost) AS total_credits FROM usage_event WHERE user_id = ? AND timestamp >= ? GROUP BY model'
   ).all(userId, since);
 
-  const counts = { opus: 0, sonnet: 0, haiku: 0, default: 0 };
+  const counts = { fable: 0, opus: 0, sonnet: 0, haiku: 0, default: 0 };
   let totalCredits = 0;
   for (const row of rows) {
     counts[row.model] = row.count;
     totalCredits += row.total_credits;
   }
   return { counts, totalCredits };
+}
+
+/**
+ * Get usage broken down by model_version for a user since a given timestamp.
+ * Returns array of { model, model_version, count, total_credits }
+ */
+function getUsageByVersion(userId, since) {
+  return getDb().prepare(
+    `SELECT model, model_version, COUNT(*) AS count, SUM(credit_cost) AS total_credits
+     FROM usage_event WHERE user_id = ? AND timestamp >= ?
+     GROUP BY model, model_version
+     ORDER BY model, count DESC`
+  ).all(userId, since);
 }
 
 /**
@@ -685,13 +716,14 @@ function getDevicesByTeam(teamId) {
 function recordSessionEvent(data) {
   const ts = data.timestamp || new Date().toISOString();
   return getDb().prepare(
-    `INSERT INTO session_event (user_id, device_id, type, model, prompt_length, project_dir, tools_used, session_id, blocked_reason, response_length, timestamp)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO session_event (user_id, device_id, type, model, model_version, prompt_length, project_dir, tools_used, session_id, blocked_reason, response_length, timestamp)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     data.user_id,
     data.device_id || null,
     data.type,
     data.model || null,
+    data.model_version || null,
     data.prompt_length != null ? data.prompt_length : null,
     data.project_dir || null,
     data.tools_used != null ? data.tools_used : null,
@@ -893,6 +925,7 @@ module.exports = {
   recordUsage,
   getUsage,
   getUsageWithCredits,
+  getUsageByVersion,
   getUsageForWindow,
   getRecentEvents,
   cleanupOldEvents,

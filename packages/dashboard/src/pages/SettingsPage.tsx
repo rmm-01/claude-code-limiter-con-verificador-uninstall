@@ -13,6 +13,7 @@ interface SettingsPageProps {
 export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
   const [team, setTeam] = useState<Team | null>(null);
   const [teamName, setTeamName] = useState('');
+  const [fableWeight, setFableWeight] = useState('15');
   const [opusWeight, setOpusWeight] = useState('10');
   const [sonnetWeight, setSonnetWeight] = useState('3');
   const [haikuWeight, setHaikuWeight] = useState('1');
@@ -27,6 +28,7 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
     if (stored) {
       setTeam(stored);
       setTeamName(stored.name);
+      setFableWeight(String(stored.credit_weights?.fable ?? 15));
       setOpusWeight(String(stored.credit_weights?.opus ?? 10));
       setSonnetWeight(String(stored.credit_weights?.sonnet ?? 3));
       setHaikuWeight(String(stored.credit_weights?.haiku ?? 1));
@@ -62,6 +64,7 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
 
   const handleSaveWeights = async () => {
     const cw = {
+      fable: parseInt(fableWeight, 10) || 0,
       opus: parseInt(opusWeight, 10) || 0,
       sonnet: parseInt(sonnetWeight, 10) || 0,
       haiku: parseInt(haikuWeight, 10) || 0,
@@ -136,7 +139,8 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
           <p className="text-xs text-zinc-500 mb-4">
             Define cuántos créditos cuesta cada modelo por turno. Mayor peso = más caro.
           </p>
-          <div className="grid grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-4 gap-4 mb-4">
+            <WeightCard model="Fable" value={fableWeight} onChange={setFableWeight} color="bg-teal-400" />
             <WeightCard model="Opus" value={opusWeight} onChange={setOpusWeight} color="bg-purple-500" />
             <WeightCard model="Sonnet" value={sonnetWeight} onChange={setSonnetWeight} color="bg-blue-500" />
             <WeightCard model="Haiku" value={haikuWeight} onChange={setHaikuWeight} color="bg-green-500" />

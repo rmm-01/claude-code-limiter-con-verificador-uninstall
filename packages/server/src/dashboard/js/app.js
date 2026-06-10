@@ -114,6 +114,18 @@
       }
       return API._fetch('/api/admin/analytics' + qs);
     },
+
+    getUsageVersions: function (params) {
+      var qs = '';
+      if (params) {
+        var parts = [];
+        for (var k in params) {
+          if (params[k] != null) parts.push(k + '=' + encodeURIComponent(params[k]));
+        }
+        qs = '?' + parts.join('&');
+      }
+      return API._fetch('/api/admin/usage/versions' + qs);
+    },
   };
 
   /* ================================================================
@@ -550,7 +562,7 @@
     }
 
     // Per-model bars
-    var models = ['opus', 'sonnet', 'haiku'];
+    var models = ['fable', 'opus', 'sonnet', 'haiku'];
     for (var mi = 0; mi < models.length; mi++) {
       var m = models[mi];
       var mLimit = getModelLimit(limits, m);
@@ -663,12 +675,13 @@
      PAGE: USER DETAIL
      ================================================================ */
   function renderUserDetail(container, userId) {
-    Promise.all([API.getUser(userId), API.getUsage({ user_id: userId, days: 30 }), API.getEvents({ user_id: userId, limit: 20 }), API.getAnalytics({ user_id: userId, days: 30 })])
+    Promise.all([API.getUser(userId), API.getUsage({ user_id: userId, days: 30 }), API.getEvents({ user_id: userId, limit: 20 }), API.getAnalytics({ user_id: userId, days: 30 }), API.getUsageVersions({ user_id: userId, days: 30 })])
       .then(function (results) {
         var user = results[0];
         var usageData = results[1];
         var eventsData = results[2];
         var userAnalytics = results[3] || {};
+        var versionsData = (results[4] && results[4].versions) || [];
         var limits = user.limits || [];
         var usage = user.usage || {};
         var dailyUsage = (usage.daily && usage.daily.counts) ? usage.daily.counts : {};
@@ -677,6 +690,16 @@
         var html = '';
         // Breadcrumb
         html += '<div class="breadcrumb"><a href="#overview">Resumen</a> / <span>' + escapeHtml(user.name) + '</span></div>';
+
+        // Tamper detection banner
+        if (user.last_tampering_at && (Date.now() - new Date(user.last_tampering_at).getTime()) < 2 * 60 * 60 * 1000) {
+          html += '<div class="alert alert-danger" style="margin-bottom:1rem;padding:0.75rem 1rem;border-radius:8px;border:1px solid rgba(248,81,73,0.4);background:rgba(248,81,73,0.1);color:#f0a0a0;font-size:0.85rem">';
+          html += '<strong>⚠ Manipulación detectada.</strong> ';
+          html += 'El hook reportó que <code>managed-settings.json</code> de este usuario no coincide con el hash esperado. ';
+          html += 'Última detección: ' + new Date(user.last_tampering_at).toLocaleString() + '.';
+          html += '</div>';
+        }
+
         html += '<div class="page-header"><h2>' + escapeHtml(user.name) + '</h2>';
         html += '<div class="page-header-actions">';
         html += '<button class="btn btn-sm btn-secondary" data-action="explain-credits">¿Cómo funcionan los créditos?</button>';
@@ -718,6 +741,18 @@
                 '</button>';
         html += '</div>';
 
+        // Agent View / Remote Control toggle
+        var canAgents = !!user.allow_agents;
+        html += '<div class="detail-toggle-row">';
+        html += '<span class="detail-toggle-label">Permitir Agent View / Remote Control</span>';
+        html += '<button class="btn btn-sm ' + (canAgents ? 'btn-success' : 'btn-ghost') + '" ' +
+                'data-action="toggle-allow-agents" data-user-id="' + user.id + '" ' +
+                'data-user-name="' + escapeHtml(user.name) + '" ' +
+                'data-current="' + (canAgents ? '1' : '0') + '">' +
+                (canAgents ? 'Habilitado' : 'Deshabilitado') +
+                '</button>';
+        html += '</div>';
+
         // Credit gauge
         var creditRule = getCreditRule(limits);
         if (creditRule && user.credit_budget > 0) {
@@ -733,6 +768,22 @@
         html += '<div class="card mb-2"><div class="card-header"><h3>Uso por Modelo (Diario)</h3></div>';
         html += '<div class="card-body"><div class="chart-container"><canvas id="model-bars"></canvas></div></div>';
         html += '</div>';
+
+        // Usage by version
+        if (versionsData.length > 0) {
+          html += '<div class="card mb-2"><div class="card-header"><h3>Uso por Versión</h3></div>';
+          html += '<div class="card-body-flush"><div class="table-wrap"><table>';
+          html += '<thead><tr><th>Versión</th><th>Turnos</th><th>Créditos</th></tr></thead><tbody>';
+          for (var vi = 0; vi < versionsData.length; vi++) {
+            var vr = versionsData[vi];
+            html += '<tr>';
+            html += '<td class="text-mono text-sm">' + escapeHtml(vr.model_version || vr.model) + '</td>';
+            html += '<td class="text-mono">' + vr.count + '</td>';
+            html += '<td class="text-mono">' + vr.total_credits + '</td>';
+            html += '</tr>';
+          }
+          html += '</tbody></table></div></div></div>';
+        }
 
         // Active limits
         html += '<div class="card mb-2"><div class="card-header"><h3>Límites Activos</h3>';
@@ -836,7 +887,7 @@
           var barsCanvas = document.getElementById('model-bars');
           if (barsCanvas) {
             var barData = [];
-            var models = ['opus', 'sonnet', 'haiku'];
+            var models = ['fable', 'opus', 'sonnet', 'haiku'];
             for (var b = 0; b < models.length; b++) {
               var mdl = models[b];
               var used = dailyUsage[mdl] || 0;
@@ -927,8 +978,8 @@
   }
 
   function renderSettingsInner(container) {
-    var team = state.team || { name: 'Team', credit_weights: { opus: 10, sonnet: 3, haiku: 1 } };
-    var cw = team.credit_weights || { opus: 10, sonnet: 3, haiku: 1 };
+    var team = state.team || { name: 'Team', credit_weights: { fable: 15, opus: 10, sonnet: 3, haiku: 1 } };
+    var cw = team.credit_weights || { fable: 15, opus: 10, sonnet: 3, haiku: 1 };
 
     var html = '';
     html += '<div class="page-header"><h2>Configuración</h2></div>';
@@ -950,7 +1001,7 @@
     html += '<h3>Pesos de Créditos</h3>';
     html += '<p class="text-muted text-sm mb-2">Define cuántos créditos cuesta cada modelo por turno. Mayor peso = más caro.</p>';
     html += '<div class="weight-grid">';
-    var models = ['opus', 'sonnet', 'haiku'];
+    var models = ['fable', 'opus', 'sonnet', 'haiku'];
     for (var i = 0; i < models.length; i++) {
       var m = models[i];
       html += '<div class="weight-card">';
@@ -1165,13 +1216,15 @@
     html += '<button class="preset-btn" data-preset="custom">Personalizado</button>';
     html += '</div>';
 
-    html += '<div id="preset-description" class="text-muted text-sm mb-2">50 créditos/día. Opus: 3, Sonnet: 10, Haiku: 30.</div>';
+    html += '<div id="preset-description" class="text-muted text-sm mb-2">50 créditos/día. Fable: 2, Opus: 3, Sonnet: 10, Haiku: 30.</div>';
 
     // Custom limits form (hidden by default)
     html += '<div id="custom-limits-form" class="hidden">';
     html += '<div class="form-group"><label>Presupuesto de Créditos (diario)</label>';
     html += '<input type="number" id="custom-credits" min="-1" value="100" placeholder="-1 para ilimitado"></div>';
-    html += '<div class="form-row-3">';
+    html += '<div class="form-row-4">';
+    html += '<div class="form-group"><label>Fable (diario)</label>';
+    html += '<input type="number" id="custom-fable" min="-1" value="3"></div>';
     html += '<div class="form-group"><label>Opus (diario)</label>';
     html += '<input type="number" id="custom-opus" min="-1" value="5"></div>';
     html += '<div class="form-group"><label>Sonnet (diario)</label>';
@@ -1200,10 +1253,10 @@
   }
 
   var PRESETS = {
-    light:     { credits: 50,  opus: 3,  sonnet: 10, haiku: 30, desc: '50 créditos/día. Opus: 3, Sonnet: 10, Haiku: 30.' },
-    medium:    { credits: 100, opus: 5,  sonnet: 20, haiku: 50, desc: '100 créditos/día. Opus: 5, Sonnet: 20, Haiku: 50.' },
-    heavy:     { credits: 200, opus: 10, sonnet: 40, haiku: 100, desc: '200 créditos/día. Opus: 10, Sonnet: 40, Haiku: 100.' },
-    unlimited: { credits: -1,  opus: -1, sonnet: -1, haiku: -1, desc: 'Sin límites. El usuario tiene acceso completo sin restricciones.' },
+    light:     { credits: 50,  fable: 2, opus: 3,  sonnet: 10, haiku: 30, desc: '50 créditos/día. Fable: 2, Opus: 3, Sonnet: 10, Haiku: 30.' },
+    medium:    { credits: 100, fable: 4, opus: 5,  sonnet: 20, haiku: 50, desc: '100 créditos/día. Fable: 4, Opus: 5, Sonnet: 20, Haiku: 50.' },
+    heavy:     { credits: 200, fable: 8, opus: 10, sonnet: 40, haiku: 100, desc: '200 créditos/día. Fable: 8, Opus: 10, Sonnet: 40, Haiku: 100.' },
+    unlimited: { credits: -1,  fable: -1, opus: -1, sonnet: -1, haiku: -1, desc: 'Sin límites. El usuario tiene acceso completo sin restricciones.' },
   };
 
   var selectedPreset = 'light';
@@ -1235,6 +1288,7 @@
     if (selectedPreset === 'custom') {
       p = {
         credits: parseInt(document.getElementById('custom-credits').value, 10),
+        fable: parseInt(document.getElementById('custom-fable').value, 10),
         opus: parseInt(document.getElementById('custom-opus').value, 10),
         sonnet: parseInt(document.getElementById('custom-sonnet').value, 10),
         haiku: parseInt(document.getElementById('custom-haiku').value, 10),
@@ -1246,6 +1300,9 @@
     var limits = [];
     if (p.credits !== -1) {
       limits.push({ type: 'credits', window: 'daily', value: p.credits });
+    }
+    if (p.fable !== -1) {
+      limits.push({ type: 'per_model', model: 'fable', window: 'daily', value: p.fable });
     }
     if (p.opus !== -1) {
       limits.push({ type: 'per_model', model: 'opus', window: 'daily', value: p.opus });
@@ -1261,13 +1318,15 @@
 
   function openCreditsExplainerModal() {
     var team = state.team || {};
-    var cw = team.credit_weights || { opus: 10, sonnet: 3, haiku: 1 };
+    var cw = team.credit_weights || { fable: 15, opus: 10, sonnet: 3, haiku: 1 };
+    var fableCost = cw.fable || 15;
     var opusCost = cw.opus || 10;
     var sonnetCost = cw.sonnet || 3;
     var haikuCost = cw.haiku || 1;
 
     // Example budget for the math walkthrough
     var exampleBudget = 100;
+    var fableOnly = Math.floor(exampleBudget / fableCost);
     var opusOnly = Math.floor(exampleBudget / opusCost);
     var sonnetOnly = Math.floor(exampleBudget / sonnetCost);
     var haikuOnly = Math.floor(exampleBudget / haikuCost);
@@ -1291,7 +1350,8 @@
     html += '<table class="explainer-table">';
     html += '<thead><tr><th>Modelo</th><th>Créditos por prompt</th><th>Por qué</th></tr></thead>';
     html += '<tbody>';
-    html += '<tr><td><strong>Opus</strong></td><td>' + opusCost + '</td><td>Modelo más caro y potente</td></tr>';
+    html += '<tr><td><strong>Fable</strong></td><td>' + fableCost + '</td><td>Modelo creativo, el más costoso en tokens</td></tr>';
+    html += '<tr><td><strong>Opus</strong></td><td>' + opusCost + '</td><td>Modelo potente y caro</td></tr>';
     html += '<tr><td><strong>Sonnet</strong></td><td>' + sonnetCost + '</td><td>Balance costo / capacidad</td></tr>';
     html += '<tr><td><strong>Haiku</strong></td><td>' + haikuCost + '</td><td>Modelo más liviano y económico</td></tr>';
     html += '</tbody></table>';
@@ -1303,11 +1363,12 @@
     html += '<h4>3. Ejemplo con presupuesto de ' + exampleBudget + ' créditos diarios</h4>';
     html += '<p>Con un usuario que tenga <strong>' + exampleBudget + ' créditos/día</strong>, puede elegir cómo gastarlos:</p>';
     html += '<div class="explainer-examples">';
+    html += '<div class="explainer-example"><div class="explainer-example-num">' + fableOnly + '</div><div class="explainer-example-label">prompts solo Fable</div><div class="explainer-example-calc">' + fableOnly + ' × ' + fableCost + ' = ' + (fableOnly * fableCost) + ' créditos</div></div>';
     html += '<div class="explainer-example"><div class="explainer-example-num">' + opusOnly + '</div><div class="explainer-example-label">prompts solo Opus</div><div class="explainer-example-calc">' + opusOnly + ' × ' + opusCost + ' = ' + (opusOnly * opusCost) + ' créditos</div></div>';
     html += '<div class="explainer-example"><div class="explainer-example-num">' + sonnetOnly + '</div><div class="explainer-example-label">prompts solo Sonnet</div><div class="explainer-example-calc">' + sonnetOnly + ' × ' + sonnetCost + ' = ' + (sonnetOnly * sonnetCost) + ' créditos</div></div>';
     html += '<div class="explainer-example"><div class="explainer-example-num">' + haikuOnly + '</div><div class="explainer-example-label">prompts solo Haiku</div><div class="explainer-example-calc">' + haikuOnly + ' × ' + haikuCost + ' = ' + (haikuOnly * haikuCost) + ' créditos</div></div>';
     html += '</div>';
-    html += '<p>O cualquier combinación. Por ejemplo: <code>5 Opus + 10 Sonnet + 20 Haiku = ' + (5*opusCost + 10*sonnetCost + 20*haikuCost) + ' créditos</code>.</p>';
+    html += '<p>O cualquier combinación. Por ejemplo: <code>2 Fable + 3 Opus + 5 Sonnet + 10 Haiku = ' + (2*fableCost + 3*opusCost + 5*sonnetCost + 10*haikuCost) + ' créditos</code>.</p>';
     html += '</section>';
 
     // Section 4 — When does it reset
@@ -1339,7 +1400,7 @@
     html += '<h4>6. ¿Cómo se cobra cada prompt?</h4>';
     html += '<p>Cada vez que un usuario manda un prompt en Claude Code:</p>';
     html += '<ol class="explainer-list">';
-    html += '<li>El hook detecta qué modelo está activo (Opus, Sonnet o Haiku).</li>';
+    html += '<li>El hook detecta qué modelo está activo (Fable, Opus, Sonnet o Haiku).</li>';
     html += '<li>Le pregunta al servidor: <em>¿queda presupuesto y cap suficiente?</em></li>';
     html += '<li>Si sí, Claude responde normal. Al terminar el turno, se descuenta el costo del modelo.</li>';
     html += '<li>Si no, el prompt se bloquea con un mensaje explicando qué límite se alcanzó.</li>';
@@ -1507,7 +1568,7 @@
       // Per-model limits
       html += '<h4 class="mb-1">Límites por Modelo (Diario)</h4>';
       html += '<p class="form-hint mb-2">-1 = ilimitado, 0 = bloqueado</p>';
-      var models = ['opus', 'sonnet', 'haiku'];
+      var models = ['fable', 'opus', 'sonnet', 'haiku'];
       html += '<div class="form-row-3">';
       for (var mi = 0; mi < models.length; mi++) {
         var m = models[mi];
@@ -1550,6 +1611,7 @@
       '<div class="form-row-3 mb-1" id="time-rule-' + idx + '">' +
         '<div class="form-group"><label class="text-sm">Modelo</label>' +
         '<select class="time-rule-model">' +
+          '<option value="fable"' + (rule.model === 'fable' ? ' selected' : '') + '>Fable</option>' +
           '<option value="opus"' + (rule.model === 'opus' ? ' selected' : '') + '>Opus</option>' +
           '<option value="sonnet"' + (rule.model === 'sonnet' ? ' selected' : '') + '>Sonnet</option>' +
           '<option value="haiku"' + (rule.model === 'haiku' ? ' selected' : '') + '>Haiku</option>' +
@@ -1586,7 +1648,7 @@
     }
 
     // Per-model
-    var models = ['opus', 'sonnet', 'haiku'];
+    var models = ['fable', 'opus', 'sonnet', 'haiku'];
     for (var i = 0; i < models.length; i++) {
       var val = parseInt(document.getElementById('edit-' + models[i]).value, 10);
       if (!isNaN(val) && val !== -1) {
@@ -1685,7 +1747,7 @@
 
   function saveWeights() {
     var cw = {};
-    var models = ['opus', 'sonnet', 'haiku'];
+    var models = ['fable', 'opus', 'sonnet', 'haiku'];
     for (var i = 0; i < models.length; i++) {
       var el = document.getElementById('weight-' + models[i]);
       cw[models[i]] = parseInt(el.value, 10) || 0;
@@ -1932,6 +1994,23 @@
                   'Updated',
                   (userName || 'Usuario') + ': desinstalación propia ' + (next ? 'habilitada' : 'deshabilitada'),
                   next ? 'success' : 'warning'
+                );
+                renderPage(getRoute());
+              })
+              .catch(function (err) { showToast('Error', err.message, 'error'); });
+          }
+          break;
+
+        case 'toggle-allow-agents':
+          if (userId) {
+            var currentAg = target.getAttribute('data-current') === '1';
+            var nextAg = !currentAg;
+            API.updateUser(userId, { allow_agents: nextAg })
+              .then(function () {
+                showToast(
+                  'Updated',
+                  (userName || 'Usuario') + ': Agent View / Remote Control ' + (nextAg ? 'habilitado' : 'deshabilitado'),
+                  nextAg ? 'success' : 'warning'
                 );
                 renderPage(getRoute());
               })

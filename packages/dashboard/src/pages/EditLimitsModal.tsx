@@ -27,6 +27,7 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
   const [saving, setSaving] = useState(false);
   const [credits, setCredits] = useState('-1');
   const [creditsWindow, setCreditsWindow] = useState('daily');
+  const [fable, setFable] = useState('-1');
   const [opus, setOpus] = useState('-1');
   const [sonnet, setSonnet] = useState('-1');
   const [haiku, setHaiku] = useState('-1');
@@ -42,6 +43,7 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
         const creditRule = getCreditRule(limits);
         setCredits(creditRule ? String(creditRule.value) : '-1');
         setCreditsWindow(creditRule?.window ?? 'daily');
+        setFable(String(getModelLimit(limits, 'fable', 'daily')));
         setOpus(String(getModelLimit(limits, 'opus', 'daily')));
         setSonnet(String(getModelLimit(limits, 'sonnet', 'daily')));
         setHaiku(String(getModelLimit(limits, 'haiku', 'daily')));
@@ -71,7 +73,7 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
       limits.push({ type: 'credits', window: creditsWindow, value: creditsVal });
     }
 
-    for (const [model, val] of [['opus', opus], ['sonnet', sonnet], ['haiku', haiku]] as const) {
+    for (const [model, val] of [['fable', fable], ['opus', opus], ['sonnet', sonnet], ['haiku', haiku]] as const) {
       const v = parseInt(val, 10);
       if (!isNaN(v) && v !== -1) {
         limits.push({ type: 'per_model', model, window: 'daily', value: v });
@@ -158,7 +160,8 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
             <div>
               <h4 className="text-sm font-medium text-zinc-300 mb-1">Límites por Modelo (Diario)</h4>
               <p className="text-xs text-zinc-500 mb-3">-1 = ilimitado, 0 = bloqueado</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-3">
+                <Input label="Fable" type="number" value={fable} onChange={(e) => setFable(e.target.value)} />
                 <Input label="Opus" type="number" value={opus} onChange={(e) => setOpus(e.target.value)} />
                 <Input label="Sonnet" type="number" value={sonnet} onChange={(e) => setSonnet(e.target.value)} />
                 <Input label="Haiku" type="number" value={haiku} onChange={(e) => setHaiku(e.target.value)} />
@@ -179,6 +182,7 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
                         value={tr.model}
                         onChange={(e) => updateTimeRule(idx, 'model', e.target.value)}
                       >
+                        <option value="fable">Fable</option>
                         <option value="opus">Opus</option>
                         <option value="sonnet">Sonnet</option>
                         <option value="haiku">Haiku</option>

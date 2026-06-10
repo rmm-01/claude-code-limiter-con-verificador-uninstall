@@ -82,6 +82,7 @@ router.post('/sync', hookAuth, (req, res) => {
       device_id: device ? device.id : null,
       type: 'session_start',
       model: req.body.model || null,
+      model_version: req.body.model_version || null,
       session_id: req.body.session_id || null,
       timestamp: now,
     });
@@ -122,6 +123,7 @@ router.post('/sync', hookAuth, (req, res) => {
       usage,
       credit_balance: creditBalance,
       credit_budget: creditBudget,
+      allow_agents: !!user.allow_agents,
       message: null,
     });
   } catch (err) {
@@ -155,11 +157,13 @@ router.post('/check', hookAuth, (req, res) => {
     }
 
     // Record prompt event
+    const modelVersion = req.body.model_version || null;
     db.recordSessionEvent({
       user_id: user.id,
       device_id: (devices.length > 0) ? devices[0].id : null,
       type: 'prompt',
       model,
+      model_version: modelVersion,
       prompt_length: req.body.prompt_length || null,
       project_dir: req.body.project_dir || null,
       session_id: req.body.session_id || null,
@@ -176,6 +180,7 @@ router.post('/check', hookAuth, (req, res) => {
         device_id: (devices.length > 0) ? devices[0].id : null,
         type: 'blocked',
         model,
+        model_version: modelVersion,
         session_id: req.body.session_id || null,
         blocked_reason: result.reason || null,
         timestamp: now,
@@ -247,6 +252,7 @@ router.post('/count', hookAuth, (req, res) => {
     const user = req.user;
     const team = req.team;
     const model = req.body.model || 'default';
+    const modelVersion = req.body.model_version || null;
     const timestamp = req.body.timestamp || new Date().toISOString();
     const creditWeights = JSON.parse(team.credit_weights);
     const clientIp = getClientIp(req);
@@ -255,7 +261,7 @@ router.post('/count', hookAuth, (req, res) => {
     const creditCost = creditWeights[model] || creditWeights['default'] || 1;
 
     // Record the usage event (existing behavior)
-    recordEvent(user.id, model, creditCost, timestamp, 'hook');
+    recordEvent(user.id, model, creditCost, timestamp, 'hook', modelVersion);
 
     // Update device last_seen and IP
     const devices = db.getDevices(user.id);
@@ -269,6 +275,7 @@ router.post('/count', hookAuth, (req, res) => {
       device_id: (devices.length > 0) ? devices[0].id : null,
       type: 'turn_complete',
       model,
+      model_version: modelVersion,
       session_id: req.body.session_id || null,
       response_length: req.body.response_length || null,
       timestamp,

@@ -5,15 +5,17 @@ const db = require('../db');
 /**
  * Record a usage event (one completed turn).
  * @param {string} userId
- * @param {string} model - opus | sonnet | haiku | default
+ * @param {string} model - fable | opus | sonnet | haiku | default
  * @param {number} creditCost - cost from credit_weights
  * @param {string} [timestamp] - ISO string, defaults to now
  * @param {string} [source] - 'hook' | 'server', defaults to 'hook'
+ * @param {string} [modelVersion] - e.g. 'opus-4-6', 'fable-5'
  */
-function recordEvent(userId, model, creditCost, timestamp, source) {
+function recordEvent(userId, model, creditCost, timestamp, source, modelVersion) {
   return db.recordUsage({
     userId,
     model,
+    modelVersion: modelVersion || null,
     creditCost,
     timestamp: timestamp || new Date().toISOString(),
     source: source || 'hook',
