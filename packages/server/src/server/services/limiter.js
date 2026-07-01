@@ -10,14 +10,18 @@ const db = require('../db');
  *   2. Is model in allowed time window? -> if no, BLOCK
  *   3. Is per-model cap exceeded?       -> if yes, BLOCK
  *   4. Is credit budget exceeded?       -> if yes, BLOCK
- *   5. ALLOW
+ *   5. Is effort level over user cap?   -> if yes, BLOCK
+ *   6. Are subagents over limit?        -> if yes, BLOCK
+ *   7. Are tokens over limit?           -> if yes, BLOCK
+ *   8. ALLOW
  *
  * @param {object} user - The user row from the database.
  * @param {string} model - The model being used (opus, sonnet, haiku, default).
  * @param {object} creditWeights - { opus: 10, sonnet: 3, haiku: 1 }
+ * @param {object} [extra] - { effort_level, is_subagent }
  * @returns {{ allowed: boolean, reason?: string, usage: object, credit_balance?: number, credit_budget?: number }}
  */
-function evaluateLimits(user, model, creditWeights) {
+function evaluateLimits(user, model, creditWeights, extra) {
   // 1. Check user status
   if (user.status === 'killed') {
     return {
@@ -143,7 +147,59 @@ function evaluateLimits(user, model, creditWeights) {
     }
   }
 
-  // 5. ALLOW
+  // 5. Check effort level cap (per-user setting, not a limit_rule)
+  const effortLevel = extra && extra.effort_level;
+  if (effortLevel && user.max_effort_level && user.max_effort_level !== 'max') {
+    if (!isEffortAllowed(effortLevel, user.max_effort_level)) {
+      return {
+        allowed: false,
+        reason: `Effort level "${effortLevel}" no permitido para ${user.name}.\nNivel máximo: "${user.max_effort_level}".\n\nUsá /effort ${user.max_effort_level} para cambiar el nivel.`,
+        usage: usageSummary,
+      };
+    }
+  }
+
+  // 6. Check subagent limit rules
+  const subagentRules = rules.filter(r => r.type === 'subagents');
+  for (const rule of subagentRules) {
+    const windowStart = db.calculateWindowStart(rule.window);
+    const count = db.getSubagentCount(user.id, windowStart);
+    if (!usageSummary[rule.window]) usageSummary[rule.window] = {};
+    usageSummary[rule.window]._subagents = { used: count, limit: rule.value };
+
+    if (rule.value === -1) continue;
+    if (rule.value === 0 || count >= rule.value) {
+      const windowLabel = windowToLabel(rule.window);
+      return {
+        allowed: false,
+        reason: `Límite ${windowLabel} de subagentes/workflows alcanzado para ${user.name}.\nUsados ${count}/${rule.value} subagentes.\n\nEsperá a que se reinicie la ventana o contactá al admin.`,
+        usage: usageSummary,
+      };
+    }
+  }
+
+  // 7. Check token budget rules
+  const tokenRules = rules.filter(r => r.type === 'tokens');
+  for (const rule of tokenRules) {
+    const windowStart = db.calculateWindowStart(rule.window);
+    const tokenData = db.getTokenUsage(user.id, windowStart);
+    if (!usageSummary[rule.window]) usageSummary[rule.window] = {};
+    usageSummary[rule.window]._tokens = { used: tokenData.total, limit: rule.value, input: tokenData.input, output: tokenData.output };
+
+    if (rule.value === -1) continue;
+    if (rule.value === 0 || tokenData.total >= rule.value) {
+      const windowLabel = windowToLabel(rule.window);
+      const usedK = Math.round(tokenData.total / 1000);
+      const limitK = Math.round(rule.value / 1000);
+      return {
+        allowed: false,
+        reason: `Límite ${windowLabel} de tokens alcanzado para ${user.name}.\nUsados ~${usedK}k/${limitK}k tokens.\n\nEsperá a que se reinicie la ventana o usá un modelo más económico.`,
+        usage: usageSummary,
+      };
+    }
+  }
+
+  // 8. ALLOW
   // Populate usage for the response even on allow
   const defaultWindow = creditRules.length > 0 ? creditRules[0].window : (perModelRules.length > 0 ? perModelRules[0].window : 'daily');
   if (Object.keys(usageSummary).length === 0) {
@@ -158,6 +214,15 @@ function evaluateLimits(user, model, creditWeights) {
     credit_balance: creditBalance,
     credit_budget: creditBudget,
   };
+}
+
+const EFFORT_HIERARCHY = ['low', 'medium', 'high', 'xhigh', 'max'];
+
+function isEffortAllowed(requested, maxAllowed) {
+  const reqIdx = EFFORT_HIERARCHY.indexOf(requested);
+  const maxIdx = EFFORT_HIERARCHY.indexOf(maxAllowed);
+  if (reqIdx === -1 || maxIdx === -1) return true;
+  return reqIdx <= maxIdx;
 }
 
 /**
@@ -223,4 +288,6 @@ function capitalize(str) {
 module.exports = {
   evaluateLimits,
   isInTimeWindow,
+  isEffortAllowed,
+  EFFORT_HIERARCHY,
 };

@@ -1,73 +1,52 @@
-# React + TypeScript + Vite
+# claude-code-limiter — React Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Dashboard moderno para el administrador de claude-code-limiter. Construido con React + TypeScript + Vite + Tailwind CSS.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19** + TypeScript
+- **Vite** para dev server y builds
+- **Tailwind CSS** para estilos
+- **WebSocket** para actualizaciones en tiempo real
 
-## React Compiler
+## Páginas
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Overview** — todos los usuarios con barras de uso, créditos, feed de actividad en vivo
+- **User Detail** — desglose por usuario: gauge de créditos, barras por modelo, tendencias mensuales, editor de límites
+- **Add User** — crear usuario, configurar límites, copiar código de instalación
+- **Settings** — pesos de créditos, multiplicadores de effort, nombre del equipo, contraseña
+- **Analytics** — distribución de modelos, horas pico, usuarios activos por día
 
-## Expanding the ESLint configuration
+## Controles por usuario
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Status**: active / paused / killed (kill switch con logout remoto)
+- **Allow self-uninstall**: toggle para permitir/denegar desinstalación
+- **Allow agents**: toggle para Agent View / Remote Control
+- **Allow workflows**: toggle para habilitar/deshabilitar workflows y subagentes
+- **Max effort level**: selector de nivel máximo de razonamiento (low/medium/high/xhigh/max)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Tipos de límite configurables
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Cap por modelo (diario/semanal/mensual/sliding 24h)
+- Presupuesto de créditos
+- Restricciones horarias por modelo
+- Límite de subagentes/workflows
+- Límite de tokens (input + output)
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Desarrollo
+
+```bash
+cd packages/dashboard
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+El dashboard se conecta al servidor en `http://localhost:3000` por defecto. Configurar `VITE_API_URL` para apuntar a otro servidor.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Build
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build
 ```
+
+Los archivos de producción se generan en `dist/`.

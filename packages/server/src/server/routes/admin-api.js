@@ -45,12 +45,16 @@ router.post('/login', (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
+    let effortMults = { low: 0.5, medium: 1, high: 2, xhigh: 4, max: 6 };
+    try { effortMults = JSON.parse(team.effort_multipliers || '{}'); } catch {}
+
     res.json({
       token,
       team: {
         id: team.id,
         name: team.name,
         credit_weights: JSON.parse(team.credit_weights),
+        effort_multipliers: effortMults,
       },
     });
   } catch (err) {
@@ -130,6 +134,8 @@ router.get('/users', (req, res) => {
         created_at: user.created_at,
         allow_self_uninstall: !!user.allow_self_uninstall,
         allow_agents: !!user.allow_agents,
+        allow_workflows: !!user.allow_workflows,
+        max_effort_level: user.max_effort_level || 'max',
         last_tampering_at: user.last_tampering_at || null,
         limits,
         usage: usageSummary,
@@ -247,7 +253,7 @@ router.put('/users/:id', (req, res) => {
     }
 
     const { limits } = req.body;
-    const updates = pickDefined(req.body, ['name', 'slug', 'status', 'allow_self_uninstall', 'allow_agents']);
+    const updates = pickDefined(req.body, ['name', 'slug', 'status', 'allow_self_uninstall', 'allow_agents', 'allow_workflows', 'max_effort_level']);
 
     // Reset expected hash when toggling agents — the hook will modify
     // managed-settings.json on next sync, so the old hash is stale.
@@ -279,14 +285,14 @@ router.put('/users/:id', (req, res) => {
     const updatedLimits = db.getLimitRules(userId);
 
     // Broadcast status change
-    if (status && status !== user.status) {
-      const eventType = status === 'killed' ? 'user_killed' : 'user_status_change';
+    if (updates.status && updates.status !== user.status) {
+      const eventType = updates.status === 'killed' ? 'user_killed' : 'user_status_change';
       broadcast({
         type: eventType,
         userId: updatedUser.id,
         userName: updatedUser.name,
         oldStatus: user.status,
-        newStatus: status,
+        newStatus: updates.status,
         timestamp: new Date().toISOString(),
       });
     }
@@ -302,6 +308,8 @@ router.put('/users/:id', (req, res) => {
         created_at: updatedUser.created_at,
         allow_self_uninstall: !!updatedUser.allow_self_uninstall,
         allow_agents: !!updatedUser.allow_agents,
+        allow_workflows: !!updatedUser.allow_workflows,
+        max_effort_level: updatedUser.max_effort_level || 'max',
       },
       limits: updatedLimits,
     });
@@ -541,7 +549,7 @@ router.get('/analytics', (req, res) => {
 router.put('/settings', (req, res) => {
   try {
     const team = req.team;
-    const { name, credit_weights, admin_password } = req.body;
+    const { name, credit_weights, effort_multipliers, admin_password } = req.body;
 
     const updates = {};
     if (name !== undefined) {
@@ -551,6 +559,7 @@ router.put('/settings', (req, res) => {
       updates.name = name;
     }
     if (credit_weights !== undefined) updates.credit_weights = credit_weights;
+    if (effort_multipliers !== undefined) updates.effort_multipliers = effort_multipliers;
     if (admin_password !== undefined) {
       updates.admin_password = hashPassword(admin_password);
     }
@@ -562,11 +571,15 @@ router.put('/settings', (req, res) => {
     db.updateTeam(team.id, updates);
 
     const updatedTeam = db.getTeam(team.id);
+    let parsedEffortMultipliers = { low: 0.5, medium: 1, high: 2, xhigh: 4, max: 6 };
+    try { parsedEffortMultipliers = JSON.parse(updatedTeam.effort_multipliers || '{}'); } catch {}
+
     res.json({
       team: {
         id: updatedTeam.id,
         name: updatedTeam.name,
         credit_weights: JSON.parse(updatedTeam.credit_weights),
+        effort_multipliers: parsedEffortMultipliers,
       },
     });
   } catch (err) {

@@ -753,6 +753,32 @@
                 '</button>';
         html += '</div>';
 
+        // Workflows / Subagents toggle
+        var canWorkflows = !!user.allow_workflows;
+        html += '<div class="detail-toggle-row">';
+        html += '<span class="detail-toggle-label">Permitir Workflows / Subagentes</span>';
+        html += '<button class="btn btn-sm ' + (canWorkflows ? 'btn-success' : 'btn-ghost') + '" ' +
+                'data-action="toggle-allow-workflows" data-user-id="' + user.id + '" ' +
+                'data-user-name="' + escapeHtml(user.name) + '" ' +
+                'data-current="' + (canWorkflows ? '1' : '0') + '">' +
+                (canWorkflows ? 'Habilitado' : 'Deshabilitado') +
+                '</button>';
+        html += '</div>';
+
+        // Max effort level selector
+        var maxEffort = user.max_effort_level || 'max';
+        html += '<div class="detail-toggle-row">';
+        html += '<span class="detail-toggle-label">Effort Máximo</span>';
+        html += '<select class="btn btn-sm btn-ghost" data-action="change-max-effort" data-user-id="' + user.id + '" ' +
+                'data-user-name="' + escapeHtml(user.name) + '">';
+        var effortLevels = ['low', 'medium', 'high', 'xhigh', 'max'];
+        for (var ei = 0; ei < effortLevels.length; ei++) {
+          var lbl = effortLevels[ei] === 'max' ? 'Max (sin límite)' : effortLevels[ei].charAt(0).toUpperCase() + effortLevels[ei].slice(1);
+          html += '<option value="' + effortLevels[ei] + '"' + (maxEffort === effortLevels[ei] ? ' selected' : '') + '>' + lbl + '</option>';
+        }
+        html += '</select>';
+        html += '</div>';
+
         // Credit gauge
         var creditRule = getCreditRule(limits);
         if (creditRule && user.credit_budget > 0) {
@@ -1011,6 +1037,26 @@
     }
     html += '</div>';
     html += '<div class="mt-2"><button class="btn btn-primary btn-sm" data-action="save-weights">Guardar Pesos</button></div>';
+    html += '</div>';
+    html += '</div></div>';
+
+    // Effort Multipliers
+    var em = team.effort_multipliers || { low: 0.5, medium: 1, high: 2, xhigh: 4, max: 6 };
+    html += '<div class="card mb-2"><div class="card-body">';
+    html += '<div class="settings-section">';
+    html += '<h3>Multiplicadores de Effort</h3>';
+    html += '<p class="text-muted text-sm mb-2">Multiplica el costo de créditos según el nivel de effort. Ej: Opus (10 cr) × Max (6x) = 60 créditos por turno.</p>';
+    html += '<div class="weight-grid">';
+    var effortLevels = ['low', 'medium', 'high', 'xhigh', 'max'];
+    for (var ei = 0; ei < effortLevels.length; ei++) {
+      var lvl = effortLevels[ei];
+      html += '<div class="weight-card">';
+      html += '<div class="weight-model">' + lvl + '</div>';
+      html += '<input type="number" id="effort-' + lvl + '" min="0" step="0.5" value="' + (em[lvl] || 1) + '">';
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '<div class="mt-2"><button class="btn btn-primary btn-sm" data-action="save-effort">Guardar Multiplicadores</button></div>';
     html += '</div>';
     html += '</div></div>';
 
@@ -1760,6 +1806,21 @@
       .catch(function (err) { showToast('Error', err.message, 'error'); });
   }
 
+  function saveEffortMultipliers() {
+    var em = {};
+    var levels = ['low', 'medium', 'high', 'xhigh', 'max'];
+    for (var i = 0; i < levels.length; i++) {
+      var el = document.getElementById('effort-' + levels[i]);
+      em[levels[i]] = parseFloat(el.value) || 1;
+    }
+    API.updateSettings({ effort_multipliers: em })
+      .then(function (data) {
+        state.team = data.team;
+        showToast('Guardado', 'Multiplicadores de effort actualizados', 'success');
+      })
+      .catch(function (err) { showToast('Error', err.message, 'error'); });
+  }
+
   function changePassword() {
     var newPw = (document.getElementById('settings-new-pw').value || '');
     var confirmPw = (document.getElementById('settings-confirm-pw').value || '');
@@ -1980,6 +2041,10 @@
           saveWeights();
           break;
 
+        case 'save-effort':
+          saveEffortMultipliers();
+          break;
+
         case 'change-password':
           changePassword();
           break;
@@ -2017,7 +2082,39 @@
               .catch(function (err) { showToast('Error', err.message, 'error'); });
           }
           break;
+
+        case 'toggle-allow-workflows':
+          if (userId) {
+            var currentWf = target.getAttribute('data-current') === '1';
+            var nextWf = !currentWf;
+            API.updateUser(userId, { allow_workflows: nextWf })
+              .then(function () {
+                showToast(
+                  'Updated',
+                  (userName || 'Usuario') + ': Workflows ' + (nextWf ? 'habilitados' : 'deshabilitados'),
+                  nextWf ? 'success' : 'warning'
+                );
+                renderPage(getRoute());
+              })
+              .catch(function (err) { showToast('Error', err.message, 'error'); });
+          }
+          break;
       }
+    });
+
+    // Max effort level selector (change event on <select>)
+    document.addEventListener('change', function (e) {
+      var sel = e.target.closest('[data-action="change-max-effort"]');
+      if (!sel) return;
+      var uid = sel.getAttribute('data-user-id');
+      var uname = sel.getAttribute('data-user-name');
+      var newLevel = sel.value;
+      API.updateUser(uid, { max_effort_level: newLevel })
+        .then(function () {
+          showToast('Updated', (uname || 'Usuario') + ': effort máximo = ' + newLevel, 'success');
+          renderPage(getRoute());
+        })
+        .catch(function (err) { showToast('Error', err.message, 'error'); });
     });
 
     // Preset buttons (inside modal)

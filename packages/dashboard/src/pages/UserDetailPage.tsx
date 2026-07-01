@@ -386,6 +386,67 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                 </div>
               </div>
 
+              {/* Workflows / Subagents toggle */}
+              <div className="w-full pt-2 border-t border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-medium text-zinc-300">Permitir Workflows / Subagentes</div>
+                    <div className="text-xs text-zinc-600 mt-0.5">Habilita ejecución de workflows y agentes masivos</div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.updateUser(user.id, { allow_workflows: !user.allow_workflows });
+                        showToast('Guardado', `Workflows ${!user.allow_workflows ? 'habilitados' : 'deshabilitados'}`, 'success');
+                        loadData();
+                      } catch (err) {
+                        showToast('Error', err instanceof Error ? err.message : 'Falló', 'error');
+                      }
+                    }}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                      user.allow_workflows ? 'bg-[#cc5500]' : 'bg-zinc-700'
+                    }`}
+                    role="switch"
+                    aria-checked={user.allow_workflows}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
+                        user.allow_workflows ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Max effort level selector */}
+              <div className="w-full pt-2 border-t border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-medium text-zinc-300">Effort Máximo</div>
+                    <div className="text-xs text-zinc-600 mt-0.5">Nivel de razonamiento máximo permitido</div>
+                  </div>
+                  <select
+                    value={user.max_effort_level || 'max'}
+                    onChange={async (e) => {
+                      try {
+                        await api.updateUser(user.id, { max_effort_level: e.target.value as 'low' | 'medium' | 'high' | 'xhigh' | 'max' });
+                        showToast('Guardado', `Effort máximo: ${e.target.value}`, 'success');
+                        loadData();
+                      } catch (err) {
+                        showToast('Error', err instanceof Error ? err.message : 'Falló', 'error');
+                      }
+                    }}
+                    className="rounded-lg border border-zinc-700 bg-zinc-800/50 px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="xhigh">XHigh</option>
+                    <option value="max">Max (sin límite)</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Credit gauge */}
               {creditRule && user.credit_budget && user.credit_budget > 0 && (
                 <div className="pt-4">

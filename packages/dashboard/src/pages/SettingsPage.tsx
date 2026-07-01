@@ -17,10 +17,16 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
   const [opusWeight, setOpusWeight] = useState('10');
   const [sonnetWeight, setSonnetWeight] = useState('3');
   const [haikuWeight, setHaikuWeight] = useState('1');
+  const [effortLow, setEffortLow] = useState('0.5');
+  const [effortMedium, setEffortMedium] = useState('1');
+  const [effortHigh, setEffortHigh] = useState('2');
+  const [effortXhigh, setEffortXhigh] = useState('4');
+  const [effortMax, setEffortMax] = useState('6');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [savingWeights, setSavingWeights] = useState(false);
+  const [savingEffort, setSavingEffort] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
@@ -32,6 +38,11 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       setOpusWeight(String(stored.credit_weights?.opus ?? 10));
       setSonnetWeight(String(stored.credit_weights?.sonnet ?? 3));
       setHaikuWeight(String(stored.credit_weights?.haiku ?? 1));
+      setEffortLow(String(stored.effort_multipliers?.low ?? 0.5));
+      setEffortMedium(String(stored.effort_multipliers?.medium ?? 1));
+      setEffortHigh(String(stored.effort_multipliers?.high ?? 2));
+      setEffortXhigh(String(stored.effort_multipliers?.xhigh ?? 4));
+      setEffortMax(String(stored.effort_multipliers?.max ?? 6));
     }
     // Also do a fresh fetch via getUsers to refresh team data
     api.getUsers().catch(() => {
@@ -80,6 +91,28 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       showToast('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
     } finally {
       setSavingWeights(false);
+    }
+  };
+
+  const handleSaveEffort = async () => {
+    const em = {
+      low: parseFloat(effortLow) || 0.5,
+      medium: parseFloat(effortMedium) || 1,
+      high: parseFloat(effortHigh) || 2,
+      xhigh: parseFloat(effortXhigh) || 4,
+      max: parseFloat(effortMax) || 6,
+    };
+    setSavingEffort(true);
+    try {
+      const res = await api.updateSettings({ effort_multipliers: em });
+      setTeam(res.team);
+      api.setStoredTeam(res.team);
+      onTeamUpdate(res.team);
+      showToast('Guardado', 'Multiplicadores de effort actualizados', 'success');
+    } catch (err) {
+      showToast('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
+    } finally {
+      setSavingEffort(false);
     }
   };
 
@@ -151,6 +184,26 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
         </CardBody>
       </Card>
 
+      {/* Effort Multipliers */}
+      <Card>
+        <CardBody>
+          <h3 className="text-sm font-semibold text-zinc-200 mb-1">Multiplicadores de Effort</h3>
+          <p className="text-xs text-zinc-500 mb-4">
+            Multiplica el costo de créditos según el nivel de effort. Ej: Opus (10 cr) × Max (6x) = 60 créditos por turno.
+          </p>
+          <div className="grid grid-cols-5 gap-3 mb-4">
+            <EffortCard level="Low" value={effortLow} onChange={setEffortLow} color="bg-green-500" />
+            <EffortCard level="Medium" value={effortMedium} onChange={setEffortMedium} color="bg-blue-500" />
+            <EffortCard level="High" value={effortHigh} onChange={setEffortHigh} color="bg-yellow-500" />
+            <EffortCard level="XHigh" value={effortXhigh} onChange={setEffortXhigh} color="bg-orange-500" />
+            <EffortCard level="Max" value={effortMax} onChange={setEffortMax} color="bg-red-500" />
+          </div>
+          <Button size="sm" variant="primary" onClick={handleSaveEffort} disabled={savingEffort}>
+            {savingEffort ? 'Guardando...' : 'Guardar Multiplicadores'}
+          </Button>
+        </CardBody>
+      </Card>
+
       {/* Change Password */}
       <Card>
         <CardBody>
@@ -193,6 +246,36 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
           </div>
         </CardBody>
       </Card>
+    </div>
+  );
+}
+
+function EffortCard({
+  level,
+  value,
+  onChange,
+  color,
+}: {
+  level: string;
+  value: string;
+  onChange: (v: string) => void;
+  color: string;
+}) {
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-800/30 p-3 text-center">
+      <div className="flex items-center justify-center gap-1.5 mb-2">
+        <div className={`w-2 h-2 rounded-full ${color}`} />
+        <span className="text-xs font-medium text-zinc-300">{level}</span>
+      </div>
+      <input
+        type="number"
+        min="0"
+        step="0.5"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full text-center rounded-md border border-zinc-700 bg-zinc-800/50 px-1 py-1.5 text-sm font-mono text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+      />
+      <div className="text-xs text-zinc-600 mt-1">×</div>
     </div>
   );
 }

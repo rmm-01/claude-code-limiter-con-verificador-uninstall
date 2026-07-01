@@ -23,6 +23,10 @@
 > 4. **Tracking por versión de modelo** — el uso se registra por versión específica (ej. `opus-4-6`, `fable-5`) mientras los límites se aplican a nivel de familia (opus, sonnet, etc.).
 > 5. **Control de Agent View / Remote Control** — toggle por usuario en el dashboard (OFF por defecto). El admin habilita Agent View y Remote Control por usuario; el hook sincroniza el estado a `managed-settings.json` y su backup.
 > 6. **Detección de tampering** — el servidor compara hashes SHA-256 de `managed-settings.json` para detectar manipulación. Se muestra un banner de alerta en ambos dashboards.
+> 7. **Límites por effort level** — controla el nivel máximo de razonamiento (low/medium/high/xhigh/max) por usuario. Multiplicadores de effort configurables que multiplican el costo base de créditos.
+> 8. **Control de Workflows / Subagentes** — toggle por usuario para habilitar/deshabilitar workflows masivos y subagentes. Bloquea tanto la herramienta `Workflow` como `Agent` en PreToolUse.
+> 9. **Tracking de tokens reales** — lee `input_tokens` y `output_tokens` del transcript JSONL de Claude Code y los registra en el servidor. Permite poner límites por tokens consumidos.
+> 10. **Hook de repo para Claude Code web** — script stateless en `.claude/hooks/` que funciona en sesiones cloud (claude.ai/code). Comando `gen-repo-hook` para generar la configuración automáticamente.
 >
 > Además incluye varios fixes específicos para Windows (ACLs, watchdog, reinstalación sobre instalación previa). Ver `git log` para detalles.
 
@@ -181,6 +185,9 @@ Current time: 8:15 PM. Try sonnet or haiku instead.
 | **Cap por modelo** | `opus: 5/día, sonnet: 20/día` | Tope duro por modelo y ventana de tiempo |
 | **Presupuesto de créditos** | `100 créditos/día` | Un único presupuesto entre todos los modelos — opus cuesta 10, sonnet 3, haiku 1 |
 | **Horario por modelo** | `opus: 9am–6pm` | Restringir modelos caros al horario laboral |
+| **Effort level** | `max_effort: high` | Bloquea niveles de razonamiento superiores al permitido |
+| **Subagentes / Workflows** | `subagents: 50/día` | Tope de ejecuciones de subagentes y workflows |
+| **Tokens** | `tokens: 500000/día` | Tope de tokens reales (input + output) consumidos |
 
 ### Tipos de ventana
 
@@ -202,6 +209,20 @@ Current time: 8:15 PM. Try sonnet or haiku instead.
 
 Con un presupuesto de **100 créditos/día**, un usuario puede hacer: **6 Fable**, **o 10 Opus**, **o 33 Sonnet**, **o 100 Haiku**, o cualquier mezcla.
 
+### Multiplicadores de effort (configurables)
+
+El costo base de créditos se multiplica según el nivel de razonamiento:
+
+| Nivel | Multiplicador | Opus (10cr base) |
+|-------|---------------|------------------|
+| Low | ×0.5 | 5 créditos |
+| Medium | ×1 | 10 créditos |
+| High | ×2 | 20 créditos |
+| XHigh | ×4 | 40 créditos |
+| Max | ×6 | 60 créditos |
+
+Configurables en **Dashboard → Settings → Multiplicadores de Effort**.
+
 ### Controles de admin
 
 - :bar_chart: **Dashboard en tiempo real** — barras de uso en vivo, desglose por usuario, feed de eventos por WebSocket
@@ -213,6 +234,10 @@ Con un presupuesto de **100 créditos/día**, un usuario puede hacer: **6 Fable*
 - :robot: **Control de Agent View / Remote Control** (fork) — toggle por usuario, OFF por defecto. Sincroniza a `managed-settings.json` + backup
 - :mag: **Tracking por versión** (fork) — registra la versión específica de modelo usada (ej. `opus-4-6`, `fable-5`), visible en el detalle del usuario
 - :warning: **Detección de tampering** (fork) — alerta en dashboard cuando el hash de `managed-settings.json` no coincide con el esperado
+- :brain: **Límites por effort level** (fork) — cap por usuario del nivel de razonamiento (low/medium/high/xhigh/max) + multiplicadores de créditos configurables
+- :octopus: **Control de Workflows / Subagentes** (fork) — toggle por usuario para habilitar/deshabilitar workflows masivos y subagentes + límite numérico configurable
+- :straight_ruler: **Tracking de tokens reales** (fork) — lee `input_tokens` y `output_tokens` del transcript de Claude y los registra. Permite poner topes por tokens consumidos
+- :globe_with_meridians: **Cobertura Claude Code web** (fork) — hook de repo stateless que funciona en sesiones cloud (claude.ai/code) + comando `gen-repo-hook`
 
 ---
 
@@ -232,20 +257,23 @@ Usuario escribe un prompt
         ▼
 ┌─ UserPromptSubmit (LA COMPUERTA) ────────────────┐
 │  Llama al servidor /check → ¿Permitido?          │
-│  El servidor evalúa: status → reglas horarias →  │
-│    caps por modelo → presupuesto de créditos     │
+│  El servidor evalúa: status → horario →          │
+│    modelo → créditos → effort → subagents →      │
+│    tokens                                        │
 │  Si rechaza → bloquea con resumen de uso         │
 │  Si servidor caído → cae a caché local           │
 └──────────────────────────────────────────────────┘
         │ (permitido)
         ▼
    Claude hace su trabajo
-   (las tool calls pasan por PreToolUse
-    solo para enforcement de kill/pause)
+   (las tool calls pasan por PreToolUse para
+    kill/pause + bloqueo de Workflow/Agent +
+    enforcement de effort level)
         │
         ▼
 ┌─ Stop ──────────────────────────────────────────┐
 │  Incrementa contador de uso (local + servidor)  │
+│  Registra tokens reales (input + output)        │
 │  Una cuenta por turno completado                │
 └─────────────────────────────────────────────────┘
 ```
@@ -384,12 +412,28 @@ Los límites se configuran por usuario vía dashboard. Las reglas se apilan — 
 }
 ```
 
+**Límite de subagentes/workflows:**
+```json
+{ "type": "subagents", "window": "daily", "value": 50 }
+```
+
+**Límite de tokens:**
+```json
+{ "type": "tokens", "window": "daily", "value": 500000 }
+```
+
 ### Pesos de créditos
 
 Configurados por equipo en el servidor. Default:
 
 ```json
 { "fable": 15, "opus": 10, "sonnet": 3, "haiku": 1 }
+```
+
+### Multiplicadores de effort
+
+```json
+{ "low": 0.5, "medium": 1, "high": 2, "xhigh": 4, "max": 6 }
 ```
 
 Cambialos en **Dashboard → Settings** para que coincidan con tus prioridades de uso.
@@ -399,11 +443,14 @@ Cambialos en **Dashboard → Settings** para que coincidan con tus prioridades d
 Todas las reglas se evalúan en cada prompt. La primera regla que niega, gana:
 
 ```
-1. ¿Usuario killed o paused?         → BLOQUEA
-2. ¿Modelo dentro de su horario?     → si no, BLOQUEA
-3. ¿Cap por modelo excedido?         → si sí, BLOQUEA
-4. ¿Presupuesto de créditos excedido? → si sí, BLOQUEA
-5. PERMITE
+1. ¿Usuario killed o paused?           → BLOQUEA
+2. ¿Modelo dentro de su horario?       → si no, BLOQUEA
+3. ¿Cap por modelo excedido?           → si sí, BLOQUEA
+4. ¿Presupuesto de créditos excedido?  → si sí, BLOQUEA
+5. ¿Effort level sobre el cap?         → si sí, BLOQUEA
+6. ¿Subagentes sobre el límite?        → si sí, BLOQUEA
+7. ¿Tokens consumidos sobre el tope?   → si sí, BLOQUEA
+8. PERMITE
 ```
 
 ---
@@ -483,7 +530,15 @@ Nada. El uso se trackea server-side. Borrar archivos locales solo hace que el ho
 
 ### ¿Afecta a Claude.ai (la app web)?
 
-No. Esto solo controla **Claude Code** (la CLI). Claude.ai en el browser no se ve afectado.
+No. Esto solo controla **Claude Code** (la CLI y claude.ai/code). Claude.ai (chat normal en el browser) no se ve afectado.
+
+### ¿Funciona con Claude Code web (claude.ai/code)?
+
+Sí, con el hook de repo. Ejecutá `gen-repo-hook` para generar los archivos necesarios en `.claude/` del repositorio. Los hooks de repo se ejecutan automáticamente en sesiones cloud. Los usuarios también pueden configurar las variables de entorno `CLAUDE_LIMITER_URL` y `CLAUDE_LIMITER_TOKEN` en su entorno cloud.
+
+### ¿Qué pasa con workflows masivos y subagentes?
+
+El admin puede deshabilitar workflows/subagentes por usuario con el toggle en User Detail. También puede poner un límite numérico (ej. 50 subagentes/día). Cuando un usuario intenta ejecutar una herramienta `Workflow` o `Agent` sin permiso, se bloquea en PreToolUse.
 
 ### ¿Qué pasa si el servidor se cae?
 
@@ -518,6 +573,8 @@ claude-code-limiter-con-verificador-uninstall/
 │   │   │   └── cli.js          ← entry point
 │   │   └── src/
 │   │       ├── hook.js         ← hook standalone (cero deps de npm)
+│   │       ├── repo-hook.js    ← hook stateless para repos (Claude Code web)
+│   │       ├── gen-repo-hook.js ← generador de hooks de repo
 │   │       └── installer.js    ← setup, uninstall, sync, status
 │   ├── server/                 ← servidor admin (REST + WebSocket + dashboard)
 │   │   ├── bin/

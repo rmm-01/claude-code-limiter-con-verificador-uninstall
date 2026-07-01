@@ -182,6 +182,10 @@ node src\installer.js uninstall        # Windows admin
 - **Control de Agent View / Remote Control**: toggle por usuario, OFF por defecto
 - **Tracking por versión de modelo**: registra versión específica (ej. `opus-4-6`, `fable-5`)
 - **Detección de tampering**: alerta si el usuario manipula `managed-settings.json`
+- **Límites por effort level**: cap del nivel de razonamiento (low/medium/high/xhigh/max) con multiplicadores de créditos
+- **Control de Workflows / Subagentes**: toggle por usuario + límite numérico
+- **Tracking de tokens reales**: registra tokens de Claude y permite poner topes
+- **Cobertura Claude Code web**: hook de repo para sesiones cloud (claude.ai/code)
 
 ---
 
@@ -195,3 +199,6 @@ node src\installer.js uninstall        # Windows admin
 | Código de instalación ya usado | Generar nuevo desde User Detail → "Generate Install Code" |
 | `allow_self_uninstall` bloqueado | Habilitar en Dashboard → User Detail → toggle "Allow self-uninstall" |
 | Agent View / Remote Control deshabilitado | Habilitar en Dashboard → User Detail → toggle "Permitir Agent View / Remote Control" |
+| Workflows/Subagentes bloqueados | Habilitar en Dashboard → User Detail → toggle "Permitir Workflows / Subagentes" |
+| Effort level bloqueado | Ajustar en Dashboard → User Detail → selector "Max Effort Level" |
+| Hook de repo no funciona en web | Verificar que `.claude/hooks/limiter-hook.js` existe en el repo y `.claude/settings.json` tiene las entradas de hooks |

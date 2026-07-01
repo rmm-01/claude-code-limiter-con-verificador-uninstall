@@ -166,6 +166,45 @@ function init(dbPath) {
     db.exec('ALTER TABLE session_event ADD COLUMN model_version TEXT');
   }
 
+  // v1.5 — effort, workflows, token tracking
+  if (!cols.includes('allow_workflows')) {
+    db.exec('ALTER TABLE user ADD COLUMN allow_workflows INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!cols.includes('max_effort_level')) {
+    db.exec("ALTER TABLE user ADD COLUMN max_effort_level TEXT DEFAULT 'max'");
+  }
+  if (!usageCols.includes('effort_level')) {
+    db.exec('ALTER TABLE usage_event ADD COLUMN effort_level TEXT');
+  }
+  if (!usageCols.includes('is_subagent')) {
+    db.exec('ALTER TABLE usage_event ADD COLUMN is_subagent INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!usageCols.includes('input_tokens')) {
+    db.exec('ALTER TABLE usage_event ADD COLUMN input_tokens INTEGER');
+  }
+  if (!usageCols.includes('output_tokens')) {
+    db.exec('ALTER TABLE usage_event ADD COLUMN output_tokens INTEGER');
+  }
+  if (!sessionCols.includes('effort_level')) {
+    db.exec('ALTER TABLE session_event ADD COLUMN effort_level TEXT');
+  }
+  if (!sessionCols.includes('agent_id')) {
+    db.exec('ALTER TABLE session_event ADD COLUMN agent_id TEXT');
+  }
+  if (!sessionCols.includes('agent_type')) {
+    db.exec('ALTER TABLE session_event ADD COLUMN agent_type TEXT');
+  }
+  if (!sessionCols.includes('input_tokens')) {
+    db.exec('ALTER TABLE session_event ADD COLUMN input_tokens INTEGER');
+  }
+  if (!sessionCols.includes('output_tokens')) {
+    db.exec('ALTER TABLE session_event ADD COLUMN output_tokens INTEGER');
+  }
+  const teamCols = db.pragma('table_info(team)').map(c => c.name);
+  if (!teamCols.includes('effort_multipliers')) {
+    db.exec(`ALTER TABLE team ADD COLUMN effort_multipliers TEXT NOT NULL DEFAULT '{"low":0.5,"medium":1,"high":2,"xhigh":4,"max":6}'`);
+  }
+
   console.log(`Database initialized at ${dbPath}`);
 
   // Auto-repair on startup. Twice already we've seen index corruption
@@ -286,6 +325,7 @@ function updateTeam(teamId, fields) {
   const values = [];
   if (fields.name !== undefined) { sets.push('name = ?'); values.push(fields.name); }
   if (fields.credit_weights !== undefined) { sets.push('credit_weights = ?'); values.push(typeof fields.credit_weights === 'string' ? fields.credit_weights : JSON.stringify(fields.credit_weights)); }
+  if (fields.effort_multipliers !== undefined) { sets.push('effort_multipliers = ?'); values.push(typeof fields.effort_multipliers === 'string' ? fields.effort_multipliers : JSON.stringify(fields.effort_multipliers)); }
   if (fields.admin_password !== undefined) { sets.push('admin_password = ?'); values.push(fields.admin_password); }
   if (sets.length === 0) return;
   values.push(teamId);
@@ -336,6 +376,7 @@ function updateUser(userId, fields) {
   }
   if (fields.last_seen !== undefined) { sets.push('last_seen = ?'); values.push(fields.last_seen); }
   if (fields.allow_self_uninstall !== undefined) { sets.push('allow_self_uninstall = ?'); values.push(fields.allow_self_uninstall ? 1 : 0); }
+  if (fields.allow_agents !== undefined) { sets.push('allow_agents = ?'); values.push(fields.allow_agents ? 1 : 0); }
   if (fields.pending_uninstall_expires_at !== undefined) {
     sets.push('pending_uninstall_expires_at = ?');
     values.push(fields.pending_uninstall_expires_at);
@@ -347,6 +388,14 @@ function updateUser(userId, fields) {
   if (fields.last_tampering_at !== undefined) {
     sets.push('last_tampering_at = ?');
     values.push(fields.last_tampering_at);
+  }
+  if (fields.allow_workflows !== undefined) {
+    sets.push('allow_workflows = ?');
+    values.push(fields.allow_workflows ? 1 : 0);
+  }
+  if (fields.max_effort_level !== undefined) {
+    sets.push('max_effort_level = ?');
+    values.push(fields.max_effort_level);
   }
   if (sets.length === 0) return;
   values.push(userId);
@@ -396,12 +445,12 @@ function deleteLimitRulesForUser(userId) {
 
 // --------------- Usage Event helpers ---------------
 
-function recordUsage({ userId, model, modelVersion, creditCost, timestamp, source }) {
+function recordUsage({ userId, model, modelVersion, creditCost, timestamp, source, effortLevel, isSubagent, inputTokens, outputTokens }) {
   const ts = timestamp || new Date().toISOString();
   const src = source || 'hook';
   return getDb().prepare(
-    'INSERT INTO usage_event (user_id, model, model_version, credit_cost, timestamp, source) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(userId, model, modelVersion || null, creditCost, ts, src);
+    'INSERT INTO usage_event (user_id, model, model_version, credit_cost, timestamp, source, effort_level, is_subagent, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(userId, model, modelVersion || null, creditCost, ts, src, effortLevel || null, isSubagent ? 1 : 0, inputTokens != null ? inputTokens : null, outputTokens != null ? outputTokens : null);
 }
 
 /**
@@ -592,6 +641,26 @@ function getRecentEvents({ userId, limit, teamId }) {
 }
 
 /**
+ * Count subagent turns for a user since a given timestamp.
+ */
+function getSubagentCount(userId, since) {
+  const row = getDb().prepare(
+    'SELECT COUNT(*) AS count FROM usage_event WHERE user_id = ? AND timestamp >= ? AND is_subagent = 1'
+  ).get(userId, since);
+  return row.count;
+}
+
+/**
+ * Sum tokens (input + output) for a user since a given timestamp.
+ */
+function getTokenUsage(userId, since) {
+  const row = getDb().prepare(
+    'SELECT COALESCE(SUM(input_tokens), 0) AS input_total, COALESCE(SUM(output_tokens), 0) AS output_total FROM usage_event WHERE user_id = ? AND timestamp >= ?'
+  ).get(userId, since);
+  return { input: row.input_total, output: row.output_total, total: row.input_total + row.output_total };
+}
+
+/**
  * Delete events older than N days.
  */
 function cleanupOldEvents(days) {
@@ -716,8 +785,8 @@ function getDevicesByTeam(teamId) {
 function recordSessionEvent(data) {
   const ts = data.timestamp || new Date().toISOString();
   return getDb().prepare(
-    `INSERT INTO session_event (user_id, device_id, type, model, model_version, prompt_length, project_dir, tools_used, session_id, blocked_reason, response_length, timestamp)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO session_event (user_id, device_id, type, model, model_version, prompt_length, project_dir, tools_used, session_id, blocked_reason, response_length, timestamp, effort_level, agent_id, agent_type, input_tokens, output_tokens)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     data.user_id,
     data.device_id || null,
@@ -730,7 +799,12 @@ function recordSessionEvent(data) {
     data.session_id || null,
     data.blocked_reason || null,
     data.response_length != null ? data.response_length : null,
-    ts
+    ts,
+    data.effort_level || null,
+    data.agent_id || null,
+    data.agent_type || null,
+    data.input_tokens != null ? data.input_tokens : null,
+    data.output_tokens != null ? data.output_tokens : null
   );
 }
 
@@ -929,6 +1003,8 @@ module.exports = {
   getUsageForWindow,
   getRecentEvents,
   cleanupOldEvents,
+  getSubagentCount,
+  getTokenUsage,
   // Install Codes
   createInstallCode,
   useInstallCode,

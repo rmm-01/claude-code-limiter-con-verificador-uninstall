@@ -29,6 +29,9 @@ sudo npx @howincodes/claude-code-limiter sync
 
 # Remove the limiter (requires sudo)
 sudo npx @howincodes/claude-code-limiter uninstall
+
+# Generate repo-level hooks for Claude Code web coverage
+npx @howincodes/claude-code-limiter gen-repo-hook --server <URL> --token <TOKEN>
 ```
 
 ## What happens when you hit a limit?
@@ -57,7 +60,11 @@ The installer places a hook in Claude Code's `managed-settings.json` — the hig
 - **Zero npm dependencies** — uses only Node.js built-ins
 - **Works offline** — falls back to local cache if server is unreachable
 - **Fail-closed** — missing config = blocked, not unlimited
-- **6 security layers** — managed-settings, file permissions, watchdog daemon, server-side tracking, kill switch, fail-closed default
+- **8 security layers** — managed-settings, file permissions, watchdog daemon, server-side tracking, kill switch, fail-closed default, tamper detection, uninstall verification
+- **Effort level limits** — cap reasoning effort (low/medium/high/xhigh/max) per user with configurable credit multipliers
+- **Workflow/subagent control** — toggle to enable/disable workflows and subagents per user
+- **Token tracking** — reads real input/output tokens from Claude transcript and enforces token budgets
+- **Claude Code web support** — `gen-repo-hook` generates stateless repo-level hooks that work in cloud sessions (claude.ai/code)
 
 ## For admins
 

@@ -377,11 +377,13 @@ function cleanupOldUsage(keepDays) {
 // LOCAL LIMIT EVALUATION (offline fallback)
 // ════════════════════════════════════════════════════════════
 
-function evaluateLimitsLocally(config, model, usage) {
+function evaluateLimitsLocally(config, model, usage, extra) {
   if (!config || !config.limits) return { allowed: true };
 
   const limits = config.limits;
   const creditWeights = config.credit_weights || { fable: 15, opus: 10, sonnet: 3, haiku: 1 };
+  const effortLevel = extra && extra.effort_level;
+  const isSubagent = extra && extra.is_subagent;
 
   // Check kill/pause status
   if (config.status === "killed" || config.status === "paused") {
@@ -391,6 +393,30 @@ function evaluateLimitsLocally(config, model, usage) {
         ? "Tu acceso a Claude Code fue revocado por el admin.\nContactá al admin para restaurar el acceso."
         : "Tu acceso a Claude Code fue pausado por el admin.\nContactá al admin para reanudar el acceso.",
     };
+  }
+
+  // Check workflow/subagent permission
+  if (isSubagent && config.allow_workflows === false) {
+    return {
+      allowed: false,
+      reason: "Workflows y subagentes están deshabilitados para tu cuenta.\nContactá al admin para habilitar esta funcionalidad.",
+    };
+  }
+
+  // Check effort level cap
+  if (effortLevel) {
+    const maxEffort = config.max_effort_level || "max";
+    if (maxEffort !== "max") {
+      const EFFORT_ORDER = ["low", "medium", "high", "xhigh", "max"];
+      const reqIdx = EFFORT_ORDER.indexOf(effortLevel);
+      const maxIdx = EFFORT_ORDER.indexOf(maxEffort);
+      if (reqIdx !== -1 && maxIdx !== -1 && reqIdx > maxIdx) {
+        return {
+          allowed: false,
+          reason: `Effort level "${effortLevel}" no permitido.\nNivel máximo: "${maxEffort}".\n\nUsá /effort ${maxEffort} para cambiar el nivel.`,
+        };
+      }
+    }
   }
 
   for (const rule of limits) {
@@ -559,6 +585,41 @@ function triggerLogout() {
 }
 
 // ════════════════════════════════════════════════════════════
+// TOKEN PARSING — Extract usage from transcript JSONL
+// ════════════════════════════════════════════════════════════
+
+function parseTokensFromTranscript(transcriptPath) {
+  const result = { input: null, output: null };
+  if (!transcriptPath) return result;
+  try {
+    const stat = fs.statSync(transcriptPath);
+    // Read last 8KB — enough to find the most recent usage entry
+    const bufSize = Math.min(stat.size, 8192);
+    const buf = Buffer.alloc(bufSize);
+    const fd = fs.openSync(transcriptPath, "r");
+    fs.readSync(fd, buf, 0, bufSize, stat.size - bufSize);
+    fs.closeSync(fd);
+    const tail = buf.toString("utf-8");
+    const lines = tail.split("\n").filter(Boolean);
+    // Scan backwards for a line containing token usage
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const entry = JSON.parse(lines[i]);
+        const usage = entry.usage || entry.message?.usage;
+        if (usage && (usage.input_tokens || usage.output_tokens)) {
+          result.input = usage.input_tokens || 0;
+          result.output = usage.output_tokens || 0;
+          break;
+        }
+      } catch { /* not valid JSON, skip */ }
+    }
+  } catch (err) {
+    debugLog(`TRANSCRIPT_PARSE error: ${err.message}`);
+  }
+  return result;
+}
+
+// ════════════════════════════════════════════════════════════
 // ACTIONS
 // ════════════════════════════════════════════════════════════
 
@@ -639,12 +700,15 @@ async function actionSync(config) {
     if (serverResp.limits) {
       const updated = { ...config, limits: serverResp.limits };
       if (serverResp.credit_weights) updated.credit_weights = serverResp.credit_weights;
+      if (serverResp.effort_multipliers) updated.effort_multipliers = serverResp.effort_multipliers;
       if (serverResp.status) updated.status = serverResp.status;
       if (serverResp.user_name) updated.user_name = serverResp.user_name;
+      if (serverResp.allow_workflows !== undefined) updated.allow_workflows = serverResp.allow_workflows;
+      if (serverResp.max_effort_level) updated.max_effort_level = serverResp.max_effort_level;
       writeJSON(CONFIG_FILE, updated);
     }
     syncAgentSettings(serverResp.allow_agents);
-    debugLog(`SYNC server_response status=${serverResp.status} allow_agents=${serverResp.allow_agents}`);
+    debugLog(`SYNC server_response status=${serverResp.status} allow_agents=${serverResp.allow_agents} allow_workflows=${serverResp.allow_workflows} max_effort=${serverResp.max_effort_level}`);
   }
 }
 
@@ -663,12 +727,40 @@ async function actionCheck(config) {
   const rawModel = detectModelRaw(stdinData, config);
   const model = normalizeModel(rawModel);
   const modelVersion = extractModelVersion(rawModel);
+  const effortLevel = (stdinData.effort && stdinData.effort.level) || null;
+  const agentId = stdinData.agent_id || null;
+  const agentType = stdinData.agent_type || null;
   const usage = loadUsage();
-  debugLog(`CHECK model=${model} version=${modelVersion} usage=${JSON.stringify(usage)}`);
+  debugLog(`CHECK model=${model} version=${modelVersion} effort=${effortLevel} agent=${agentType || "none"} usage=${JSON.stringify(usage)}`);
+
+  // Block workflows/subagents if not allowed
+  if (agentId && config && !config.allow_workflows) {
+    const msg = "Workflows y subagentes están deshabilitados para tu cuenta.\nContactá al admin para habilitar esta funcionalidad.";
+    process.stdout.write(JSON.stringify({ decision: "block", reason: msg }));
+    debugLog(`CHECK BLOCKED: workflows disabled, agent_type=${agentType}`);
+    return;
+  }
+
+  // Block effort level if over cap
+  const maxEffort = (config && config.max_effort_level) || "max";
+  if (effortLevel && maxEffort !== "max") {
+    const EFFORT_ORDER = ["low", "medium", "high", "xhigh", "max"];
+    const reqIdx = EFFORT_ORDER.indexOf(effortLevel);
+    const maxIdx = EFFORT_ORDER.indexOf(maxEffort);
+    if (reqIdx !== -1 && maxIdx !== -1 && reqIdx > maxIdx) {
+      const msg = `Effort level "${effortLevel}" no permitido.\nNivel máximo: "${maxEffort}".\n\nUsá /effort ${maxEffort} para cambiar el nivel.`;
+      process.stdout.write(JSON.stringify({ decision: "block", reason: msg }));
+      debugLog(`CHECK BLOCKED: effort ${effortLevel} > max ${maxEffort}`);
+      return;
+    }
+  }
 
   const serverResp = await serverRequest("/api/v1/check", {
     model,
     model_version: modelVersion,
+    effort_level: effortLevel,
+    agent_id: agentId,
+    agent_type: agentType,
     local_usage: usage,
     prompt_length: (stdinData.prompt || "").length,
     project_dir: path.basename(stdinData.cwd || ""),
@@ -700,7 +792,10 @@ async function actionCheck(config) {
     // Offline: evaluate locally
     const cached = readJSON(CACHE_FILE);
     const evalConfig = cached || config;
-    const result = evaluateLimitsLocally(evalConfig, model, usage);
+    const result = evaluateLimitsLocally(evalConfig, model, usage, {
+      effort_level: effortLevel,
+      is_subagent: !!agentId,
+    });
     allowed = result.allowed;
     reason = result.reason;
     debugLog("CHECK offline_mode");
@@ -728,16 +823,28 @@ async function actionCount(config) {
   const rawModel = detectModelRaw(stdinData, config);
   const model = normalizeModel(rawModel);
   const modelVersion = extractModelVersion(rawModel);
+  const effortLevel = (stdinData.effort && stdinData.effort.level) || null;
+  const agentId = stdinData.agent_id || null;
+  const agentType = stdinData.agent_type || null;
   const usage = loadUsage();
   const prev = usage[model] || 0;
   usage[model] = prev + 1;
   saveUsage(usage);
   cleanupOldUsage();
-  debugLog(`COUNT model=${model} version=${modelVersion} ${prev} → ${prev + 1}`);
+
+  // Try to extract token counts from transcript
+  const tokens = parseTokensFromTranscript(stdinData.transcript_path);
+
+  debugLog(`COUNT model=${model} version=${modelVersion} effort=${effortLevel} agent=${agentType || "none"} tokens=${JSON.stringify(tokens)} ${prev} → ${prev + 1}`);
 
   await serverRequest("/api/v1/count", {
     model,
     model_version: modelVersion,
+    effort_level: effortLevel,
+    agent_id: agentId,
+    agent_type: agentType,
+    input_tokens: tokens.input,
+    output_tokens: tokens.output,
     timestamp: new Date().toISOString(),
     session_id: stdinData.session_id || null,
     response_length: (stdinData.last_assistant_message || "").length,
@@ -756,6 +863,40 @@ async function actionEnforce() {
   if (isPersonalAccount(config)) {
     debugLog("ENFORCE bypassed — personal account");
     return; // no output = allow
+  }
+
+  // Block workflow/subagent tool calls if not allowed
+  const toolName = stdinData.tool_name || "";
+  if ((toolName === "Workflow" || toolName === "Agent") && config && !config.allow_workflows) {
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: "Workflows y subagentes están deshabilitados para tu cuenta.\nContactá al admin para habilitar esta funcionalidad.",
+      },
+    }));
+    debugLog(`ENFORCE BLOCKED: workflow tool ${toolName} denied`);
+    return;
+  }
+
+  // Block effort level over cap
+  const effortLevel = (stdinData.effort && stdinData.effort.level) || null;
+  const maxEffort = (config && config.max_effort_level) || "max";
+  if (effortLevel && maxEffort !== "max") {
+    const EFFORT_ORDER = ["low", "medium", "high", "xhigh", "max"];
+    const reqIdx = EFFORT_ORDER.indexOf(effortLevel);
+    const maxIdx = EFFORT_ORDER.indexOf(maxEffort);
+    if (reqIdx !== -1 && maxIdx !== -1 && reqIdx > maxIdx) {
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          permissionDecision: "deny",
+          permissionDecisionReason: `Effort level "${effortLevel}" no permitido. Nivel máximo: "${maxEffort}". Usá /effort ${maxEffort} para cambiar el nivel.`,
+        },
+      }));
+      debugLog(`ENFORCE BLOCKED: effort ${effortLevel} > max ${maxEffort}`);
+      return;
+    }
   }
 
   const cached = readJSON(CACHE_FILE);
@@ -898,7 +1039,7 @@ async function main() {
     case "sync": await actionSync(config); break;
     case "check": await actionCheck(config); break;
     case "count": await actionCount(config); break;
-    case "enforce": actionEnforce(); break;
+    case "enforce": await actionEnforce(); break;
     case "status": actionStatus(config); break;
     default:
       process.stderr.write(`claude-code-limiter hook: unknown action "${action}"\n`);

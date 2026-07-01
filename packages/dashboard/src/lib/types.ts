@@ -2,12 +2,14 @@
    Shared TypeScript types for the Claude Code Limiter dashboard
    ================================================================ */
 
+export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
 export interface LimitRule {
   id?: string;
-  type: 'per_model' | 'credits' | 'time_of_day';
+  type: 'per_model' | 'credits' | 'time_of_day' | 'effort' | 'subagents' | 'tokens';
   model?: string;
   window?: string;
-  value?: number;
+  value?: number | string;
   schedule_start?: string;
   schedule_end?: string;
   schedule_tz?: string;
@@ -50,6 +52,8 @@ export interface User {
   devices: Device[];
   allow_self_uninstall: boolean;
   allow_agents: boolean;
+  allow_workflows: boolean;
+  max_effort_level: EffortLevel;
   // Credits consumed on each of the last 7 days (oldest first).
   // Optional — older server builds don't include it.
   daily_credits_7d?: number[];
@@ -59,10 +63,20 @@ export interface User {
   last_tampering_at?: string | null;
 }
 
+export interface EffortMultipliers {
+  low: number;
+  medium: number;
+  high: number;
+  xhigh: number;
+  max: number;
+  [key: string]: number;
+}
+
 export interface Team {
   id: string;
   name: string;
   credit_weights: CreditWeights;
+  effort_multipliers?: EffortMultipliers;
 }
 
 export interface CreditWeights {
@@ -121,11 +135,14 @@ export interface UpdateUserPayload {
   limits?: LimitRule[];
   allow_self_uninstall?: boolean;
   allow_agents?: boolean;
+  allow_workflows?: boolean;
+  max_effort_level?: EffortLevel;
 }
 
 export interface UpdateSettingsPayload {
   name?: string;
   credit_weights?: CreditWeights;
+  effort_multipliers?: EffortMultipliers;
   admin_password?: string;
 }
 

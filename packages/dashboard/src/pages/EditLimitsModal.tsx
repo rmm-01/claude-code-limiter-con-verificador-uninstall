@@ -31,6 +31,10 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
   const [opus, setOpus] = useState('-1');
   const [sonnet, setSonnet] = useState('-1');
   const [haiku, setHaiku] = useState('-1');
+  const [subagents, setSubagents] = useState('-1');
+  const [subagentsWindow, setSubagentsWindow] = useState('daily');
+  const [tokens, setTokens] = useState('-1');
+  const [tokensWindow, setTokensWindow] = useState('daily');
   const [timeRules, setTimeRules] = useState<TimeRule[]>([]);
 
   useEffect(() => {
@@ -47,6 +51,12 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
         setOpus(String(getModelLimit(limits, 'opus', 'daily')));
         setSonnet(String(getModelLimit(limits, 'sonnet', 'daily')));
         setHaiku(String(getModelLimit(limits, 'haiku', 'daily')));
+        const subagentRule = limits.find((r) => r.type === 'subagents');
+        setSubagents(subagentRule ? String(subagentRule.value) : '-1');
+        setSubagentsWindow(subagentRule?.window ?? 'daily');
+        const tokenRule = limits.find((r) => r.type === 'tokens');
+        setTokens(tokenRule ? String(tokenRule.value) : '-1');
+        setTokensWindow(tokenRule?.window ?? 'daily');
         setTimeRules(
           limits
             .filter((r) => r.type === 'time_of_day')
@@ -78,6 +88,16 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
       if (!isNaN(v) && v !== -1) {
         limits.push({ type: 'per_model', model, window: 'daily', value: v });
       }
+    }
+
+    const subagentsVal = parseInt(subagents, 10);
+    if (!isNaN(subagentsVal) && subagentsVal !== -1) {
+      limits.push({ type: 'subagents', window: subagentsWindow, value: subagentsVal });
+    }
+
+    const tokensVal = parseInt(tokens, 10);
+    if (!isNaN(tokensVal) && tokensVal !== -1) {
+      limits.push({ type: 'tokens', window: tokensWindow, value: tokensVal });
     }
 
     for (const tr of timeRules) {
@@ -165,6 +185,57 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
                 <Input label="Opus" type="number" value={opus} onChange={(e) => setOpus(e.target.value)} />
                 <Input label="Sonnet" type="number" value={sonnet} onChange={(e) => setSonnet(e.target.value)} />
                 <Input label="Haiku" type="number" value={haiku} onChange={(e) => setHaiku(e.target.value)} />
+              </div>
+            </div>
+
+            <hr className="border-zinc-800" />
+
+            {/* Límite de subagentes/workflows */}
+            <div>
+              <h4 className="text-sm font-medium text-zinc-300 mb-3">Límite de Subagentes / Workflows</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Máximo (-1 = ilimitado, 0 = bloqueado)"
+                  type="number"
+                  value={subagents}
+                  onChange={(e) => setSubagents(e.target.value)}
+                />
+                <Select
+                  label="Ventana"
+                  value={subagentsWindow}
+                  onChange={(e) => setSubagentsWindow(e.target.value)}
+                >
+                  <option value="daily">Diaria</option>
+                  <option value="weekly">Semanal</option>
+                  <option value="monthly">Mensual</option>
+                  <option value="sliding_24h">Últimas 24h</option>
+                </Select>
+              </div>
+            </div>
+
+            <hr className="border-zinc-800" />
+
+            {/* Límite de tokens */}
+            <div>
+              <h4 className="text-sm font-medium text-zinc-300 mb-3">Límite de Tokens</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Máximo (-1 = ilimitado, 0 = bloqueado)"
+                  type="number"
+                  value={tokens}
+                  onChange={(e) => setTokens(e.target.value)}
+                  hint="Ej: 500000 = 500k tokens"
+                />
+                <Select
+                  label="Ventana"
+                  value={tokensWindow}
+                  onChange={(e) => setTokensWindow(e.target.value)}
+                >
+                  <option value="daily">Diaria</option>
+                  <option value="weekly">Semanal</option>
+                  <option value="monthly">Mensual</option>
+                  <option value="sliding_24h">Últimas 24h</option>
+                </Select>
               </div>
             </div>
 

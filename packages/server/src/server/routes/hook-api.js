@@ -5,7 +5,7 @@ const router = express.Router();
 const db = require('../db');
 const { hookAuth } = require('../services/auth');
 const { evaluateLimits } = require('../services/limiter');
-const { recordEvent, getUsageSummary, getCreditBalance } = require('../services/usage');
+const { getUsageSummary, getCreditBalance } = require('../services/usage');
 const { broadcast } = require('../ws');
 
 /**
@@ -115,15 +115,22 @@ router.post('/sync', hookAuth, (req, res) => {
       timestamp: now,
     });
 
+    // Parse effort multipliers from team
+    let effortMultipliers = { low: 0.5, medium: 1, high: 2, xhigh: 4, max: 6 };
+    try { effortMultipliers = JSON.parse(team.effort_multipliers || '{}'); } catch {}
+
     res.json({
       user_name: user.name,
       status: user.status,
       limits: limits.map(sanitizeRule),
       credit_weights: creditWeights,
+      effort_multipliers: effortMultipliers,
       usage,
       credit_balance: creditBalance,
       credit_budget: creditBudget,
       allow_agents: !!user.allow_agents,
+      allow_workflows: !!user.allow_workflows,
+      max_effort_level: user.max_effort_level || 'max',
       message: null,
     });
   } catch (err) {
@@ -158,20 +165,29 @@ router.post('/check', hookAuth, (req, res) => {
 
     // Record prompt event
     const modelVersion = req.body.model_version || null;
+    const effortLevel = req.body.effort_level || null;
+    const agentId = req.body.agent_id || null;
+    const agentType = req.body.agent_type || null;
     db.recordSessionEvent({
       user_id: user.id,
       device_id: (devices.length > 0) ? devices[0].id : null,
       type: 'prompt',
       model,
       model_version: modelVersion,
+      effort_level: effortLevel,
+      agent_id: agentId,
+      agent_type: agentType,
       prompt_length: req.body.prompt_length || null,
       project_dir: req.body.project_dir || null,
       session_id: req.body.session_id || null,
       timestamp: now,
     });
 
-    // Evaluate limits
-    const result = evaluateLimits(user, model, creditWeights);
+    // Evaluate limits (pass effort + subagent context)
+    const result = evaluateLimits(user, model, creditWeights, {
+      effort_level: effortLevel,
+      is_subagent: !!agentId,
+    });
 
     // If blocked, also record a blocked event
     if (!result.allowed) {
@@ -234,6 +250,8 @@ router.post('/check', hookAuth, (req, res) => {
       usage,
       credit_balance: creditBalance,
       credit_budget: creditBudget,
+      allow_workflows: !!user.allow_workflows,
+      max_effort_level: user.max_effort_level || 'max',
       message: null,
     });
   } catch (err) {
@@ -253,15 +271,35 @@ router.post('/count', hookAuth, (req, res) => {
     const team = req.team;
     const model = req.body.model || 'default';
     const modelVersion = req.body.model_version || null;
+    const effortLevel = req.body.effort_level || null;
+    const agentId = req.body.agent_id || null;
+    const agentType = req.body.agent_type || null;
+    const inputTokens = req.body.input_tokens != null ? req.body.input_tokens : null;
+    const outputTokens = req.body.output_tokens != null ? req.body.output_tokens : null;
     const timestamp = req.body.timestamp || new Date().toISOString();
     const creditWeights = JSON.parse(team.credit_weights);
     const clientIp = getClientIp(req);
 
-    // Calculate credit cost
-    const creditCost = creditWeights[model] || creditWeights['default'] || 1;
+    // Calculate credit cost with effort multiplier
+    let effortMultipliers = { low: 0.5, medium: 1, high: 2, xhigh: 4, max: 6 };
+    try { effortMultipliers = JSON.parse(team.effort_multipliers || '{}'); } catch {}
+    const baseCost = creditWeights[model] || creditWeights['default'] || 1;
+    const effortMult = (effortLevel && effortMultipliers[effortLevel]) || 1;
+    const creditCost = Math.round(baseCost * effortMult);
 
-    // Record the usage event (existing behavior)
-    recordEvent(user.id, model, creditCost, timestamp, 'hook', modelVersion);
+    // Record the usage event with new fields
+    db.recordUsage({
+      userId: user.id,
+      model,
+      modelVersion,
+      creditCost,
+      timestamp,
+      source: 'hook',
+      effortLevel,
+      isSubagent: !!agentId,
+      inputTokens,
+      outputTokens,
+    });
 
     // Update device last_seen and IP
     const devices = db.getDevices(user.id);
@@ -276,6 +314,11 @@ router.post('/count', hookAuth, (req, res) => {
       type: 'turn_complete',
       model,
       model_version: modelVersion,
+      effort_level: effortLevel,
+      agent_id: agentId,
+      agent_type: agentType,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
       session_id: req.body.session_id || null,
       response_length: req.body.response_length || null,
       timestamp,

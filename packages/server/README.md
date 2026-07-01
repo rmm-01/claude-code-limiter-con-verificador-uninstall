@@ -59,7 +59,7 @@ Open `https://your-server/dashboard` and log in with your admin password.
 
 **Add User** — Create a user, set limits, get an install code to copy
 
-**Settings** — Credit weights (fable/opus/sonnet/haiku costs), team name, password
+**Settings** — Credit weights, effort multipliers, team name, password
 
 ## API
 
@@ -84,7 +84,7 @@ Open `https://your-server/dashboard` and log in with your admin password.
 | `DELETE /api/admin/users/:id` | Remove user |
 | `GET /api/admin/usage` | Usage history for charts |
 | `GET /api/admin/usage/versions` | Usage breakdown by model version |
-| `PUT /api/admin/settings` | Update credit weights, team name |
+| `PUT /api/admin/settings` | Update credit weights, effort multipliers, team name |
 
 ### WebSocket
 
@@ -97,6 +97,9 @@ Connect to `/ws` for real-time events: `user_check`, `user_blocked`, `user_count
 - **Model version tracking** — records specific version (e.g. `opus-4-6`, `fable-5`)
 - **Agent View / Remote Control toggle** — per-user, OFF by default
 - **Tamper detection** — alerts when managed-settings.json hash doesn't match expected
+- **Effort level limits** — cap reasoning effort per user (low/medium/high/xhigh/max) with configurable credit multipliers
+- **Workflow/subagent control** — per-user toggle + numeric limit for workflows and subagents
+- **Token tracking** — records real input/output tokens from Claude transcript, enforces token budgets
 - **Sliding windows** — rolling 24h, or daily/weekly/monthly resets
 - **Time-of-day rules** — opus only 9am-6pm
 - **Kill switch** — instantly block a user + force logout

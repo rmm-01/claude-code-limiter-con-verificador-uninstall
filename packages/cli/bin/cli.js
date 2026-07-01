@@ -28,6 +28,7 @@ ${c.bold('COMMANDS')}
   ${c.cyan('status')}      Show current usage and limits for this machine's user
   ${c.cyan('sync')}        Force re-sync config from the server (requires sudo)
   ${c.cyan('serve')}       Start the limiter server (REST API + dashboard)
+  ${c.cyan('gen-repo-hook')} Generate repo-level hooks for Claude Code web coverage
 
 ${c.bold('OPTIONS')}
   --code <CODE>       One-time install code from the admin dashboard (setup only)
@@ -57,6 +58,9 @@ ${c.bold('EXAMPLES')}
 
   ${c.dim('# Start the server via Docker')}
   docker run -p 3000:3000 -v data:/data -e ADMIN_PASSWORD=xxx claude-code-limiter
+
+  ${c.dim('# Generate repo hooks for Claude Code web coverage')}
+  npx @howincodes/claude-code-limiter gen-repo-hook --server https://your-server:3000 --token CLM-xxx
 `.trim();
 
 // ---- Argument parsing (no external deps, just process.argv) ----
@@ -77,7 +81,7 @@ function getOption(name) {
 
 // Find the first positional arg (not a flag and not a flag's value)
 function getCommand() {
-  const flagsWithValue = new Set(['--code', '--server', '--port']);
+  const flagsWithValue = new Set(['--code', '--server', '--port', '--token']);
   const skip = new Set();
   for (let i = 0; i < argv.length; i++) {
     if (flagsWithValue.has(argv[i])) {
@@ -101,6 +105,7 @@ const server         = getOption('--server');
 const port           = getOption('--port');
 const email          = getOption('--email');
 const plan           = getOption('--plan');
+const token          = getOption('--token');
 const command        = getCommand();
 
 // ---- Help / no command ----
@@ -160,6 +165,12 @@ async function main() {
       }
       const app = require('../../server/src/server/index.js');
       app.start(serverPort);
+      break;
+    }
+
+    case 'gen-repo-hook': {
+      const genRepoHook = require('../src/gen-repo-hook.js');
+      genRepoHook({ server, token, yes: skipConfirm });
       break;
     }
 

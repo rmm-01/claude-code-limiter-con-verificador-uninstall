@@ -126,6 +126,10 @@ sudo npx @howincodes/claude-code-limiter uninstall
 - **Control de Agent View / Remote Control**: toggle por usuario (OFF por defecto). El admin activa desde User Detail → "Permitir Agent View / Remote Control"
 - **Tracking por versión de modelo**: registra la versión específica usada (ej. `opus-4-6`, `fable-5`), visible en User Detail → "Uso por Versión"
 - **Detección de tampering**: alerta en dashboard si el usuario manipula `managed-settings.json`
+- **Límites por effort level**: cap del nivel de razonamiento por usuario (low/medium/high/xhigh/max) con multiplicadores de créditos configurables en Settings
+- **Control de Workflows / Subagentes**: toggle por usuario + límite numérico para workflows masivos y subagentes
+- **Tracking de tokens reales**: registra `input_tokens` y `output_tokens` del transcript de Claude. Permite poner topes de tokens consumidos por ventana
+- **Cobertura Claude Code web**: hook de repo stateless para sesiones cloud (claude.ai/code). Generar con `npx @howincodes/claude-code-limiter gen-repo-hook --server <URL> --token <TOKEN>`
 
 ---
 
