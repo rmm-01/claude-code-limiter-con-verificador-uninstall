@@ -88,6 +88,23 @@ function start(port) {
     console.log(`Hook API:  http://localhost:${port}/api/v1`);
     console.log(`Admin API: http://localhost:${port}/api/admin`);
     console.log(`WebSocket: ws://localhost:${port}/ws`);
+
+    // Slow integrity check runs after listen() so the warm-up probe passes
+    // quickly and App Service retires the old container sooner.
+    setImmediate(() => db.runStartupMaintenance());
+
+    // By now the previous container has been stopped: leave WAL (it could
+    // not be done while that container had the file open) and re-apply
+    // migrations in case its last writes overwrote the schema.
+    setTimeout(() => {
+      try {
+        db.useRollbackJournal(db.getDb());
+        db.runMigrations(db.getDb());
+        console.log('[db] delayed migration check done');
+      } catch (err) {
+        console.error('[db] delayed migration check failed:', err && err.message);
+      }
+    }, 2 * 60 * 1000).unref();
   });
 
   // Graceful shutdown — Azure App Service sends SIGTERM before killing the

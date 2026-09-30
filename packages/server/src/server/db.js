@@ -26,11 +26,14 @@ function init(dbPath) {
   }
 
   db = new Database(dbPath);
-  // Durability / resilience pragmas. WAL survives a crash mid-write much
-  // better than the default rollback journal; synchronous=NORMAL is the
-  // recommended pairing with WAL (fsync at checkpoint, not on every commit).
-  db.pragma('journal_mode = WAL');
-  db.pragma('synchronous = NORMAL');
+  // Rollback journal, not WAL: in production the file lives on /home (Azure
+  // Files / SMB) and SQLite's WAL needs shared memory that network
+  // filesystems don't provide. With two containers open during a deploy,
+  // WAL produced the recurring index corruption and lost schema changes.
+  // DELETE mode coordinates through file locks instead.
+  db.pragma('busy_timeout = 5000');
+  useRollbackJournal(db);
+  db.pragma('synchronous = FULL');
   db.pragma('foreign_keys = ON');
 
   // Create tables
@@ -136,7 +139,37 @@ function init(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_device_user ON device(user_id);
   `);
 
-  // Migrations for existing databases
+  runMigrations(db);
+
+  console.log(`Database initialized at ${dbPath}`);
+  return db;
+}
+
+/**
+ * Switch to journal_mode=DELETE. Fails with "database is locked" while
+ * another process (the previous container during a deploy) still has the
+ * file open in WAL mode, so it is retried later. Returns the active mode.
+ */
+function useRollbackJournal(database) {
+  try {
+    const mode = database.pragma('journal_mode = DELETE', { simple: true });
+    console.log(`[db] journal_mode=${mode}`);
+    return mode;
+  } catch (err) {
+    console.warn('[db] could not switch journal_mode to DELETE yet:', err && err.message);
+    return database.pragma('journal_mode', { simple: true });
+  }
+}
+
+/**
+ * Additive, idempotent schema migrations. Safe to run any number of times.
+ *
+ * Runs at init and again from runStartupMaintenance(): on App Service the
+ * previous container keeps the database open for a while after the new one
+ * starts, and on 2026-09-30 its writes wiped the columns this function had
+ * just added. Re-running once the old container is gone restores them.
+ */
+function runMigrations(db) {
   const cols = db.pragma('table_info(user)').map(c => c.name);
   if (!cols.includes('allow_self_uninstall')) {
     db.exec('ALTER TABLE user ADD COLUMN allow_self_uninstall INTEGER NOT NULL DEFAULT 0');
@@ -212,20 +245,27 @@ function init(dbPath) {
   if (!teamCols.includes('effort_multipliers')) {
     db.exec(`ALTER TABLE team ADD COLUMN effort_multipliers TEXT NOT NULL DEFAULT '{"low":0.5,"medium":1,"high":2,"xhigh":4,"max":6}'`);
   }
+}
 
-  console.log(`Database initialized at ${dbPath}`);
-
-  // Auto-repair on startup. Twice already we've seen index corruption
-  // ("row N missing from index ...") after an abrupt App Service restart
-  // mid-write. integrity_check is fast on databases of this size (<10MB)
-  // and lets us self-heal without manual SSH intervention.
+/**
+ * Integrity check + self-repair, then migrations again. Called after the
+ * server is listening: integrity_check has taken up to 3 minutes on the
+ * production database, and running it before listen() kept the warm-up
+ * probe failing — which is exactly the window where App Service keeps the
+ * old container alive against the same file.
+ */
+function runStartupMaintenance() {
+  const database = getDb();
   try {
-    autoRepairIfNeeded(db);
+    autoRepairIfNeeded(database);
   } catch (err) {
     console.error('[db] auto-repair failed:', err && err.message);
   }
-
-  return db;
+  try {
+    runMigrations(database);
+  } catch (err) {
+    console.error('[db] post-repair migrations failed:', err && err.message);
+  }
 }
 
 /**
@@ -986,6 +1026,9 @@ function getAnalytics(teamId, opts) {
 
 module.exports = {
   init,
+  runMigrations,
+  runStartupMaintenance,
+  useRollbackJournal,
   seed,
   close,
   getDb,
