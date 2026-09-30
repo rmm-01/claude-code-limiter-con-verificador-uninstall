@@ -734,7 +734,7 @@ async function actionCheck(config) {
   debugLog(`CHECK model=${model} version=${modelVersion} effort=${effortLevel} agent=${agentType || "none"} usage=${JSON.stringify(usage)}`);
 
   // Block workflows/subagents if not allowed
-  if (agentId && config && !config.allow_workflows) {
+  if (agentId && config && config.allow_workflows === false) {
     const msg = "Workflows y subagentes están deshabilitados para tu cuenta.\nContactá al admin para habilitar esta funcionalidad.";
     process.stdout.write(JSON.stringify({ decision: "block", reason: msg }));
     debugLog(`CHECK BLOCKED: workflows disabled, agent_type=${agentType}`);
@@ -867,7 +867,9 @@ async function actionEnforce() {
 
   // Block workflow/subagent tool calls if not allowed
   const toolName = stdinData.tool_name || "";
-  if ((toolName === "Workflow" || toolName === "Agent") && config && !config.allow_workflows) {
+  // Only block on an explicit false from the server. Right after setup the
+  // key is absent until the first SessionStart sync.
+  if ((toolName === "Workflow" || toolName === "Agent") && config && config.allow_workflows === false) {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",

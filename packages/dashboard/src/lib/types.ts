@@ -6,10 +6,10 @@ export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface LimitRule {
   id?: string;
-  type: 'per_model' | 'credits' | 'time_of_day' | 'effort' | 'subagents' | 'tokens';
+  type: 'per_model' | 'credits' | 'time_of_day' | 'subagents' | 'tokens';
   model?: string;
   window?: string;
-  value?: number | string;
+  value?: number;
   schedule_start?: string;
   schedule_end?: string;
   schedule_tz?: string;

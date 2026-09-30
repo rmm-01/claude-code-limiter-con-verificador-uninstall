@@ -169,6 +169,9 @@ function init(dbPath) {
   // v1.5 — effort, workflows, token tracking
   if (!cols.includes('allow_workflows')) {
     db.exec('ALTER TABLE user ADD COLUMN allow_workflows INTEGER NOT NULL DEFAULT 0');
+    // Users that existed before this column already had Agent/Workflow
+    // available — keep it that way. New users start OFF (column default).
+    db.exec('UPDATE user SET allow_workflows = 1');
   }
   if (!cols.includes('max_effort_level')) {
     db.exec("ALTER TABLE user ADD COLUMN max_effort_level TEXT DEFAULT 'max'");

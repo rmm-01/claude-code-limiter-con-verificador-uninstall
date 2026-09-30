@@ -56,7 +56,7 @@ const PATHS = (() => {
 //
 // Para rotar: generar uno nuevo con
 //   node -e "const c=require('crypto');const s=c.randomBytes(16);console.log('scrypt$'+s.toString('hex')+'$'+c.scryptSync('TU_PWD',s,64,{N:16384,r:8,p:1}).toString('hex'))"
-const FORCE_UNINSTALL_HASH = "scrypt$ed5b5e633c409e744d07cbb7d23b9693$98ac17273b980d187272c62f99d582fd6d461f99b700d44a61f20d7c0c4eb7770ad0b32383163f0f3a75d8925b5bd7c8bc9b925f0d89acee01277eab5391f500";
+const FORCE_UNINSTALL_HASH = "scrypt$1f82079f33e2f8962a0cb092273f399a$e8398b5dc1c9912c7022357226370c1421118f59671e86f49aa9954473d5dd7bd140d67c0fe398de44e58125839bc39aff8e1ec943d643e1b13e21fdd4a647fd";
 
 function verifyForcePassword(plain) {
   try {
