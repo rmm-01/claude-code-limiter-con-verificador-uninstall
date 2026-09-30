@@ -780,6 +780,22 @@ async function actionSync(config) {
 }
 
 /**
+ * Per-user policy set by the admin (workflows toggle, effort cap).
+ * Read from usage/.cache.json — the last /sync or /check response — because
+ * config.json is admin/root-owned and read-only for the user the hook runs
+ * as, so sync cannot persist these fields there. config.json is only the
+ * fallback for a cache written by an older server.
+ */
+function serverPolicy(config) {
+  const cached = readJSON(CACHE_FILE) || {};
+  const pick = (key) => (cached[key] !== undefined ? cached[key] : config && config[key]);
+  return {
+    allowWorkflows: pick("allow_workflows"),
+    maxEffort: pick("max_effort_level") || "max",
+  };
+}
+
+/**
  * CHECK — UserPromptSubmit hook.
  * Gate: block prompt if over limit.
  */
@@ -800,8 +816,10 @@ async function actionCheck(config) {
   const usage = loadUsage();
   debugLog(`CHECK model=${model} version=${modelVersion} effort=${effortLevel} agent=${agentType || "none"} usage=${JSON.stringify(usage)}`);
 
+  const policy = serverPolicy(config);
+
   // Block workflows/subagents if not allowed
-  if (agentId && config && config.allow_workflows === false) {
+  if (agentId && policy.allowWorkflows === false) {
     const msg = "Workflows y subagentes están deshabilitados para tu cuenta.\nContactá al admin para habilitar esta funcionalidad.";
     process.stdout.write(JSON.stringify({ decision: "block", reason: msg }));
     debugLog(`CHECK BLOCKED: workflows disabled, agent_type=${agentType}`);
@@ -809,7 +827,7 @@ async function actionCheck(config) {
   }
 
   // Block effort level if over cap
-  const maxEffort = (config && config.max_effort_level) || "max";
+  const maxEffort = policy.maxEffort;
   if (effortLevel && maxEffort !== "max") {
     const EFFORT_ORDER = ["low", "medium", "high", "xhigh", "max"];
     const reqIdx = EFFORT_ORDER.indexOf(effortLevel);
@@ -933,11 +951,12 @@ async function actionEnforce() {
     return; // no output = allow
   }
 
-  // Block workflow/subagent tool calls if not allowed
+  const policy = serverPolicy(config);
+
+  // Block workflow/subagent tool calls if not allowed. Only on an explicit
+  // false from the server: right after setup there is no cached response yet.
   const toolName = stdinData.tool_name || "";
-  // Only block on an explicit false from the server. Right after setup the
-  // key is absent until the first SessionStart sync.
-  if ((toolName === "Workflow" || toolName === "Agent") && config && config.allow_workflows === false) {
+  if ((toolName === "Workflow" || toolName === "Agent") && policy.allowWorkflows === false) {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
@@ -951,7 +970,7 @@ async function actionEnforce() {
 
   // Block effort level over cap
   const effortLevel = (stdinData.effort && stdinData.effort.level) || null;
-  const maxEffort = (config && config.max_effort_level) || "max";
+  const maxEffort = policy.maxEffort;
   if (effortLevel && maxEffort !== "max") {
     const EFFORT_ORDER = ["low", "medium", "high", "xhigh", "max"];
     const reqIdx = EFFORT_ORDER.indexOf(effortLevel);
