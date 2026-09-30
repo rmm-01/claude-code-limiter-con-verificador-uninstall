@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { User, FeedItem, UsageEvent } from '../lib/types';
-import { hashColor, getInitials, getModelLimit, getCreditRule, nextFeedId, countedDetail, formatTokens } from '../lib/utils';
+import { hashColor, getInitials, getModelLimit, getCreditRule, nextFeedId, countedDetail } from '../lib/utils';
+import { TokensLine } from '../components/Tokens';
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { StatusBadge, Badge } from '../components/Badge';
 import { ProgressBar } from '../components/ProgressBar';
@@ -278,40 +279,23 @@ function UserCard({
         )}
       </div>
 
-      {/* 7-day credits sparkline — quick visual of this user's trend.
-          Hidden when there's nothing to draw so cards stay compact. */}
-      {user.daily_credits_7d && user.daily_credits_7d.some((v) => v > 0) && (
-        <div className="mb-3 flex items-center justify-between gap-3" onClick={(e) => e.stopPropagation()}>
+      {/* Last 7 days: credits (limiter unit) and real tokens, always side by
+          side. Tokens read "n/d" while the machine still runs a pre-1.5 hook. */}
+      <div className="mb-3 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col">
             <span className="text-[10px] uppercase tracking-wider text-zinc-500">Últimos 7 días</span>
             <span className="text-xs font-mono text-zinc-300">
-              {user.daily_credits_7d.reduce((s, n) => s + n, 0)} créditos
+              {(user.daily_credits_7d ?? []).reduce((s, n) => s + n, 0)} créditos
             </span>
+            <TokensLine tokens={user.tokens_7d} />
           </div>
-          <Sparkline data={user.daily_credits_7d} width={120} height={28} />
-        </div>
-      )}
-
-      {/* Tokens and model versions (last 7 days). Only turns counted by a
-          v1.5+ hook carry them, so older installs simply don't show this. */}
-      {((user.tokens_7d?.total ?? 0) > 0 || (user.versions_7d?.length ?? 0) > 0) && (
-        <div className="mb-3 space-y-1.5">
-          {(user.tokens_7d?.total ?? 0) > 0 && (
-            <div
-              className="flex items-baseline justify-between text-xs"
-              title={`Input ${user.tokens_7d!.input.toLocaleString()} · Output ${user.tokens_7d!.output.toLocaleString()} · Cache leído ${user.tokens_7d!.cache_read.toLocaleString()}`}
-            >
-              <span className="text-[10px] uppercase tracking-wider text-zinc-500">Tokens 7 días</span>
-              <span className="font-mono text-zinc-300">
-                {formatTokens(user.tokens_7d!.total)}
-                <span className="text-zinc-600">
-                  {' '}({formatTokens(user.tokens_7d!.input)} in · {formatTokens(user.tokens_7d!.output)} out)
-                </span>
-              </span>
-            </div>
+          {user.daily_credits_7d && user.daily_credits_7d.some((v) => v > 0) && (
+            <Sparkline data={user.daily_credits_7d} width={120} height={28} />
           )}
-          {(user.versions_7d?.length ?? 0) > 0 && (
-            <div className="flex flex-wrap gap-1">
+        </div>
+        {(user.versions_7d?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap gap-1">
               {user.versions_7d!.slice(0, 4).map((v) => (
                 <span
                   key={`${v.model}-${v.model_version}`}
@@ -320,10 +304,9 @@ function UserCard({
                   {v.model_version} <span className="text-zinc-600">×{v.count}</span>
                 </span>
               ))}
-            </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       <div className="flex gap-2">
         {user.status === 'active' ? (

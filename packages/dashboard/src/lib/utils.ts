@@ -113,9 +113,13 @@ export function formatTokens(n: number | null | undefined): string {
   return String(v);
 }
 
+/** Shown wherever tokens are expected but the turn came from a pre-1.5 hook. */
+export const TOKENS_NA = 'n/d';
+export const TOKENS_NA_HINT = 'Sin datos de tokens: turnos registrados por un hook anterior a v1.5. Reinstalá el limiter en la máquina para medir tokens reales.';
+
 /**
  * Live-feed text for a counted turn: "opus-4-6 (+10 créditos · 12.3k tokens)".
- * Falls back to the family and omits tokens for events from older hooks.
+ * Falls back to the family, and to "tokens n/d" for events from older hooks.
  */
 export function countedDetail(
   model: string | undefined,
@@ -125,9 +129,9 @@ export function countedDetail(
   outputTokens?: number | null,
 ): string {
   const tokens = inputTokens != null || outputTokens != null
-    ? ` · ${formatTokens((inputTokens ?? 0) + (outputTokens ?? 0))} tokens`
-    : '';
-  return `${version || model || ''} (+${credits ?? 0} créditos${tokens})`;
+    ? `${formatTokens((inputTokens ?? 0) + (outputTokens ?? 0))} tokens`
+    : `tokens ${TOKENS_NA}`;
+  return `${version || model || ''} (+${credits ?? 0} créditos · ${tokens})`;
 }
 
 let feedIdCounter = 0;

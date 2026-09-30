@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
 import type { AnalyticsData, Device, DailyUsageRow } from '../lib/types';
-import { timeAgo } from '../lib/utils';
+import { timeAgo, formatTokens, TOKENS_NA, TOKENS_NA_HINT } from '../lib/utils';
+import { TokenValue } from '../components/Tokens';
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { Select } from '../components/Input';
 import { Table } from '../components/Table';
@@ -51,10 +52,13 @@ export function AnalyticsPage() {
   }
   // Build team credits trend
   const creditsByDay: Record<string, number> = {};
+  const tokensByDay: Record<string, number> = {};
   for (const d of data.daily_credits ?? []) {
     creditsByDay[d.date] = d.credits;
+    tokensByDay[d.date] = d.tokens ?? 0;
   }
   const creditsPts: Array<{ day: string; value: number }> = [];
+  const tokensPts: Array<{ day: string; value: number }> = [];
   const today = new Date();
   for (let td = Math.min(days, 30) - 1; td >= 0; td--) {
     const d = new Date(today);
@@ -62,11 +66,16 @@ export function AnalyticsPage() {
     const key = d.toISOString().split('T')[0];
     dauPts.push({ day: key, value: dayMap[key] ?? 0 });
     creditsPts.push({ day: key, value: creditsByDay[key] ?? 0 });
+    tokensPts.push({ day: key, value: tokensByDay[key] ?? 0 });
   }
+  const teamTokensTotal = tokensPts.reduce((s, p) => s + p.value, 0);
 
   // Build Top Consumers ranking — group usageDaily rows by user_id,
-  // sum credits and prompts across the entire selected range.
-  type Consumer = { user_id: string; user_name: string; credits: number; prompts: number };
+  // sum credits, prompts and real tokens across the entire selected range.
+  type Consumer = {
+    user_id: string; user_name: string; credits: number; prompts: number;
+    input_tokens: number; output_tokens: number; cache_read_tokens: number; turns_with_tokens: number;
+  };
   const consumerMap: Record<string, Consumer> = {};
   for (const row of usageDaily) {
     if (!row.user_id) continue;
@@ -77,10 +86,19 @@ export function AnalyticsPage() {
         user_name: row.user_name ?? row.user_id,
         credits: 0,
         prompts: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        turns_with_tokens: 0,
       };
     }
-    consumerMap[key].credits += row.credits ?? 0;
-    consumerMap[key].prompts += row.count ?? 0;
+    const c = consumerMap[key];
+    c.credits += row.credits ?? 0;
+    c.prompts += row.count ?? 0;
+    c.input_tokens += row.input_tokens ?? 0;
+    c.output_tokens += row.output_tokens ?? 0;
+    c.cache_read_tokens += row.cache_read_tokens ?? 0;
+    c.turns_with_tokens += row.turns_with_tokens ?? 0;
   }
   const topConsumers = Object.values(consumerMap).sort((a, b) => b.credits - a.credits);
 
@@ -167,6 +185,16 @@ export function AnalyticsPage() {
                 columns={[
                   { key: 'user_name', header: 'Usuario', render: (c) => <span className="text-zinc-200">{c.user_name}</span> },
                   { key: 'credits', header: 'Créditos', render: (c) => <span className="font-mono text-zinc-100">{c.credits}</span>, className: 'text-right' },
+                  {
+                    key: 'tokens',
+                    header: 'Tokens',
+                    render: (c) => (
+                      <span className="text-zinc-100">
+                        <TokenValue input={c.input_tokens} output={c.output_tokens} cacheRead={c.cache_read_tokens} hasData={c.turns_with_tokens > 0} />
+                      </span>
+                    ),
+                    className: 'text-right',
+                  },
                   { key: 'prompts', header: 'Prompts', render: (c) => <span className="font-mono text-zinc-400">{c.prompts}</span>, className: 'text-right' },
                 ]}
                 data={topConsumers}
@@ -214,6 +242,23 @@ export function AnalyticsPage() {
             </CardHeader>
             <CardBody>
               <TrendLineChart data={creditsPts} />
+            </CardBody>
+          </Card>
+
+          {/* Team real tokens (input + output) per day */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-zinc-200">Consumo del Equipo (tokens/día)</h3>
+              <span className="text-xs font-mono text-zinc-400">
+                {teamTokensTotal > 0 ? `${formatTokens(teamTokensTotal)} tokens` : `tokens ${TOKENS_NA}`}
+              </span>
+            </CardHeader>
+            <CardBody>
+              {teamTokensTotal > 0 ? (
+                <TrendLineChart data={tokensPts} />
+              ) : (
+                <p className="text-sm text-zinc-500 py-6 text-center">{TOKENS_NA_HINT}</p>
+              )}
             </CardBody>
           </Card>
 

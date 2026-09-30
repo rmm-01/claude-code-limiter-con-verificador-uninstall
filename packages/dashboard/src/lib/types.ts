@@ -71,6 +71,7 @@ export interface TokenTotals {
   output: number;
   cache_read: number;  // prompt-cache reads, reported apart
   total: number;       // input + output
+  turns_with_tokens?: number; // turns in the window that reported tokens
 }
 
 export interface VersionUsage {
@@ -128,6 +129,10 @@ export interface DailyUsageRow {
   model: string;
   count: number;
   credits: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_tokens?: number;
+  turns_with_tokens?: number;
 }
 
 export interface AnalyticsData {
@@ -142,7 +147,7 @@ export interface AnalyticsData {
   model_distribution: { [model: string]: number };
   peak_hours: Array<{ hour: number; count: number }>;
   daily_active: Array<{ date: string; users: number }>;
-  daily_credits?: Array<{ date: string; credits: number; prompts: number }>;
+  daily_credits?: Array<{ date: string; credits: number; prompts: number; tokens?: number }>;
   project_usage: Array<{ project: string; count: number }>;
   devices: Array<Device & { user_name?: string; user_slug?: string }>;
 }

@@ -1002,7 +1002,8 @@ function getAnalytics(teamId, opts) {
   // Filter uses ue.* (usage_event) instead of se.* (session_event).
   const ueUserFilter = opts.user_id ? ' AND ue.user_id = ?' : '';
   const dailyCredits = getDb().prepare(
-    `SELECT DATE(ue.timestamp) AS date, SUM(ue.credit_cost) AS credits, COUNT(*) AS prompts
+    `SELECT DATE(ue.timestamp) AS date, SUM(ue.credit_cost) AS credits, COUNT(*) AS prompts,
+            COALESCE(SUM(ue.input_tokens), 0) + COALESCE(SUM(ue.output_tokens), 0) AS tokens
      FROM usage_event ue
      JOIN user u ON ue.user_id = u.id
      WHERE u.team_id = ? AND ue.timestamp >= ?${ueUserFilter}

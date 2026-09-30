@@ -105,13 +105,14 @@ router.get('/users', (req, res) => {
       `SELECT ue.user_id,
               COALESCE(SUM(ue.input_tokens), 0) AS input,
               COALESCE(SUM(ue.output_tokens), 0) AS output,
-              COALESCE(SUM(ue.cache_read_tokens), 0) AS cache_read
+              COALESCE(SUM(ue.cache_read_tokens), 0) AS cache_read,
+              COUNT(ue.input_tokens) AS turns_with_tokens
        FROM usage_event ue
        JOIN user u ON ue.user_id = u.id
        WHERE u.team_id = ? AND ue.timestamp >= ?
        GROUP BY ue.user_id`
     ).all(team.id, sparkSince)) {
-      tokenMap[r.user_id] = { input: r.input, output: r.output, cache_read: r.cache_read, total: r.input + r.output };
+      tokenMap[r.user_id] = { input: r.input, output: r.output, cache_read: r.cache_read, total: r.input + r.output, turns_with_tokens: r.turns_with_tokens };
     }
     const versionMap = {};
     for (const r of db.getDb().prepare(
@@ -170,7 +171,7 @@ router.get('/users', (req, res) => {
         credit_balance: creditBalance,
         credit_budget: creditBudget,
         daily_credits_7d: dailyCredits7d,
-        tokens_7d: tokenMap[user.id] || { input: 0, output: 0, cache_read: 0, total: 0 },
+        tokens_7d: tokenMap[user.id] || { input: 0, output: 0, cache_read: 0, total: 0, turns_with_tokens: 0 },
         versions_7d: versionMap[user.id] || [],
         devices: devices.map(d => ({
           id: d.id,
@@ -442,7 +443,11 @@ router.get('/usage', (req, res) => {
       // Get daily breakdown for chart
       const since = new Date(Date.now() - numDays * 24 * 60 * 60 * 1000).toISOString();
       const dailyRows = db.getDb().prepare(
-        `SELECT DATE(timestamp) AS day, model, COUNT(*) AS count, SUM(credit_cost) AS credits
+        `SELECT DATE(timestamp) AS day, model, COUNT(*) AS count, SUM(credit_cost) AS credits,
+                COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
+                COUNT(input_tokens) AS turns_with_tokens
          FROM usage_event
          WHERE user_id = ? AND timestamp >= ?
          GROUP BY DATE(timestamp), model
@@ -456,7 +461,11 @@ router.get('/usage', (req, res) => {
       const since = new Date(Date.now() - numDays * 24 * 60 * 60 * 1000).toISOString();
 
       const dailyRows = db.getDb().prepare(
-        `SELECT DATE(e.timestamp) AS day, e.user_id, u.name AS user_name, e.model, COUNT(*) AS count, SUM(e.credit_cost) AS credits
+        `SELECT DATE(e.timestamp) AS day, e.user_id, u.name AS user_name, e.model, COUNT(*) AS count, SUM(e.credit_cost) AS credits,
+                COALESCE(SUM(e.input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(e.output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(e.cache_read_tokens), 0) AS cache_read_tokens,
+                COUNT(e.input_tokens) AS turns_with_tokens
          FROM usage_event e
          JOIN user u ON e.user_id = u.id
          WHERE u.team_id = ? AND e.timestamp >= ?

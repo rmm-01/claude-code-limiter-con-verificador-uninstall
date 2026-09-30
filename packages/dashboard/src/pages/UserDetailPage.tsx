@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { User, DailyUsageRow, UsageEvent, AnalyticsData, VersionUsage } from '../lib/types';
-import { hashColor, getInitials, getModelLimit, getCreditRule, timeAgo, formatTokens } from '../lib/utils';
+import { hashColor, getInitials, getModelLimit, getCreditRule, timeAgo, TOKENS_NA_HINT } from '../lib/utils';
+import { TokensLine, TokenValue } from '../components/Tokens';
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { StatusBadge, Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -146,15 +147,27 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
     limit: getModelLimit(limits, m) > 0 ? getModelLimit(limits, m) : 0,
   }));
 
-  // Build trend data — promptsByDay (count) and creditsByDay (credit_cost sum)
+  // Build trend data — prompts (count), credits (credit_cost sum) and real
+  // tokens (input + output) per day
   const promptsByDay: Record<string, number> = {};
   const creditsByDay: Record<string, number> = {};
+  const tokensByDay: Record<string, number> = {};
+  const periodTokens = { input: 0, output: 0, cache_read: 0, total: 0, turns_with_tokens: 0 };
   for (const row of usageDaily) {
     promptsByDay[row.day] = (promptsByDay[row.day] ?? 0) + row.count;
     creditsByDay[row.day] = (creditsByDay[row.day] ?? 0) + (row.credits ?? 0);
+    const t = (row.input_tokens ?? 0) + (row.output_tokens ?? 0);
+    tokensByDay[row.day] = (tokensByDay[row.day] ?? 0) + t;
+    periodTokens.input += row.input_tokens ?? 0;
+    periodTokens.output += row.output_tokens ?? 0;
+    periodTokens.cache_read += row.cache_read_tokens ?? 0;
+    periodTokens.total += t;
+    periodTokens.turns_with_tokens += row.turns_with_tokens ?? 0;
   }
+  const periodCredits = Object.values(creditsByDay).reduce((s, n) => s + n, 0);
   const trendData: Array<{ day: string; value: number }> = [];
   const creditsTrendData: Array<{ day: string; value: number }> = [];
+  const tokensTrendData: Array<{ day: string; value: number }> = [];
   const today = new Date();
   for (let td = days - 1; td >= 0; td--) {
     const d = new Date(today);
@@ -162,6 +175,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
     const key = d.toISOString().split('T')[0];
     trendData.push({ day: key, value: promptsByDay[key] ?? 0 });
     creditsTrendData.push({ day: key, value: creditsByDay[key] ?? 0 });
+    tokensTrendData.push({ day: key, value: tokensByDay[key] ?? 0 });
   }
 
   const userDevices = user.devices ?? [];
@@ -486,14 +500,14 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                       <div className="flex items-center gap-3">
                         <span className="text-zinc-400">{v.count} turnos</span>
                         <span className="text-zinc-500">{v.total_credits} cr</span>
-                        {(v.input_tokens ?? 0) + (v.output_tokens ?? 0) > 0 && (
-                          <span
-                            className="text-zinc-500 font-mono"
-                            title={`Input ${(v.input_tokens ?? 0).toLocaleString()} · Output ${(v.output_tokens ?? 0).toLocaleString()} · Cache leído ${(v.cache_read_tokens ?? 0).toLocaleString()}`}
-                          >
-                            {formatTokens((v.input_tokens ?? 0) + (v.output_tokens ?? 0))} tok
-                          </span>
-                        )}
+                        <span className="text-zinc-400 w-16 text-right">
+                          <TokenValue
+                            input={v.input_tokens}
+                            output={v.output_tokens}
+                            cacheRead={v.cache_read_tokens}
+                            hasData={(v.input_tokens ?? 0) + (v.output_tokens ?? 0) > 0}
+                          /> tok
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -537,9 +551,25 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
           <Card>
             <CardHeader>
               <h3 className="text-sm font-semibold text-zinc-200">Créditos Consumidos ({days} días)</h3>
+              <span className="text-xs font-mono text-zinc-400">{periodCredits} créditos</span>
             </CardHeader>
             <CardBody>
               <TrendLineChart data={creditsTrendData} />
+            </CardBody>
+          </Card>
+
+          {/* Trend — real tokens (input + output) */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-zinc-200">Tokens Consumidos ({days} días)</h3>
+              <TokensLine tokens={periodTokens} />
+            </CardHeader>
+            <CardBody>
+              {periodTokens.turns_with_tokens > 0 ? (
+                <TrendLineChart data={tokensTrendData} />
+              ) : (
+                <p className="text-sm text-zinc-500 py-6 text-center">{TOKENS_NA_HINT}</p>
+              )}
             </CardBody>
           </Card>
 
@@ -605,8 +635,9 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
               <Table
                 columns={[
                   { key: 'time', header: 'Hora', render: (e) => <span className="font-mono text-xs">{timeAgo(e.timestamp)}</span> },
-                  { key: 'model', header: 'Modelo', render: (e) => <Badge variant="model">{e.model}</Badge> },
+                  { key: 'model', header: 'Modelo', render: (e) => <Badge variant="model">{e.model_version || e.model}</Badge> },
                   { key: 'credits', header: 'Créditos', render: (e) => <span className="font-mono">{e.credit_cost}</span>, className: 'text-right' },
+                  { key: 'tokens', header: 'Tokens', render: (e) => <TokenValue input={e.input_tokens} output={e.output_tokens} />, className: 'text-right' },
                 ]}
                 data={events}
                 keyExtractor={(e) => e.id ?? `${e.timestamp}-${e.model}`}
