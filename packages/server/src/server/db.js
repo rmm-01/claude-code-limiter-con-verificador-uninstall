@@ -188,6 +188,11 @@ function init(dbPath) {
   if (!usageCols.includes('output_tokens')) {
     db.exec('ALTER TABLE usage_event ADD COLUMN output_tokens INTEGER');
   }
+  // Prompt-cache reads, kept apart from input_tokens: they re-read the whole
+  // context on every call and would dwarf the tokens actually processed.
+  if (!usageCols.includes('cache_read_tokens')) {
+    db.exec('ALTER TABLE usage_event ADD COLUMN cache_read_tokens INTEGER');
+  }
   if (!sessionCols.includes('effort_level')) {
     db.exec('ALTER TABLE session_event ADD COLUMN effort_level TEXT');
   }
@@ -448,12 +453,12 @@ function deleteLimitRulesForUser(userId) {
 
 // --------------- Usage Event helpers ---------------
 
-function recordUsage({ userId, model, modelVersion, creditCost, timestamp, source, effortLevel, isSubagent, inputTokens, outputTokens }) {
+function recordUsage({ userId, model, modelVersion, creditCost, timestamp, source, effortLevel, isSubagent, inputTokens, outputTokens, cacheReadTokens }) {
   const ts = timestamp || new Date().toISOString();
   const src = source || 'hook';
   return getDb().prepare(
-    'INSERT INTO usage_event (user_id, model, model_version, credit_cost, timestamp, source, effort_level, is_subagent, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(userId, model, modelVersion || null, creditCost, ts, src, effortLevel || null, isSubagent ? 1 : 0, inputTokens != null ? inputTokens : null, outputTokens != null ? outputTokens : null);
+    'INSERT INTO usage_event (user_id, model, model_version, credit_cost, timestamp, source, effort_level, is_subagent, input_tokens, output_tokens, cache_read_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(userId, model, modelVersion || null, creditCost, ts, src, effortLevel || null, isSubagent ? 1 : 0, inputTokens != null ? inputTokens : null, outputTokens != null ? outputTokens : null, cacheReadTokens != null ? cacheReadTokens : null);
 }
 
 /**
@@ -491,11 +496,14 @@ function getUsageWithCredits(userId, since) {
 
 /**
  * Get usage broken down by model_version for a user since a given timestamp.
- * Returns array of { model, model_version, count, total_credits }
+ * Returns array of { model, model_version, count, total_credits, input_tokens, output_tokens, cache_read_tokens }
  */
 function getUsageByVersion(userId, since) {
   return getDb().prepare(
-    `SELECT model, model_version, COUNT(*) AS count, SUM(credit_cost) AS total_credits
+    `SELECT model, model_version, COUNT(*) AS count, SUM(credit_cost) AS total_credits,
+            COALESCE(SUM(input_tokens), 0) AS input_tokens,
+            COALESCE(SUM(output_tokens), 0) AS output_tokens,
+            COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens
      FROM usage_event WHERE user_id = ? AND timestamp >= ?
      GROUP BY model, model_version
      ORDER BY model, count DESC`

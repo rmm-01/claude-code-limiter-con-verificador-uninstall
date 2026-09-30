@@ -99,6 +99,34 @@ router.get('/users', (req, res) => {
       sparkMap[r.user_id][r.date] = r.credits;
     }
 
+    // Same 7-day window: tokens and model versions per user, for the cards.
+    const tokenMap = {};
+    for (const r of db.getDb().prepare(
+      `SELECT ue.user_id,
+              COALESCE(SUM(ue.input_tokens), 0) AS input,
+              COALESCE(SUM(ue.output_tokens), 0) AS output,
+              COALESCE(SUM(ue.cache_read_tokens), 0) AS cache_read
+       FROM usage_event ue
+       JOIN user u ON ue.user_id = u.id
+       WHERE u.team_id = ? AND ue.timestamp >= ?
+       GROUP BY ue.user_id`
+    ).all(team.id, sparkSince)) {
+      tokenMap[r.user_id] = { input: r.input, output: r.output, cache_read: r.cache_read, total: r.input + r.output };
+    }
+    const versionMap = {};
+    for (const r of db.getDb().prepare(
+      `SELECT ue.user_id, ue.model, ue.model_version, COUNT(*) AS count
+       FROM usage_event ue
+       JOIN user u ON ue.user_id = u.id
+       WHERE u.team_id = ? AND ue.timestamp >= ?
+         AND ue.model_version IS NOT NULL AND ue.model_version != ue.model
+       GROUP BY ue.user_id, ue.model, ue.model_version
+       ORDER BY count DESC`
+    ).all(team.id, sparkSince)) {
+      if (!versionMap[r.user_id]) versionMap[r.user_id] = [];
+      versionMap[r.user_id].push({ model: r.model, model_version: r.model_version, count: r.count });
+    }
+
     const result = users.map(user => {
       const limits = db.getLimitRules(user.id);
       const usageSummary = getUsageSummary(user.id);
@@ -142,6 +170,8 @@ router.get('/users', (req, res) => {
         credit_balance: creditBalance,
         credit_budget: creditBudget,
         daily_credits_7d: dailyCredits7d,
+        tokens_7d: tokenMap[user.id] || { input: 0, output: 0, cache_read: 0, total: 0 },
+        versions_7d: versionMap[user.id] || [],
         devices: devices.map(d => ({
           id: d.id,
           hostname: d.hostname,
@@ -464,7 +494,10 @@ router.get('/usage/versions', (req, res) => {
     } else {
       const rows = db.getDb().prepare(
         `SELECT e.model, e.model_version, e.user_id, u.name AS user_name,
-                COUNT(*) AS count, SUM(e.credit_cost) AS total_credits
+                COUNT(*) AS count, SUM(e.credit_cost) AS total_credits,
+                COALESCE(SUM(e.input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(e.output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(e.cache_read_tokens), 0) AS cache_read_tokens
          FROM usage_event e
          JOIN user u ON e.user_id = u.id
          WHERE u.team_id = ? AND e.timestamp >= ?

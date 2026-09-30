@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { User, DailyUsageRow, UsageEvent, AnalyticsData } from '../lib/types';
-import { hashColor, getInitials, getModelLimit, getCreditRule, timeAgo } from '../lib/utils';
+import type { User, DailyUsageRow, UsageEvent, AnalyticsData, VersionUsage } from '../lib/types';
+import { hashColor, getInitials, getModelLimit, getCreditRule, timeAgo, formatTokens } from '../lib/utils';
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { StatusBadge, Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -28,7 +28,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   const [events, setEvents] = useState<UsageEvent[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [versionData, setVersionData] = useState<Array<{ model: string; model_version: string | null; count: number; total_credits: number }>>([]);
+  const [versionData, setVersionData] = useState<VersionUsage[]>([]);
   const [days, setDays] = useState(30);
   const [editLimitsOpen, setEditLimitsOpen] = useState(false);
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
@@ -486,6 +486,14 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                       <div className="flex items-center gap-3">
                         <span className="text-zinc-400">{v.count} turnos</span>
                         <span className="text-zinc-500">{v.total_credits} cr</span>
+                        {(v.input_tokens ?? 0) + (v.output_tokens ?? 0) > 0 && (
+                          <span
+                            className="text-zinc-500 font-mono"
+                            title={`Input ${(v.input_tokens ?? 0).toLocaleString()} · Output ${(v.output_tokens ?? 0).toLocaleString()} · Cache leído ${(v.cache_read_tokens ?? 0).toLocaleString()}`}
+                          >
+                            {formatTokens((v.input_tokens ?? 0) + (v.output_tokens ?? 0))} tok
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}

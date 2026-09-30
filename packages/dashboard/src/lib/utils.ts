@@ -105,6 +105,31 @@ export function copyToClipboard(text: string): Promise<void> {
   });
 }
 
+/** 950 → "950", 12_345 → "12.3k", 4_038_609 → "4.04M" */
+export function formatTokens(n: number | null | undefined): string {
+  const v = n ?? 0;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(v >= 10_000_000 ? 1 : 2)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(v >= 100_000 ? 0 : 1)}k`;
+  return String(v);
+}
+
+/**
+ * Live-feed text for a counted turn: "opus-4-6 (+10 créditos · 12.3k tokens)".
+ * Falls back to the family and omits tokens for events from older hooks.
+ */
+export function countedDetail(
+  model: string | undefined,
+  version: string | null | undefined,
+  credits: number | undefined,
+  inputTokens?: number | null,
+  outputTokens?: number | null,
+): string {
+  const tokens = inputTokens != null || outputTokens != null
+    ? ` · ${formatTokens((inputTokens ?? 0) + (outputTokens ?? 0))} tokens`
+    : '';
+  return `${version || model || ''} (+${credits ?? 0} créditos${tokens})`;
+}
+
 let feedIdCounter = 0;
 export function nextFeedId(): string {
   return `feed-${++feedIdCounter}-${Date.now()}`;

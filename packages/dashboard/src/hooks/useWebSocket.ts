@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { ws } from '../lib/ws';
 import type { WSEvent, FeedItem } from '../lib/types';
-import { nextFeedId, formatTime } from '../lib/utils';
+import { nextFeedId, formatTime, countedDetail } from '../lib/utils';
 
 type ConnectionState = 'connected' | 'connecting' | 'disconnected';
 
@@ -49,7 +49,7 @@ function wsEventToFeed(evt: WSEvent): FeedItem | null {
         id: nextFeedId(),
         type: 'counted',
         user: evt.userName ?? 'Desconocido',
-        detail: `${evt.model ?? ''} (+${evt.creditCost ?? 0} créditos)`,
+        detail: countedDetail(evt.model, evt.modelVersion, evt.creditCost, evt.inputTokens, evt.outputTokens),
         time: evt.timestamp,
       };
     case 'user_status_change':

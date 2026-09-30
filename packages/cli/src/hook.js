@@ -180,14 +180,20 @@ function normalizeModel(raw) {
 
 // Extract a normalized version string from a raw model ID.
 // "claude-opus-4-6" → "opus-4-6", "claude-fable-5" → "fable-5",
-// "claude-sonnet-4-6-20250101" → "sonnet-4-6"
+// "claude-sonnet-4-6-20250101" → "sonnet-4-6", "claude-sonnet-5" → "sonnet-5",
+// "claude-3-5-haiku-20241022" → "haiku-3-5"
 // Falls back to the family name if no version found.
 function extractModelVersion(raw) {
   const lower = String(raw || "").toLowerCase().trim();
-  // Match family + version digits: e.g. "opus-4-6", "sonnet-4-6", "fable-5", "haiku-4-5"
-  const match = lower.match(/(fable|opus|sonnet|haiku)[- ](\d[\d.-]*\d)/);
+  // family-major[-minor]; minor is 1-2 digits so an 8-digit date suffix is dropped
+  let match = lower.match(/(fable|opus|sonnet|haiku)[- ](\d{1,2})(?:[-.](\d{1,2}))?(?!\d)/);
   if (match) {
-    return match[1] + "-" + match[2].replace(/\./g, "-");
+    return match[1] + "-" + match[2] + (match[3] ? "-" + match[3] : "");
+  }
+  // Legacy naming puts the version before the family: claude-3-5-sonnet
+  match = lower.match(/(\d{1,2})[-.](\d{1,2})-(fable|opus|sonnet|haiku)/);
+  if (match) {
+    return match[3] + "-" + match[1] + "-" + match[2];
   }
   return normalizeModel(raw);
 }
@@ -588,30 +594,91 @@ function triggerLogout() {
 // TOKEN PARSING — Extract usage from transcript JSONL
 // ════════════════════════════════════════════════════════════
 
-function parseTokensFromTranscript(transcriptPath) {
-  const result = { input: null, output: null };
+// Read the last `bytes` of a file as lines. The first line is dropped when
+// the read starts mid-file, since it is almost certainly truncated.
+function readTailLines(filePath, bytes) {
+  const stat = fs.statSync(filePath);
+  const size = Math.min(stat.size, bytes);
+  const buf = Buffer.alloc(size);
+  const fd = fs.openSync(filePath, "r");
+  try { fs.readSync(fd, buf, 0, size, stat.size - size); } finally { fs.closeSync(fd); }
+  const lines = buf.toString("utf-8").split("\n");
+  if (size < stat.size) lines.shift();
+  return { lines: lines.filter(Boolean), complete: size >= stat.size };
+}
+
+// A real user prompt (not a tool_result, meta message or subagent entry).
+function isHumanPrompt(entry) {
+  return entry.type === "user" && !entry.toolUseResult && !entry.isSidechain && !entry.isMeta;
+}
+
+// Add one assistant entry's usage to `acc`. Claude Code writes one line per
+// content block, all repeating the same message.id and usage — count once.
+function addUsage(acc, entry) {
+  const msg = entry.message;
+  if (!msg || !msg.usage) return;
+  const id = msg.id || entry.uuid;
+  if (acc.seen.has(id)) return;
+  acc.seen.add(id);
+  const u = msg.usage;
+  acc.input += (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+  acc.cacheRead += u.cache_read_input_tokens || 0;
+  acc.output += u.output_tokens || 0;
+  acc.found = true;
+}
+
+/**
+ * Token usage for the turn that just finished: every assistant message after
+ * the last human prompt in the main transcript, plus subagent transcripts
+ * (<session>/subagents/*.jsonl) written during the same turn.
+ * Also returns the model and effort of the latest assistant message, which
+ * are more reliable than settings.json (they are what actually ran).
+ */
+function parseTurnFromTranscript(transcriptPath) {
+  const result = { input: null, output: null, cacheRead: null, model: null, effort: null };
   if (!transcriptPath) return result;
+  const acc = { input: 0, output: 0, cacheRead: 0, seen: new Set(), found: false };
+  let promptTs = null;
   try {
-    const stat = fs.statSync(transcriptPath);
-    // Read last 8KB — enough to find the most recent usage entry
-    const bufSize = Math.min(stat.size, 8192);
-    const buf = Buffer.alloc(bufSize);
-    const fd = fs.openSync(transcriptPath, "r");
-    fs.readSync(fd, buf, 0, bufSize, stat.size - bufSize);
-    fs.closeSync(fd);
-    const tail = buf.toString("utf-8");
-    const lines = tail.split("\n").filter(Boolean);
-    // Scan backwards for a line containing token usage
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try {
-        const entry = JSON.parse(lines[i]);
-        const usage = entry.usage || entry.message?.usage;
-        if (usage && (usage.input_tokens || usage.output_tokens)) {
-          result.input = usage.input_tokens || 0;
-          result.output = usage.output_tokens || 0;
-          break;
+    // Grow the window until the turn's prompt is found (long turns with many
+    // tool calls can span several MB).
+    for (const bytes of [1 << 20, 8 << 20, 32 << 20]) {
+      const { lines, complete } = readTailLines(transcriptPath, bytes);
+      acc.input = 0; acc.output = 0; acc.cacheRead = 0; acc.seen.clear(); acc.found = false;
+      result.model = null; result.effort = null;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        let entry;
+        try { entry = JSON.parse(lines[i]); } catch { continue; }
+        if (isHumanPrompt(entry)) { promptTs = entry.timestamp || null; break; }
+        if (entry.type === "assistant" && !entry.isSidechain) {
+          if (!result.model && entry.message && entry.message.model) result.model = entry.message.model;
+          if (!result.effort && typeof entry.effort === "string") result.effort = entry.effort;
+          addUsage(acc, entry);
         }
-      } catch { /* not valid JSON, skip */ }
+      }
+      if (promptTs || complete) break;
+    }
+
+    // Subagents run in their own transcript files.
+    const subDir = path.join(transcriptPath.replace(/\.jsonl$/, ""), "subagents");
+    if (promptTs && fs.existsSync(subDir)) {
+      const since = Date.parse(promptTs);
+      for (const name of fs.readdirSync(subDir)) {
+        if (!name.endsWith(".jsonl")) continue;
+        const file = path.join(subDir, name);
+        if (fs.statSync(file).mtimeMs < since) continue;
+        for (const line of readTailLines(file, 16 << 20).lines) {
+          let entry;
+          try { entry = JSON.parse(line); } catch { continue; }
+          if (entry.type === "assistant" && Date.parse(entry.timestamp) >= since) addUsage(acc, entry);
+        }
+      }
+    }
+
+    if (acc.found) {
+      result.input = acc.input;
+      result.output = acc.output;
+      result.cacheRead = acc.cacheRead;
     }
   } catch (err) {
     debugLog(`TRANSCRIPT_PARSE error: ${err.message}`);
@@ -820,10 +887,13 @@ async function actionCount(config) {
     return;
   }
 
-  const rawModel = detectModelRaw(stdinData, config);
+  // The transcript records the model and effort that actually answered this
+  // turn; prefer it over settings-based detection.
+  const turn = parseTurnFromTranscript(stdinData.transcript_path);
+  const rawModel = turn.model || detectModelRaw(stdinData, config);
   const model = normalizeModel(rawModel);
   const modelVersion = extractModelVersion(rawModel);
-  const effortLevel = (stdinData.effort && stdinData.effort.level) || null;
+  const effortLevel = (stdinData.effort && stdinData.effort.level) || turn.effort || null;
   const agentId = stdinData.agent_id || null;
   const agentType = stdinData.agent_type || null;
   const usage = loadUsage();
@@ -832,10 +902,7 @@ async function actionCount(config) {
   saveUsage(usage);
   cleanupOldUsage();
 
-  // Try to extract token counts from transcript
-  const tokens = parseTokensFromTranscript(stdinData.transcript_path);
-
-  debugLog(`COUNT model=${model} version=${modelVersion} effort=${effortLevel} agent=${agentType || "none"} tokens=${JSON.stringify(tokens)} ${prev} → ${prev + 1}`);
+  debugLog(`COUNT model=${model} version=${modelVersion} effort=${effortLevel} agent=${agentType || "none"} tokens=in:${turn.input} out:${turn.output} cache_read:${turn.cacheRead} ${prev} → ${prev + 1}`);
 
   await serverRequest("/api/v1/count", {
     model,
@@ -843,8 +910,9 @@ async function actionCount(config) {
     effort_level: effortLevel,
     agent_id: agentId,
     agent_type: agentType,
-    input_tokens: tokens.input,
-    output_tokens: tokens.output,
+    input_tokens: turn.input,
+    output_tokens: turn.output,
+    cache_read_tokens: turn.cacheRead,
     timestamp: new Date().toISOString(),
     session_id: stdinData.session_id || null,
     response_length: (stdinData.last_assistant_message || "").length,

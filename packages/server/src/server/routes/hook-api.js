@@ -276,6 +276,7 @@ router.post('/count', hookAuth, (req, res) => {
     const agentType = req.body.agent_type || null;
     const inputTokens = req.body.input_tokens != null ? req.body.input_tokens : null;
     const outputTokens = req.body.output_tokens != null ? req.body.output_tokens : null;
+    const cacheReadTokens = req.body.cache_read_tokens != null ? req.body.cache_read_tokens : null;
     const timestamp = req.body.timestamp || new Date().toISOString();
     const creditWeights = JSON.parse(team.credit_weights);
     const clientIp = getClientIp(req);
@@ -299,6 +300,7 @@ router.post('/count', hookAuth, (req, res) => {
       isSubagent: !!agentId,
       inputTokens,
       outputTokens,
+      cacheReadTokens,
     });
 
     // Update device last_seen and IP
@@ -339,7 +341,10 @@ router.post('/count', hookAuth, (req, res) => {
       userId: user.id,
       userName: user.name,
       model,
+      modelVersion,
       creditCost,
+      inputTokens,
+      outputTokens,
       sessionId: req.body.session_id || null,
       timestamp,
     });

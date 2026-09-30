@@ -57,10 +57,32 @@ export interface User {
   // Credits consumed on each of the last 7 days (oldest first).
   // Optional — older server builds don't include it.
   daily_credits_7d?: number[];
+  // Last 7 days. Only turns counted by a hook that reports them (v1.5+).
+  tokens_7d?: TokenTotals;
+  versions_7d?: Array<{ model: string; model_version: string; count: number }>;
   // Timestamp (UTC ISO) of the last time the hook reported a
   // managed-settings.json hash that did not match the expected one.
   // Null = never tampered (or older client/server without tamper detection).
   last_tampering_at?: string | null;
+}
+
+export interface TokenTotals {
+  input: number;       // new input + cache writes
+  output: number;
+  cache_read: number;  // prompt-cache reads, reported apart
+  total: number;       // input + output
+}
+
+export interface VersionUsage {
+  model: string;
+  model_version: string | null;
+  count: number;
+  total_credits: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_tokens?: number;
+  user_id?: string;
+  user_name?: string;
 }
 
 export interface EffortMultipliers {
@@ -92,7 +114,10 @@ export interface UsageEvent {
   user_id: string;
   user_name: string;
   model: string;
+  model_version?: string | null;
   credit_cost: number;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
   timestamp: string;
 }
 
@@ -179,8 +204,11 @@ export interface WSEvent {
   userId?: string;
   userName?: string;
   model?: string;
+  modelVersion?: string | null;
   reason?: string;
   creditCost?: number;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
   oldStatus?: string;
   newStatus?: string;
   projectDir?: string;

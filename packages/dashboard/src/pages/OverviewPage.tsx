@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { User, FeedItem, UsageEvent } from '../lib/types';
-import { hashColor, getInitials, getModelLimit, getCreditRule, nextFeedId } from '../lib/utils';
+import { hashColor, getInitials, getModelLimit, getCreditRule, nextFeedId, countedDetail, formatTokens } from '../lib/utils';
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { StatusBadge, Badge } from '../components/Badge';
 import { ProgressBar } from '../components/ProgressBar';
@@ -39,7 +39,7 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
         id: nextFeedId(),
         type: 'counted' as const,
         user: evt.user_name ?? 'Desconocido',
-        detail: `${evt.model} (+${evt.credit_cost} créditos)`,
+        detail: countedDetail(evt.model, evt.model_version, evt.credit_cost, evt.input_tokens, evt.output_tokens),
         time: evt.timestamp,
       }));
       setFeedItems(items);
@@ -289,6 +289,39 @@ function UserCard({
             </span>
           </div>
           <Sparkline data={user.daily_credits_7d} width={120} height={28} />
+        </div>
+      )}
+
+      {/* Tokens and model versions (last 7 days). Only turns counted by a
+          v1.5+ hook carry them, so older installs simply don't show this. */}
+      {((user.tokens_7d?.total ?? 0) > 0 || (user.versions_7d?.length ?? 0) > 0) && (
+        <div className="mb-3 space-y-1.5">
+          {(user.tokens_7d?.total ?? 0) > 0 && (
+            <div
+              className="flex items-baseline justify-between text-xs"
+              title={`Input ${user.tokens_7d!.input.toLocaleString()} · Output ${user.tokens_7d!.output.toLocaleString()} · Cache leído ${user.tokens_7d!.cache_read.toLocaleString()}`}
+            >
+              <span className="text-[10px] uppercase tracking-wider text-zinc-500">Tokens 7 días</span>
+              <span className="font-mono text-zinc-300">
+                {formatTokens(user.tokens_7d!.total)}
+                <span className="text-zinc-600">
+                  {' '}({formatTokens(user.tokens_7d!.input)} in · {formatTokens(user.tokens_7d!.output)} out)
+                </span>
+              </span>
+            </div>
+          )}
+          {(user.versions_7d?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {user.versions_7d!.slice(0, 4).map((v) => (
+                <span
+                  key={`${v.model}-${v.model_version}`}
+                  className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700/60 text-[10px] font-mono text-zinc-400"
+                >
+                  {v.model_version} <span className="text-zinc-600">×{v.count}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -13,6 +13,7 @@ import type {
   UsageEvent,
   DailyUsageRow,
   AnalyticsData,
+  VersionUsage,
 } from './types';
 
 const TOKEN_KEY = 'clm_token';
@@ -181,7 +182,7 @@ async function getUsageVersions(params?: {
   days?: number;
 }): Promise<{
   user_id?: string;
-  versions: Array<{ model: string; model_version: string | null; count: number; total_credits: number; user_id?: string; user_name?: string }>;
+  versions: VersionUsage[];
 }> {
   return request(`/api/admin/usage/versions${buildQS(params)}`);
 }
