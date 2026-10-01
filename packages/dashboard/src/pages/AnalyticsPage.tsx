@@ -100,7 +100,11 @@ export function AnalyticsPage() {
     c.cache_read_tokens += row.cache_read_tokens ?? 0;
     c.turns_with_tokens += row.turns_with_tokens ?? 0;
   }
-  const topConsumers = Object.values(consumerMap).sort((a, b) => b.credits - a.credits);
+  // Rank by the same input+output total the Tokens column displays; credits break ties.
+  const shownTokens = (c: { input_tokens: number; output_tokens: number }) => c.input_tokens + c.output_tokens;
+  const topConsumers = Object.values(consumerMap).sort(
+    (a, b) => shownTokens(b) - shownTokens(a) || b.credits - a.credits,
+  );
 
   const devices: Array<Device & { user_name?: string; user_slug?: string }> = data.devices ?? [];
 
@@ -175,7 +179,7 @@ export function AnalyticsPage() {
             </Card>
           )}
 
-          {/* Top Consumers — ranking by credits in the selected range */}
+          {/* Top Consumers — ranking by tokens in the selected range */}
           <Card>
             <CardHeader>
               <h3 className="text-sm font-semibold text-zinc-200">Top Consumidores ({days} días)</h3>
