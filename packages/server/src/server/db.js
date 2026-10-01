@@ -189,6 +189,12 @@ function runMigrations(db) {
     db.exec('ALTER TABLE user ADD COLUMN allow_agents INTEGER NOT NULL DEFAULT 0');
   }
 
+  // Per-user opt-out of allowManagedHooksOnly (lets the user keep their own
+  // hooks, e.g. a custom statusLine). Default 0 = hooks stay locked.
+  if (!cols.includes('allow_user_hooks')) {
+    db.exec('ALTER TABLE user ADD COLUMN allow_user_hooks INTEGER NOT NULL DEFAULT 0');
+  }
+
   // Add model_version to usage_event and session_event (v1.4)
   const usageCols = db.pragma('table_info(usage_event)').map(c => c.name);
   if (!usageCols.includes('model_version')) {
@@ -425,6 +431,7 @@ function updateUser(userId, fields) {
   if (fields.last_seen !== undefined) { sets.push('last_seen = ?'); values.push(fields.last_seen); }
   if (fields.allow_self_uninstall !== undefined) { sets.push('allow_self_uninstall = ?'); values.push(fields.allow_self_uninstall ? 1 : 0); }
   if (fields.allow_agents !== undefined) { sets.push('allow_agents = ?'); values.push(fields.allow_agents ? 1 : 0); }
+  if (fields.allow_user_hooks !== undefined) { sets.push('allow_user_hooks = ?'); values.push(fields.allow_user_hooks ? 1 : 0); }
   if (fields.pending_uninstall_expires_at !== undefined) {
     sets.push('pending_uninstall_expires_at = ?');
     values.push(fields.pending_uninstall_expires_at);

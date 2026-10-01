@@ -163,6 +163,7 @@ router.get('/users', (req, res) => {
         created_at: user.created_at,
         allow_self_uninstall: !!user.allow_self_uninstall,
         allow_agents: !!user.allow_agents,
+        allow_user_hooks: !!user.allow_user_hooks,
         allow_workflows: !!user.allow_workflows,
         max_effort_level: user.max_effort_level || 'max',
         last_tampering_at: user.last_tampering_at || null,
@@ -284,11 +285,11 @@ router.put('/users/:id', (req, res) => {
     }
 
     const { limits } = req.body;
-    const updates = pickDefined(req.body, ['name', 'slug', 'status', 'allow_self_uninstall', 'allow_agents', 'allow_workflows', 'max_effort_level']);
+    const updates = pickDefined(req.body, ['name', 'slug', 'status', 'allow_self_uninstall', 'allow_agents', 'allow_user_hooks', 'allow_workflows', 'max_effort_level']);
 
-    // Reset expected hash when toggling agents — the hook will modify
-    // managed-settings.json on next sync, so the old hash is stale.
-    if (updates.allow_agents !== undefined) {
+    // Reset expected hash when toggling agents or user hooks — the hook will
+    // modify managed-settings.json on next sync, so the old hash is stale.
+    if (updates.allow_agents !== undefined || updates.allow_user_hooks !== undefined) {
       updates.expected_managed_settings_hash = null;
     }
 
@@ -339,6 +340,7 @@ router.put('/users/:id', (req, res) => {
         created_at: updatedUser.created_at,
         allow_self_uninstall: !!updatedUser.allow_self_uninstall,
         allow_agents: !!updatedUser.allow_agents,
+        allow_user_hooks: !!updatedUser.allow_user_hooks,
         allow_workflows: !!updatedUser.allow_workflows,
         max_effort_level: updatedUser.max_effort_level || 'max',
       },

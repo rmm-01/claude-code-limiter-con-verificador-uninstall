@@ -52,6 +52,7 @@ export interface User {
   devices: Device[];
   allow_self_uninstall: boolean;
   allow_agents: boolean;
+  allow_user_hooks: boolean;
   allow_workflows: boolean;
   max_effort_level: EffortLevel;
   // Credits consumed on each of the last 7 days (oldest first).
@@ -165,6 +166,7 @@ export interface UpdateUserPayload {
   limits?: LimitRule[];
   allow_self_uninstall?: boolean;
   allow_agents?: boolean;
+  allow_user_hooks?: boolean;
   allow_workflows?: boolean;
   max_effort_level?: EffortLevel;
 }

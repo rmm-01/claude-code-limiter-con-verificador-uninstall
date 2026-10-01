@@ -129,6 +129,7 @@ router.post('/sync', hookAuth, (req, res) => {
       credit_balance: creditBalance,
       credit_budget: creditBudget,
       allow_agents: !!user.allow_agents,
+      allow_user_hooks: !!user.allow_user_hooks,
       allow_workflows: !!user.allow_workflows,
       max_effort_level: user.max_effort_level || 'max',
       message: null,

@@ -722,6 +722,31 @@ function syncAgentSettings(allowAgents) {
   }
 }
 
+// Toggle allowManagedHooksOnly from the server's allow_user_hooks flag so an
+// admin can let a user keep their own hooks (statusLine, etc.). Skipped when
+// the server didn't send the flag (older server) to keep hooks locked.
+function syncUserHooksSetting(allowUserHooks) {
+  try {
+    if (allowUserHooks === undefined) return;
+    const ms = readJSON(MANAGED_SETTINGS_FILE);
+    if (!ms) return;
+
+    const shouldLock = !allowUserHooks;
+    const current = ms.allowManagedHooksOnly !== undefined ? ms.allowManagedHooksOnly : true;
+    if (current === shouldLock) return;
+
+    ms.allowManagedHooksOnly = shouldLock;
+    writeJSON(MANAGED_SETTINGS_FILE, ms);
+
+    const backupFile = path.join(path.dirname(LIMITER_DIR), ".backup", "managed-settings.json");
+    writeJSON(backupFile, ms);
+
+    debugLog(`SYNC_USER_HOOKS updated managed-settings + backup: allowManagedHooksOnly=${shouldLock}`);
+  } catch (err) {
+    debugLog(`SYNC_USER_HOOKS error: ${err.message}`);
+  }
+}
+
 /**
  * SHA-256 of the local managed-settings.json file. Used by the server to
  * detect local tampering: if this hash differs from the one the server saw
@@ -775,6 +800,7 @@ async function actionSync(config) {
       writeJSON(CONFIG_FILE, updated);
     }
     syncAgentSettings(serverResp.allow_agents);
+    syncUserHooksSetting(serverResp.allow_user_hooks);
     debugLog(`SYNC server_response status=${serverResp.status} allow_agents=${serverResp.allow_agents} allow_workflows=${serverResp.allow_workflows} max_effort=${serverResp.max_effort_level}`);
   }
 }

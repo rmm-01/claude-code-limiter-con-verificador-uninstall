@@ -400,6 +400,38 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                 </div>
               </div>
 
+              {/* User hooks toggle (allowManagedHooksOnly off) */}
+              <div className="w-full pt-2 border-t border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-medium text-zinc-300">Permitir hooks propios del usuario</div>
+                    <div className="text-xs text-zinc-600 mt-0.5">Desactiva allowManagedHooksOnly (statusLine, hooks personales)</div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.updateUser(user.id, { allow_user_hooks: !user.allow_user_hooks });
+                        showToast('Guardado', `Hooks propios ${!user.allow_user_hooks ? 'permitidos' : 'bloqueados'}`, 'success');
+                        loadData();
+                      } catch (err) {
+                        showToast('Error', err instanceof Error ? err.message : 'Falló', 'error');
+                      }
+                    }}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                      user.allow_user_hooks ? 'bg-[#cc5500]' : 'bg-zinc-700'
+                    }`}
+                    role="switch"
+                    aria-checked={user.allow_user_hooks}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
+                        user.allow_user_hooks ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
               {/* Workflows / Subagents toggle */}
               <div className="w-full pt-2 border-t border-zinc-800">
                 <div className="flex items-center justify-between">
