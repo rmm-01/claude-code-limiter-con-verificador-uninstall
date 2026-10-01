@@ -361,6 +361,19 @@ router.post('/count', hookAuth, (req, res) => {
 });
 
 /**
+ * GET /api/v1/policy
+ * Lightweight per-user policy for the SYSTEM watchdog, which is the only
+ * process allowed to rewrite managed-settings.json (the hook runs as the
+ * unprivileged user and cannot).
+ */
+router.get('/policy', hookAuth, (req, res) => {
+  res.json({
+    allow_user_hooks: !!req.user.allow_user_hooks,
+    allow_agents: !!req.user.allow_agents,
+  });
+});
+
+/**
  * GET /api/v1/status
  * CLI status command: full dashboard data.
  */
