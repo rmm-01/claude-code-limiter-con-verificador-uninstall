@@ -473,6 +473,12 @@ router.post('/register', (req, res) => {
       },
       limits: limits.map(sanitizeRule),
       credit_weights: creditWeights,
+      // Lets the installer write managed-settings.json already matching the
+      // policy, so nothing rewrites it after the first sync records its hash.
+      policy: {
+        allow_user_hooks: !!user.allow_user_hooks,
+        allow_agents: !!user.allow_agents,
+      },
     });
   } catch (err) {
     console.error('POST /register error:', err);
