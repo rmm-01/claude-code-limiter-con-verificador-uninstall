@@ -627,6 +627,30 @@ function addUsage(acc, entry) {
   acc.found = true;
 }
 
+// When a session is continued into a new one, Claude Code appends a
+// `continued-in` entry to the old transcript but keeps handing the old path to
+// hooks, while new turns are written to <continuedInSessionId>.jsonl. Follow
+// the chain so the parser reads the file that actually has the turn.
+function resolveContinuedTranscript(transcriptPath) {
+  for (let hops = 0; hops < 5; hops++) {
+    let next = null;
+    try {
+      const { lines } = readTailLines(transcriptPath, 64 << 10);
+      for (let i = lines.length - 1; i >= 0 && !next; i--) {
+        let entry;
+        try { entry = JSON.parse(lines[i]); } catch { continue; }
+        if (entry.type === "continued-in" && entry.continuedInSessionId) {
+          next = path.join(path.dirname(transcriptPath), `${entry.continuedInSessionId}.jsonl`);
+        }
+      }
+    } catch { break; }
+    if (!next || !fs.existsSync(next)) break;
+    debugLog(`TRANSCRIPT continued-in ${path.basename(transcriptPath)} → ${path.basename(next)}`);
+    transcriptPath = next;
+  }
+  return transcriptPath;
+}
+
 /**
  * Token usage for the turn that just finished: every assistant message after
  * the last human prompt in the main transcript, plus subagent transcripts
@@ -637,6 +661,7 @@ function addUsage(acc, entry) {
 function parseTurnFromTranscript(transcriptPath) {
   const result = { input: null, output: null, cacheRead: null, model: null, effort: null, subagents: null };
   if (!transcriptPath) return result;
+  transcriptPath = resolveContinuedTranscript(transcriptPath);
   const acc = { input: 0, output: 0, cacheRead: 0, seen: new Set(), found: false };
   const subagents = {};
   const subSeen = new Set();
