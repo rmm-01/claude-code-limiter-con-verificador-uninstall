@@ -232,6 +232,11 @@ function runMigrations(db) {
   if (!usageCols.includes('cache_read_tokens')) {
     db.exec('ALTER TABLE usage_event ADD COLUMN cache_read_tokens INTEGER');
   }
+  // Subagent share of the turn's tokens, per model version (JSON object).
+  // Already included in input/output_tokens; NULL for hooks older than 1.6.
+  if (!usageCols.includes('subagent_tokens')) {
+    db.exec('ALTER TABLE usage_event ADD COLUMN subagent_tokens TEXT');
+  }
   if (!sessionCols.includes('effort_level')) {
     db.exec('ALTER TABLE session_event ADD COLUMN effort_level TEXT');
   }
@@ -500,12 +505,28 @@ function deleteLimitRulesForUser(userId) {
 
 // --------------- Usage Event helpers ---------------
 
-function recordUsage({ userId, model, modelVersion, creditCost, timestamp, source, effortLevel, isSubagent, inputTokens, outputTokens, cacheReadTokens }) {
+function recordUsage({ userId, model, modelVersion, creditCost, timestamp, source, effortLevel, isSubagent, inputTokens, outputTokens, cacheReadTokens, subagentTokens }) {
   const ts = timestamp || new Date().toISOString();
   const src = source || 'hook';
   return getDb().prepare(
-    'INSERT INTO usage_event (user_id, model, model_version, credit_cost, timestamp, source, effort_level, is_subagent, input_tokens, output_tokens, cache_read_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(userId, model, modelVersion || null, creditCost, ts, src, effortLevel || null, isSubagent ? 1 : 0, inputTokens != null ? inputTokens : null, outputTokens != null ? outputTokens : null, cacheReadTokens != null ? cacheReadTokens : null);
+    'INSERT INTO usage_event (user_id, model, model_version, credit_cost, timestamp, source, effort_level, is_subagent, input_tokens, output_tokens, cache_read_tokens, subagent_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(userId, model, modelVersion || null, creditCost, ts, src, effortLevel || null, isSubagent ? 1 : 0, inputTokens != null ? inputTokens : null, outputTokens != null ? outputTokens : null, cacheReadTokens != null ? cacheReadTokens : null, sanitizeSubagentTokens(subagentTokens));
+}
+
+/**
+ * Keep only { "<model_version>": { input, output, cache_read } } with numeric
+ * values; anything else from the hook is dropped rather than failing the turn.
+ */
+function sanitizeSubagentTokens(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const out = {};
+  for (const [key, t] of Object.entries(value).slice(0, 20)) {
+    if (!t || typeof t !== 'object') continue;
+    const num = (n) => (Number.isFinite(n) && n >= 0 ? Math.round(n) : 0);
+    const entry = { input: num(t.input), output: num(t.output), cache_read: num(t.cache_read) };
+    if (entry.input + entry.output + entry.cache_read > 0) out[String(key).slice(0, 64)] = entry;
+  }
+  return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
 /**
@@ -554,6 +575,25 @@ function getUsageByVersion(userId, since) {
      FROM usage_event WHERE user_id = ? AND timestamp >= ?
      GROUP BY model, model_version
      ORDER BY model, count DESC`
+  ).all(userId, since);
+}
+
+/**
+ * Subagent tokens for a user since a given timestamp, by the model the
+ * subagents actually ran. Only turns from hooks that report the breakdown.
+ * Returns array of { model_version, turns, input_tokens, output_tokens, cache_read_tokens }
+ */
+function getSubagentUsage(userId, since) {
+  return getDb().prepare(
+    `SELECT j.key AS model_version,
+            COUNT(*) AS turns,
+            SUM(json_extract(j.value, '$.input')) AS input_tokens,
+            SUM(json_extract(j.value, '$.output')) AS output_tokens,
+            SUM(json_extract(j.value, '$.cache_read')) AS cache_read_tokens
+     FROM usage_event e, json_each(e.subagent_tokens) j
+     WHERE e.user_id = ? AND e.timestamp >= ? AND e.subagent_tokens IS NOT NULL
+     GROUP BY j.key
+     ORDER BY SUM(json_extract(j.value, '$.input')) + SUM(json_extract(j.value, '$.output')) DESC`
   ).all(userId, since);
 }
 
@@ -1062,6 +1102,7 @@ module.exports = {
   getUsage,
   getUsageWithCredits,
   getUsageByVersion,
+  getSubagentUsage,
   getUsageForWindow,
   getRecentEvents,
   cleanupOldEvents,

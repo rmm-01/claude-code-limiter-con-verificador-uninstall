@@ -87,6 +87,15 @@ export interface VersionUsage {
   user_name?: string;
 }
 
+/** Subagent tokens by the model they ran; a subset of the turn totals. */
+export interface SubagentUsage {
+  model_version: string;
+  turns: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+}
+
 export interface EffortMultipliers {
   low: number;
   medium: number;

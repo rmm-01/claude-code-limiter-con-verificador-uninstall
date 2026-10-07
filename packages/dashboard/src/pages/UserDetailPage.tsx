@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { User, DailyUsageRow, UsageEvent, AnalyticsData, VersionUsage } from '../lib/types';
+import type { User, DailyUsageRow, UsageEvent, AnalyticsData, VersionUsage, SubagentUsage } from '../lib/types';
 import { hashColor, getInitials, getModelLimit, getCreditRule, timeAgo, TOKENS_NA_HINT } from '../lib/utils';
 import { TokensLine, TokenValue } from '../components/Tokens';
 import { Card, CardHeader, CardBody } from '../components/Card';
@@ -30,6 +30,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [versionData, setVersionData] = useState<VersionUsage[]>([]);
+  const [subagentData, setSubagentData] = useState<SubagentUsage[]>([]);
   const [days, setDays] = useState(30);
   const [editLimitsOpen, setEditLimitsOpen] = useState(false);
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
@@ -58,6 +59,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
       setEvents(eventsRes.events ?? []);
       setAnalytics(analyticsRes);
       setVersionData(versionsRes.versions ?? []);
+      setSubagentData(versionsRes.subagents ?? []);
     } catch (err) {
       showToast('Error', err instanceof Error ? err.message : 'Failed to load user', 'error');
     } finally {
@@ -538,6 +540,36 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                             output={v.output_tokens}
                             cacheRead={v.cache_read_tokens}
                             hasData={(v.input_tokens ?? 0) + (v.output_tokens ?? 0) > 0}
+                          /> tok
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Subagentes: ya incluidos en el uso por versión, acá por el modelo que corrió */}
+          {subagentData.length > 0 && (
+            <Card>
+              <CardHeader>
+                <h3 className="text-sm font-semibold text-zinc-200">Tokens de Subagentes</h3>
+                <span className="text-xs text-zinc-500">incluidos en el total · solo hooks actualizados</span>
+              </CardHeader>
+              <CardBody>
+                <div className="space-y-1.5">
+                  {subagentData.map((s) => (
+                    <div key={s.model_version} className="flex items-center justify-between text-xs py-1 border-b border-zinc-800 last:border-0">
+                      <span className="text-zinc-300 font-mono">{s.model_version}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-zinc-400">{s.turns} turnos</span>
+                        <span className="text-zinc-400 w-16 text-right">
+                          <TokenValue
+                            input={s.input_tokens}
+                            output={s.output_tokens}
+                            cacheRead={s.cache_read_tokens}
+                            hasData
                           /> tok
                         </span>
                       </div>

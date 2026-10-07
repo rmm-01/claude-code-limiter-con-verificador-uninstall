@@ -501,7 +501,7 @@ router.get('/usage/versions', (req, res) => {
         return res.status(404).json({ error: 'User not found' });
       }
       const rows = db.getUsageByVersion(user_id, since);
-      res.json({ user_id, versions: rows });
+      res.json({ user_id, versions: rows, subagents: db.getSubagentUsage(user_id, since) });
     } else {
       const rows = db.getDb().prepare(
         `SELECT e.model, e.model_version, e.user_id, u.name AS user_name,

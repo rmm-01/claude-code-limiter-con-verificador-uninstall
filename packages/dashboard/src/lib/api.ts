@@ -14,6 +14,7 @@ import type {
   DailyUsageRow,
   AnalyticsData,
   VersionUsage,
+  SubagentUsage,
 } from './types';
 
 const TOKEN_KEY = 'clm_token';
@@ -183,6 +184,7 @@ async function getUsageVersions(params?: {
 }): Promise<{
   user_id?: string;
   versions: VersionUsage[];
+  subagents?: SubagentUsage[];
 }> {
   return request(`/api/admin/usage/versions${buildQS(params)}`);
 }

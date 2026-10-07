@@ -302,6 +302,7 @@ router.post('/count', hookAuth, (req, res) => {
       inputTokens,
       outputTokens,
       cacheReadTokens,
+      subagentTokens: req.body.subagent_tokens,
     });
 
     // Update device last_seen and IP

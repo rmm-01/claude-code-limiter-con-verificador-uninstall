@@ -635,9 +635,11 @@ function addUsage(acc, entry) {
  * are more reliable than settings.json (they are what actually ran).
  */
 function parseTurnFromTranscript(transcriptPath) {
-  const result = { input: null, output: null, cacheRead: null, model: null, effort: null };
+  const result = { input: null, output: null, cacheRead: null, model: null, effort: null, subagents: null };
   if (!transcriptPath) return result;
   const acc = { input: 0, output: 0, cacheRead: 0, seen: new Set(), found: false };
+  const subagents = {};
+  const subSeen = new Set();
   let promptTs = null;
   try {
     // Grow the window until the turn's prompt is found (long turns with many
@@ -670,7 +672,19 @@ function parseTurnFromTranscript(transcriptPath) {
         for (const line of readTailLines(file, 16 << 20).lines) {
           let entry;
           try { entry = JSON.parse(line); } catch { continue; }
-          if (entry.type === "assistant" && Date.parse(entry.timestamp) >= since) addUsage(acc, entry);
+          if (entry.type !== "assistant" || Date.parse(entry.timestamp) < since) continue;
+          addUsage(acc, entry);
+          // Subagents may run a different model than the turn (e.g. Explore on
+          // haiku); keep their share per model so it isn't hidden in the total.
+          const sub = entry.message && entry.message.model && entry.message.usage;
+          if (sub && !subSeen.has(entry.message.id || entry.uuid)) {
+            subSeen.add(entry.message.id || entry.uuid);
+            const key = extractModelVersion(entry.message.model);
+            const s = subagents[key] || (subagents[key] = { input: 0, output: 0, cache_read: 0 });
+            s.input += (sub.input_tokens || 0) + (sub.cache_creation_input_tokens || 0);
+            s.output += sub.output_tokens || 0;
+            s.cache_read += sub.cache_read_input_tokens || 0;
+          }
         }
       }
     }
@@ -680,6 +694,7 @@ function parseTurnFromTranscript(transcriptPath) {
       result.output = acc.output;
       result.cacheRead = acc.cacheRead;
     }
+    if (Object.keys(subagents).length) result.subagents = subagents;
   } catch (err) {
     debugLog(`TRANSCRIPT_PARSE error: ${err.message}`);
   }
@@ -942,6 +957,7 @@ async function actionCount(config) {
     input_tokens: turn.input,
     output_tokens: turn.output,
     cache_read_tokens: turn.cacheRead,
+    subagent_tokens: turn.subagents,
     timestamp: new Date().toISOString(),
     session_id: stdinData.session_id || null,
     response_length: (stdinData.last_assistant_message || "").length,
