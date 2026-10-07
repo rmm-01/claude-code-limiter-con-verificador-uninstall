@@ -913,7 +913,7 @@ async function actionCount(config) {
   // fits in the hook's 5s timeout.
   let turn = parseTurnFromTranscript(stdinData.transcript_path);
   if (stdinData.transcript_path && stdinData.last_assistant_message) {
-    while (!turn.model && process.uptime() < 1.2) {
+    while (!turn.model && process.uptime() < 1.5) {
       await new Promise((r) => setTimeout(r, 150));
       turn = parseTurnFromTranscript(stdinData.transcript_path);
     }
