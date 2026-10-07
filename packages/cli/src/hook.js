@@ -907,7 +907,18 @@ async function actionCount(config) {
 
   // The transcript records the model and effort that actually answered this
   // turn; prefer it over settings-based detection.
-  const turn = parseTurnFromTranscript(stdinData.transcript_path);
+  // Stop can fire before Claude Code flushes the final assistant line, so a
+  // short text-only turn may not be in the file yet. Retry briefly when we know
+  // there was an answer, bounded by process uptime so the server report still
+  // fits in the hook's 5s timeout.
+  let turn = parseTurnFromTranscript(stdinData.transcript_path);
+  if (stdinData.transcript_path && stdinData.last_assistant_message) {
+    while (!turn.model && process.uptime() < 1.2) {
+      await new Promise((r) => setTimeout(r, 150));
+      turn = parseTurnFromTranscript(stdinData.transcript_path);
+    }
+    if (!turn.model) debugLog("COUNT transcript had no assistant entry after retries");
+  }
   const rawModel = turn.model || detectModelRaw(stdinData, config);
   const model = normalizeModel(rawModel);
   const modelVersion = extractModelVersion(rawModel);
