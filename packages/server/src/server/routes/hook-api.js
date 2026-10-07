@@ -454,6 +454,11 @@ router.post('/register', (req, res) => {
       return res.status(404).json({ error: 'User not found for this install code' });
     }
 
+    // A (re)install rewrites managed-settings.json, so the tamper reference
+    // from the previous install is stale. Clear it; the next /sync stores the
+    // fresh hash. Safe: this path needs a single-use code issued by the admin.
+    db.updateUser(user.id, { expected_managed_settings_hash: null, last_tampering_at: null });
+
     const team = db.getTeam(user.team_id);
     const creditWeights = JSON.parse(team.credit_weights);
     const limits = db.getLimitRules(user.id);
