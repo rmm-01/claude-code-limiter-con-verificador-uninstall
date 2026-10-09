@@ -110,6 +110,14 @@ export interface Team {
   name: string;
   credit_weights: CreditWeights;
   effort_multipliers?: EffortMultipliers;
+  weekly_reset?: WeeklyReset;
+}
+
+/** When the Claude subscription's weekly limit resets (day 0=Sun..6=Sat). */
+export interface WeeklyReset {
+  day: number;
+  hour: number;
+  tz: string;
 }
 
 export interface CreditWeights {
@@ -184,6 +192,7 @@ export interface UpdateSettingsPayload {
   name?: string;
   credit_weights?: CreditWeights;
   effort_multipliers?: EffortMultipliers;
+  weekly_reset?: WeeklyReset;
   admin_password?: string;
 }
 

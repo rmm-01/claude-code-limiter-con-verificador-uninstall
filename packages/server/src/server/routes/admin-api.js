@@ -55,6 +55,7 @@ router.post('/login', (req, res) => {
         name: team.name,
         credit_weights: JSON.parse(team.credit_weights),
         effort_multipliers: effortMults,
+        weekly_reset: parseWeeklyReset(team),
       },
     });
   } catch (err) {
@@ -588,12 +589,12 @@ router.get('/analytics', (req, res) => {
 /**
  * PUT /api/admin/settings
  * Update team settings.
- * Body: { name?, credit_weights?, admin_password? }
+ * Body: { name?, credit_weights?, effort_multipliers?, weekly_reset?, admin_password? }
  */
 router.put('/settings', (req, res) => {
   try {
     const team = req.team;
-    const { name, credit_weights, effort_multipliers, admin_password } = req.body;
+    const { name, credit_weights, effort_multipliers, weekly_reset, admin_password } = req.body;
 
     const updates = {};
     if (name !== undefined) {
@@ -604,6 +605,13 @@ router.put('/settings', (req, res) => {
     }
     if (credit_weights !== undefined) updates.credit_weights = credit_weights;
     if (effort_multipliers !== undefined) updates.effort_multipliers = effort_multipliers;
+    if (weekly_reset !== undefined) {
+      const normalized = db.normalizeWeeklyReset(weekly_reset);
+      if (!normalized) {
+        return res.status(400).json({ error: 'Reinicio semanal inválido: day 0-6, hour 0-23, tz IANA' });
+      }
+      updates.weekly_reset = normalized;
+    }
     if (admin_password !== undefined) {
       updates.admin_password = hashPassword(admin_password);
     }
@@ -624,6 +632,7 @@ router.put('/settings', (req, res) => {
         name: updatedTeam.name,
         credit_weights: JSON.parse(updatedTeam.credit_weights),
         effort_multipliers: parsedEffortMultipliers,
+        weekly_reset: parseWeeklyReset(updatedTeam),
       },
     });
   } catch (err) {
@@ -631,5 +640,16 @@ router.put('/settings', (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+/**
+ * Weekly reset anchor of a team row, with the legacy Monday 00:00 UTC default.
+ */
+function parseWeeklyReset(team) {
+  try {
+    return db.normalizeWeeklyReset(JSON.parse(team.weekly_reset || '{}')) || { day: 1, hour: 0, tz: 'UTC' };
+  } catch {
+    return { day: 1, hour: 0, tz: 'UTC' };
+  }
+}
 
 module.exports = router;

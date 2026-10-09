@@ -194,7 +194,7 @@ Current time: 8:15 PM. Try sonnet or haiku instead.
 | Ventana | Comportamiento |
 |---------|----------------|
 | `daily` | Resetea a medianoche local |
-| `weekly` | Resetea el lunes a medianoche |
+| `weekly` | Resetea cuando reinicia la semana de la suscripción de Claude (Configuración → Reinicio Semanal; default lunes 00:00 UTC) |
 | `monthly` | Resetea el 1 del mes |
 | `sliding_24h` | Ventana rodante de 24h — sin trucos a medianoche |
 

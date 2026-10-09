@@ -1423,7 +1423,7 @@
     html += '<p>Depende de la ventana configurada para cada usuario:</p>';
     html += '<ul class="explainer-list">';
     html += '<li><strong>Diaria (<code>daily</code>):</strong> a medianoche local del usuario.</li>';
-    html += '<li><strong>Semanal (<code>weekly</code>):</strong> lunes a medianoche.</li>';
+    html += '<li><strong>Semanal (<code>weekly</code>):</strong> cuando reinicia la semana de Claude (Configuración → Reinicio Semanal).</li>';
     html += '<li><strong>Mensual (<code>monthly</code>):</strong> el 1 del mes.</li>';
     html += '<li><strong>Rodante (<code>sliding_24h</code>):</strong> ventana móvil de 24 horas — no hay "truco de medianoche".</li>';
     html += '</ul>';

@@ -22,11 +22,15 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
   const [effortHigh, setEffortHigh] = useState('2');
   const [effortXhigh, setEffortXhigh] = useState('4');
   const [effortMax, setEffortMax] = useState('6');
+  const [resetDay, setResetDay] = useState('1');
+  const [resetHour, setResetHour] = useState('0');
+  const [resetTz, setResetTz] = useState('UTC');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [savingWeights, setSavingWeights] = useState(false);
   const [savingEffort, setSavingEffort] = useState(false);
+  const [savingReset, setSavingReset] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
@@ -43,6 +47,9 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       setEffortHigh(String(stored.effort_multipliers?.high ?? 2));
       setEffortXhigh(String(stored.effort_multipliers?.xhigh ?? 4));
       setEffortMax(String(stored.effort_multipliers?.max ?? 6));
+      setResetDay(String(stored.weekly_reset?.day ?? 1));
+      setResetHour(String(stored.weekly_reset?.hour ?? 0));
+      setResetTz(stored.weekly_reset?.tz ?? 'UTC');
     }
     // Also do a fresh fetch via getUsers to refresh team data
     api.getUsers().catch(() => {
@@ -113,6 +120,26 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       showToast('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
     } finally {
       setSavingEffort(false);
+    }
+  };
+
+  const handleSaveReset = async () => {
+    const wr = {
+      day: parseInt(resetDay, 10),
+      hour: parseInt(resetHour, 10),
+      tz: resetTz.trim() || 'UTC',
+    };
+    setSavingReset(true);
+    try {
+      const res = await api.updateSettings({ weekly_reset: wr });
+      setTeam(res.team);
+      api.setStoredTeam(res.team);
+      onTeamUpdate(res.team);
+      showToast('Guardado', 'Reinicio semanal actualizado', 'success');
+    } catch (err) {
+      showToast('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
+    } finally {
+      setSavingReset(false);
     }
   };
 
@@ -204,6 +231,52 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
         </CardBody>
       </Card>
 
+      {/* Weekly Reset */}
+      <Card>
+        <CardBody>
+          <h3 className="text-sm font-semibold text-zinc-200 mb-1">Reinicio Semanal</h3>
+          <p className="text-xs text-zinc-500 mb-4">
+            Cuándo reinicia el límite semanal de la suscripción de Claude. Copialo de <code>/usage</code> en Claude Code
+            (ej: "Resets Thu 10am"). Los límites <code>weekly</code> se reinician en ese momento.
+          </p>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <label className="text-xs text-zinc-400">
+              Día
+              <select
+                value={resetDay}
+                onChange={(e) => setResetDay(e.target.value)}
+                className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-2 py-1.5 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+              >
+                {DAY_NAMES.map((name, i) => (
+                  <option key={i} value={i}>{name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-zinc-400">
+              Hora
+              <select
+                value={resetHour}
+                onChange={(e) => setResetHour(e.target.value)}
+                className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-2 py-1.5 text-sm font-mono text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+              >
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+                ))}
+              </select>
+            </label>
+            <Input
+              label="Zona horaria"
+              value={resetTz}
+              onChange={(e) => setResetTz(e.target.value)}
+              placeholder="America/Lima"
+            />
+          </div>
+          <Button size="sm" variant="primary" onClick={handleSaveReset} disabled={savingReset}>
+            {savingReset ? 'Guardando...' : 'Guardar Reinicio'}
+          </Button>
+        </CardBody>
+      </Card>
+
       {/* Change Password */}
       <Card>
         <CardBody>
@@ -249,6 +322,8 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
     </div>
   );
 }
+
+const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 function EffortCard({
   level,

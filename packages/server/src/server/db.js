@@ -256,6 +256,11 @@ function runMigrations(db) {
   if (!teamCols.includes('effort_multipliers')) {
     db.exec(`ALTER TABLE team ADD COLUMN effort_multipliers TEXT NOT NULL DEFAULT '{"low":0.5,"medium":1,"high":2,"xhigh":4,"max":6}'`);
   }
+  // When the Claude subscription's weekly limit resets. The default keeps the
+  // original behavior (Monday 00:00 UTC).
+  if (!teamCols.includes('weekly_reset')) {
+    db.exec(`ALTER TABLE team ADD COLUMN weekly_reset TEXT NOT NULL DEFAULT '{"day":1,"hour":0,"tz":"UTC"}'`);
+  }
 }
 
 /**
@@ -385,6 +390,7 @@ function updateTeam(teamId, fields) {
   if (fields.name !== undefined) { sets.push('name = ?'); values.push(fields.name); }
   if (fields.credit_weights !== undefined) { sets.push('credit_weights = ?'); values.push(typeof fields.credit_weights === 'string' ? fields.credit_weights : JSON.stringify(fields.credit_weights)); }
   if (fields.effort_multipliers !== undefined) { sets.push('effort_multipliers = ?'); values.push(typeof fields.effort_multipliers === 'string' ? fields.effort_multipliers : JSON.stringify(fields.effort_multipliers)); }
+  if (fields.weekly_reset !== undefined) { sets.push('weekly_reset = ?'); values.push(typeof fields.weekly_reset === 'string' ? fields.weekly_reset : JSON.stringify(fields.weekly_reset)); }
   if (fields.admin_password !== undefined) { sets.push('admin_password = ?'); values.push(fields.admin_password); }
   if (sets.length === 0) return;
   values.push(teamId);
@@ -634,13 +640,7 @@ function calculateWindowStart(windowType, tz) {
   if (windowType === 'daily') {
     // midnight today in the timezone
   } else if (windowType === 'weekly') {
-    // Monday of this week
-    const dayOfWeek = parts.dayOfWeek; // 0=Sun, 1=Mon, ...
-    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const dt = new Date(year, month - 1, day - daysToSubtract);
-    year = dt.getFullYear();
-    month = dt.getMonth() + 1;
-    day = dt.getDate();
+    return calculateWeeklyStart(now, getWeeklyReset());
   } else if (windowType === 'monthly') {
     day = 1;
   }
@@ -655,6 +655,53 @@ function calculateWindowStart(windowType, tz) {
 }
 
 /**
+ * Weekly reset anchor of the (single) team: { day: 0-6 (0=Sun), hour: 0-23, tz }.
+ * Mirrors the reset shown by Claude's /usage for the shared subscription.
+ */
+function getWeeklyReset() {
+  const fallback = { day: 1, hour: 0, tz: 'UTC' };
+  const team = getDefaultTeam();
+  if (!team || !team.weekly_reset) return fallback;
+  try {
+    return normalizeWeeklyReset(JSON.parse(team.weekly_reset)) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Validate a weekly reset anchor. Returns null when invalid.
+ */
+function normalizeWeeklyReset(value) {
+  if (!value || typeof value !== 'object') return null;
+  const day = Number(value.day);
+  const hour = Number(value.hour);
+  const tz = typeof value.tz === 'string' && value.tz ? value.tz : 'UTC';
+  if (!Number.isInteger(day) || day < 0 || day > 6) return null;
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+  } catch {
+    return null;
+  }
+  return { day, hour, tz };
+}
+
+/**
+ * Most recent weekly reset at or before `now`, as UTC ISO string.
+ */
+function calculateWeeklyStart(now, anchor) {
+  const parts = getDatePartsInTZ(now, anchor.tz);
+  let daysBack = (parts.dayOfWeek - anchor.day + 7) % 7;
+  if (daysBack === 0 && parts.hour < anchor.hour) daysBack = 7;
+
+  // Calendar arithmetic on a UTC date so month/year rollover is handled.
+  const dt = new Date(Date.UTC(parts.year, parts.month - 1, parts.day - daysBack));
+  const local = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}T${String(anchor.hour).padStart(2, '0')}:00:00`;
+  return localDateToUTC(local, anchor.tz).toISOString();
+}
+
+/**
  * Get date components in a given timezone.
  */
 function getDatePartsInTZ(date, timeZone) {
@@ -666,7 +713,8 @@ function getDatePartsInTZ(date, timeZone) {
     weekday: 'short',
     hour: 'numeric',
     minute: 'numeric',
-    hour12: false,
+    // h23, not hour12:false: the latter prints midnight as "24".
+    hourCycle: 'h23',
   });
   const parts = formatter.formatToParts(date);
   const map = {};
@@ -699,23 +747,13 @@ function localDateToUTC(localDateStr, timeZone) {
   // Get what the local time would be at this UTC time in the target timezone
   const inTZ = getDatePartsInTZ(utcGuess, timeZone);
 
-  // The offset in minutes: inTZ time - utcGuess time
-  const utcMinutes = utcGuess.getUTCHours() * 60 + utcGuess.getUTCMinutes();
-  const tzMinutes = inTZ.hour * 60 + inTZ.minute;
-
-  // Day difference handling
-  let offsetMinutes = tzMinutes - utcMinutes;
-
-  // Handle day boundary: if the tz date differs from UTC date, adjust
-  const utcDay = utcGuess.getUTCDate();
-  if (inTZ.day > utcDay) {
-    offsetMinutes += 24 * 60;
-  } else if (inTZ.day < utcDay) {
-    offsetMinutes -= 24 * 60;
-  }
+  // The offset: inTZ wall-clock read as UTC, minus utcGuess. Comparing full
+  // dates (not day-of-month) keeps it right across month boundaries.
+  const tzAsUTC = Date.UTC(inTZ.year, inTZ.month - 1, inTZ.day, inTZ.hour, inTZ.minute);
+  const offsetMs = tzAsUTC - utcGuess.getTime();
 
   // The actual UTC time = local time - offset
-  return new Date(utcGuess.getTime() - offsetMinutes * 60 * 1000);
+  return new Date(utcGuess.getTime() - offsetMs);
 }
 
 /**
@@ -1123,5 +1161,7 @@ module.exports = {
   getAnalytics,
   // Helpers (exported for services)
   calculateWindowStart,
+  calculateWeeklyStart,
+  normalizeWeeklyReset,
   getDatePartsInTZ,
 };
