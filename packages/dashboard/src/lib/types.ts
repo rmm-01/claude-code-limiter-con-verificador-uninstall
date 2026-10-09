@@ -221,6 +221,7 @@ export type WSEventType =
   | 'user_status_change'
   | 'user_killed'
   | 'user_status'
+  | 'account_usage'
   | 'ws_connected'
   | 'ws_disconnected';
 
@@ -239,7 +240,23 @@ export interface WSEvent {
   projectDir?: string;
   hostname?: string;
   sessionId?: string;
+  usage?: AccountUsage;
   timestamp: string;
+}
+
+/** One subscription window from Claude Code's statusLine `rate_limits`. */
+export interface RateWindow {
+  used_percentage: number;
+  /** Unix epoch seconds. */
+  resets_at: number;
+}
+
+/** Last reported 5h / 7d usage of the shared Claude account. */
+export interface AccountUsage {
+  five_hour: RateWindow | null;
+  seven_day: RateWindow | null;
+  updated_at: string;
+  reported_by: string;
 }
 
 export interface FeedItem {

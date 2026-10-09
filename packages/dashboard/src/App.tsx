@@ -7,6 +7,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useToast } from './hooks/useToast';
 import { Sidebar, HamburgerButton } from './components/Sidebar';
 import { ToastContainer } from './components/Toast';
+import { AccountUsageWidget } from './components/AccountUsageWidget';
 import { LoginPage } from './pages/LoginPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { UserDetailPage } from './pages/UserDetailPage';
@@ -95,6 +96,7 @@ function AuthenticatedLayout() {
         </div>
       </main>
 
+      <AccountUsageWidget lastEvent={lastEvent} />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );

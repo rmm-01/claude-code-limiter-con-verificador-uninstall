@@ -13,6 +13,7 @@
  *   node hook.js count    → Stop           (increment turn counter)
  *   node hook.js enforce  → PreToolUse     (local-only kill/pause check)
  *   node hook.js status   → Terminal       (human-readable status)
+ *   node hook.js statusline → statusLine   (wrap user's statusLine, report 5h/7d usage)
  */
 
 "use strict";
@@ -22,7 +23,7 @@ const path = require("path");
 const os = require("os");
 const http = require("http");
 const https = require("https");
-const { execSync } = require("child_process");
+const { execSync, spawn, spawnSync } = require("child_process");
 const crypto = require("crypto");
 
 // ════════════════════════════════════════════════════════════
@@ -1139,11 +1140,157 @@ function actionStatus(config) {
 }
 
 // ════════════════════════════════════════════════════════════
+// STATUSLINE — wrap the user's statusLine, report account usage
+//
+// Claude Code passes `rate_limits` (5h / 7d usage of the subscription) only
+// to the statusLine command. The managed statusLine runs this action, which
+// hands the account usage to a detached reporter, then runs the user's own
+// statusLine with the same stdin. Without one (or if it fails) it prints a
+// 5h / 7d bar instead.
+// ════════════════════════════════════════════════════════════
+
+const ACCOUNT_USAGE_STAMP = path.join(USAGE_DIR, ".account-usage-report.json");
+const ACCOUNT_USAGE_INTERVAL_MS = 60 * 1000;
+const USER_STATUSLINE_TIMEOUT_MS = 5000;
+
+function readStdinRaw(timeoutMs) {
+  return new Promise((resolve) => {
+    if (process.stdin.isTTY) return resolve("");
+    const chunks = [];
+    const done = () => resolve(Buffer.concat(chunks).toString("utf-8"));
+    const timer = setTimeout(() => { process.stdin.destroy(); done(); }, timeoutMs || 2000);
+    process.stdin.on("data", (chunk) => chunks.push(chunk));
+    process.stdin.on("end", () => { clearTimeout(timer); done(); });
+    process.stdin.on("error", () => { clearTimeout(timer); done(); });
+    process.stdin.resume();
+  });
+}
+
+/** The user's own statusLine command, or null. Never our own (no recursion). */
+function getUserStatusLineCommand() {
+  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+  const settings = readJSON(path.join(configDir, "settings.json"));
+  const sl = settings && settings.statusLine;
+  const cmd = sl && sl.type === "command" && typeof sl.command === "string" ? sl.command.trim() : "";
+  if (!cmd || /hook\.js"? statusline/.test(cmd)) return null;
+  return cmd;
+}
+
+/**
+ * Shell Claude Code itself uses for statusLine commands: Git Bash on Windows
+ * when installed, otherwise PowerShell; sh elsewhere.
+ */
+function getStatusLineShell(cmd) {
+  if (!IS_WIN) return { file: "/bin/sh", args: ["-c", cmd] };
+  const candidates = [];
+  if (process.env.CLAUDE_CODE_GIT_BASH_PATH) candidates.push(process.env.CLAUDE_CODE_GIT_BASH_PATH);
+  for (const dir of (process.env.PATH || "").split(";")) {
+    if (dir && fs.existsSync(path.join(dir, "git.exe"))) {
+      candidates.push(path.join(dir, "..", "bin", "bash.exe"));
+      candidates.push(path.join(dir, "..", "..", "bin", "bash.exe"));
+    }
+  }
+  candidates.push(path.join(process.env.ProgramFiles || "C:\\Program Files", "Git", "bin", "bash.exe"));
+  const bash = candidates.find((p) => { try { return fs.statSync(p).isFile(); } catch { return false; } });
+  if (bash) return { file: bash, args: ["-c", cmd] };
+  return { file: "powershell.exe", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd] };
+}
+
+function formatResetIn(resetsAtSec) {
+  const s = resetsAtSec - Math.floor(Date.now() / 1000);
+  if (s <= 0) return "0m";
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${Math.round(s / 86400)}d`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${Math.max(m, 1)}m`;
+}
+
+/** "5h ■■■■■□□□□□ 52% · 49m  7d ■□□□□□□□□□ 14% · 6d" with ANSI colors. */
+function formatAccountUsageLine(rateLimits) {
+  const parts = [];
+  for (const [label, key] of [["5h", "five_hour"], ["7d", "seven_day"]]) {
+    const w = rateLimits && rateLimits[key];
+    if (!w || typeof w.used_percentage !== "number") continue;
+    const expired = typeof w.resets_at === "number" && w.resets_at * 1000 <= Date.now();
+    const pct = expired ? 0 : Math.round(w.used_percentage);
+    const filled = Math.min(10, Math.round(pct / 10));
+    const color = pct >= 80 ? "\x1b[31m" : pct >= 50 ? "\x1b[33m" : "\x1b[32m";
+    const bar = color + "■".repeat(filled) + "\x1b[90m" + "□".repeat(10 - filled) + "\x1b[0m";
+    const reset = typeof w.resets_at === "number" ? ` · ${formatResetIn(w.resets_at)}` : "";
+    parts.push(`${label} ${bar} ${color}${pct}%\x1b[0m${reset}`);
+  }
+  return parts.length > 0 ? parts.join("  ") : "Claude Limiter";
+}
+
+/**
+ * Hand the account usage to a detached `report-usage` process, at most once
+ * per minute, so the statusLine never waits on the network.
+ */
+function scheduleAccountUsageReport(rateLimits) {
+  if (!rateLimits || (!rateLimits.five_hour && !rateLimits.seven_day)) return;
+  const stamp = readJSON(ACCOUNT_USAGE_STAMP);
+  if (stamp && Date.now() - (stamp.at || 0) < ACCOUNT_USAGE_INTERVAL_MS) return;
+  writeJSON(ACCOUNT_USAGE_STAMP, { at: Date.now() });
+
+  const payload = { five_hour: rateLimits.five_hour || null, seven_day: rateLimits.seven_day || null };
+  try {
+    const child = spawn(process.execPath, [...process.execArgv, __filename, "report-usage", JSON.stringify(payload)], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.unref();
+  } catch (err) {
+    debugLog(`STATUSLINE report spawn error: ${err.message}`);
+  }
+}
+
+async function actionStatusline() {
+  const raw = await readStdinRaw(2000);
+  let data = {};
+  try { data = JSON.parse(raw.trim() || "{}"); } catch {}
+
+  scheduleAccountUsageReport(data.rate_limits);
+
+  const userCmd = getUserStatusLineCommand();
+  if (userCmd) {
+    const sh = getStatusLineShell(userCmd);
+    const res = spawnSync(sh.file, sh.args, {
+      input: raw,
+      encoding: "utf-8",
+      timeout: USER_STATUSLINE_TIMEOUT_MS,
+      windowsHide: true,
+    });
+    if (!res.error && res.status === 0 && res.stdout && res.stdout.trim()) {
+      process.stdout.write(res.stdout);
+      return;
+    }
+    debugLog(`STATUSLINE user command failed status=${res.status} err=${res.error && res.error.message} stderr=${(res.stderr || "").slice(0, 200)}`);
+  }
+  process.stdout.write(formatAccountUsageLine(data.rate_limits) + "\n");
+}
+
+async function actionReportUsage() {
+  let payload = null;
+  try { payload = JSON.parse(process.argv[3] || "null"); } catch {}
+  if (!payload) return;
+  await serverRequest("/api/v1/account-usage", payload, 5000);
+}
+
+// ════════════════════════════════════════════════════════════
 // MAIN
 // ════════════════════════════════════════════════════════════
 
 async function main() {
   const action = process.argv[2] || "check";
+
+  // The statusLine must render even without a limiter config, and it runs
+  // after every message: skip the boot log and handle it first.
+  if (action === "statusline") return actionStatusline();
+  if (action === "report-usage") return actionReportUsage();
+
   bootLog(`ENTER action=${action} argv=${JSON.stringify(process.argv)} cwd=${process.cwd()}`);
   const config = readJSON(CONFIG_FILE);
   _debugEnabled = !!(config && config.debug);

@@ -642,6 +642,21 @@ router.put('/settings', (req, res) => {
 });
 
 /**
+ * GET /api/admin/account-usage
+ * Last reported 5h / 7d usage of the shared Claude account (null if none yet).
+ */
+router.get('/account-usage', (req, res) => {
+  try {
+    let usage = null;
+    try { usage = JSON.parse(req.team.account_usage || 'null'); } catch {}
+    res.json({ usage });
+  } catch (err) {
+    console.error('GET /account-usage error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * Weekly reset anchor of a team row, with the legacy Monday 00:00 UTC default.
  */
 function parseWeeklyReset(team) {

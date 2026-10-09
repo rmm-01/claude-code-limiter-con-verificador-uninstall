@@ -9,6 +9,7 @@ import type {
   CreateUserResponse,
   UpdateUserPayload,
   UpdateSettingsPayload,
+  AccountUsage,
   Team,
   UsageEvent,
   DailyUsageRow,
@@ -203,6 +204,10 @@ async function getAnalytics(params?: {
   return request(`/api/admin/analytics${buildQS(params)}`);
 }
 
+async function getAccountUsage(): Promise<{ usage: AccountUsage | null }> {
+  return request<{ usage: AccountUsage | null }>('/api/admin/account-usage');
+}
+
 async function updateSettings(payload: UpdateSettingsPayload): Promise<{ team: Team }> {
   return request<{ team: Team }>('/api/admin/settings', {
     method: 'PUT',
@@ -225,6 +230,7 @@ export const api = {
   getEvents,
   getAnalytics,
   updateSettings,
+  getAccountUsage,
   getToken,
   getStoredTeam,
   setStoredTeam,

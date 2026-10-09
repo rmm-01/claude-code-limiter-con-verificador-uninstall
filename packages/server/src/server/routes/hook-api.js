@@ -375,6 +375,77 @@ router.get('/policy', hookAuth, (req, res) => {
 });
 
 /**
+ * Validate one rate-limit window from the statusLine payload:
+ * { used_percentage: 0-100, resets_at: Unix seconds }. Returns null when invalid.
+ */
+function parseRateWindow(w) {
+  if (!w || typeof w !== 'object') return null;
+  const used = Number(w.used_percentage);
+  const resetsAt = Number(w.resets_at);
+  if (!Number.isFinite(used) || used < 0 || used > 100) return null;
+  if (!Number.isFinite(resetsAt) || resetsAt <= 0) return null;
+  return { used_percentage: used, resets_at: Math.round(resetsAt) };
+}
+
+/**
+ * POST /api/v1/account-usage
+ * The limiter's statusLine reports the shared Claude account's 5h / 7d usage
+ * (Claude Code's `rate_limits`). Every user shares the account, so the last
+ * report wins. The 7d reset also keeps the team's weekly window anchored.
+ * Body: { five_hour?: { used_percentage, resets_at }, seven_day?: { ... } }
+ */
+router.post('/account-usage', hookAuth, (req, res) => {
+  try {
+    const fiveHour = parseRateWindow(req.body && req.body.five_hour);
+    const sevenDay = parseRateWindow(req.body && req.body.seven_day);
+    if (!fiveHour && !sevenDay) {
+      return res.status(400).json({ error: 'No rate-limit windows in body' });
+    }
+
+    const team = req.team;
+    let previous = {};
+    try { previous = JSON.parse(team.account_usage || '{}') || {}; } catch {}
+
+    // A window can be missing from one report; keep the last known value.
+    const usage = {
+      five_hour: fiveHour || previous.five_hour || null,
+      seven_day: sevenDay || previous.seven_day || null,
+      updated_at: new Date().toISOString(),
+      reported_by: req.user.name,
+    };
+    const updates = { account_usage: usage };
+
+    if (sevenDay) {
+      const anchor = weeklyAnchorFromReset(sevenDay.resets_at, team.weekly_reset);
+      if (anchor) updates.weekly_reset = anchor;
+    }
+
+    db.updateTeam(team.id, updates);
+    broadcast({ type: 'account_usage', usage, timestamp: usage.updated_at });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('POST /account-usage error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * Weekly anchor { day, hour, tz } for a 7d reset timestamp, in the team's
+ * configured timezone and rounded to the nearest hour. Returns null when it
+ * matches the stored anchor, so the row is only rewritten on a real change.
+ */
+function weeklyAnchorFromReset(resetsAtSec, storedJson) {
+  let stored = null;
+  try { stored = db.normalizeWeeklyReset(JSON.parse(storedJson || '{}')); } catch {}
+  const tz = (stored && stored.tz) || 'UTC';
+  const rounded = new Date(Math.round(resetsAtSec / 3600) * 3600 * 1000);
+  const parts = db.getDatePartsInTZ(rounded, tz);
+  const anchor = { day: parts.dayOfWeek, hour: parts.hour, tz };
+  if (stored && stored.day === anchor.day && stored.hour === anchor.hour) return null;
+  return anchor;
+}
+
+/**
  * GET /api/v1/status
  * CLI status command: full dashboard data.
  */

@@ -261,6 +261,11 @@ function runMigrations(db) {
   if (!teamCols.includes('weekly_reset')) {
     db.exec(`ALTER TABLE team ADD COLUMN weekly_reset TEXT NOT NULL DEFAULT '{"day":1,"hour":0,"tz":"UTC"}'`);
   }
+  // Last 5h / 7d usage of the shared Claude account, as reported by any
+  // client's statusLine (JSON, see POST /api/v1/account-usage).
+  if (!teamCols.includes('account_usage')) {
+    db.exec('ALTER TABLE team ADD COLUMN account_usage TEXT');
+  }
 }
 
 /**
@@ -390,6 +395,7 @@ function updateTeam(teamId, fields) {
   if (fields.name !== undefined) { sets.push('name = ?'); values.push(fields.name); }
   if (fields.credit_weights !== undefined) { sets.push('credit_weights = ?'); values.push(typeof fields.credit_weights === 'string' ? fields.credit_weights : JSON.stringify(fields.credit_weights)); }
   if (fields.effort_multipliers !== undefined) { sets.push('effort_multipliers = ?'); values.push(typeof fields.effort_multipliers === 'string' ? fields.effort_multipliers : JSON.stringify(fields.effort_multipliers)); }
+  if (fields.account_usage !== undefined) { sets.push('account_usage = ?'); values.push(fields.account_usage === null || typeof fields.account_usage === 'string' ? fields.account_usage : JSON.stringify(fields.account_usage)); }
   if (fields.weekly_reset !== undefined) { sets.push('weekly_reset = ?'); values.push(typeof fields.weekly_reset === 'string' ? fields.weekly_reset : JSON.stringify(fields.weekly_reset)); }
   if (fields.admin_password !== undefined) { sets.push('admin_password = ?'); values.push(fields.admin_password); }
   if (sets.length === 0) return;

@@ -230,6 +230,11 @@ function generateManagedSettings(existingSettings, policy = {}) {
     // >= 2.1.128 for disableRemoteControl.
     disableRemoteControl: lockAgents,
     disableAgentView: lockAgents,
+    // Wraps the user's own statusLine (read from ~/.claude/settings.json on
+    // every run) and reports the account's 5h / 7d usage to the server.
+    // Static on purpose: nothing rewrites it after install, so the tamper
+    // hash recorded on the first sync stays valid.
+    statusLine: { type: "command", command: `${nodeCmd} statusline` },
     hooks: {
       ...(base.hooks || {}),
       SessionStart: [{
@@ -850,6 +855,7 @@ async function uninstall(flags) {
     } else {
       delete ms.allowManagedHooksOnly;
       delete ms._readme;
+      if (ms.statusLine && /hook\.js"? statusline/.test(ms.statusLine.command || "")) delete ms.statusLine;
       if (ms.hooks) {
         delete ms.hooks.SessionStart;
         delete ms.hooks.UserPromptSubmit;
