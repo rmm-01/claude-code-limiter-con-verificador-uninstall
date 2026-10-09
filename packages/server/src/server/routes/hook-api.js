@@ -376,14 +376,17 @@ router.get('/policy', hookAuth, (req, res) => {
 
 /**
  * Validate one rate-limit window from the statusLine payload:
- * { used_percentage: 0-100, resets_at: Unix seconds }. Returns null when invalid.
+ * { used_percentage: 0-100, resets_at: Unix seconds }. The reset must fall
+ * within the window's length from now (plus a small margin). Returns null
+ * when invalid.
  */
-function parseRateWindow(w) {
+function parseRateWindow(w, windowSec) {
   if (!w || typeof w !== 'object') return null;
   const used = Number(w.used_percentage);
   const resetsAt = Number(w.resets_at);
   if (!Number.isFinite(used) || used < 0 || used > 100) return null;
-  if (!Number.isFinite(resetsAt) || resetsAt <= 0) return null;
+  const nowSec = Date.now() / 1000;
+  if (!Number.isFinite(resetsAt) || resetsAt < nowSec - 3600 || resetsAt > nowSec + windowSec + 3600) return null;
   return { used_percentage: used, resets_at: Math.round(resetsAt) };
 }
 
@@ -399,8 +402,8 @@ function parseRateWindow(w) {
  */
 router.post('/account-usage', hookAuth, (req, res) => {
   try {
-    const fiveHour = parseRateWindow(req.body && req.body.five_hour);
-    const sevenDay = parseRateWindow(req.body && req.body.seven_day);
+    const fiveHour = parseRateWindow(req.body && req.body.five_hour, 5 * 3600);
+    const sevenDay = parseRateWindow(req.body && req.body.seven_day, 7 * 86400);
     if (!fiveHour && !sevenDay) {
       return res.status(400).json({ error: 'No rate-limit windows in body' });
     }
