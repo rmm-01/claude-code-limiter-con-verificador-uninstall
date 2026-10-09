@@ -32,6 +32,7 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
   const [savingEffort, setSavingEffort] = useState(false);
   const [savingReset, setSavingReset] = useState(false);
   const [reportedWeek, setReportedWeek] = useState<RateWindow | null>(null);
+  const [reportedBy, setReportedBy] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
@@ -56,11 +57,15 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
     api.getUsers().catch(() => {
       // noop
     });
-    api.getAccountUsage().then((res) => setReportedWeek(res.usage?.seven_day ?? null)).catch(() => {});
+    api.getAccountUsage().then((res) => {
+      setReportedWeek(res.usage?.seven_day ?? null);
+      setReportedBy(res.usage?.reported_by ?? '');
+    }).catch(() => {});
   }, []);
 
   // Day/hour of the 7d reset reported by the clients' statusLine, in the
-  // selected timezone. Only a suggestion: the admin applies it explicitly.
+  // selected timezone. Only a suggestion: any user can post a report, so the
+  // admin checks it against /usage (reporter shown) and applies it explicitly.
   const reported = reportedWeek ? anchorFromReset(reportedWeek.resets_at, resetTz.trim() || 'UTC') : null;
 
   const handleUseReported = () => {
@@ -286,7 +291,9 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
           {reported && (
             <div className="flex items-center justify-between gap-3 mb-4 rounded-md border border-zinc-800 bg-zinc-800/30 px-3 py-2 text-xs text-zinc-400">
               <span>
-                Claude reporta reinicio: <span className="text-zinc-200">{DAY_NAMES[reported.day]} {String(reported.hour).padStart(2, '0')}:00</span>
+                Reinicio reportado por <span className="text-zinc-200">{reportedBy || 'desconocido'}</span>:{' '}
+                <span className="text-zinc-200">{DAY_NAMES[reported.day]} {String(reported.hour).padStart(2, '0')}:00</span>
+                <span className="block text-zinc-500">Verificalo con <code>/usage</code> antes de aplicarlo.</span>
               </span>
               <Button size="sm" variant="secondary" onClick={handleUseReported}>
                 Usar este
