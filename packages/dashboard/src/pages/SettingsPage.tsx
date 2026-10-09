@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import type { Team } from '../lib/types';
+import type { Team, RateWindow } from '../lib/types';
 import { Card, CardBody } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -31,6 +31,7 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
   const [savingWeights, setSavingWeights] = useState(false);
   const [savingEffort, setSavingEffort] = useState(false);
   const [savingReset, setSavingReset] = useState(false);
+  const [reportedWeek, setReportedWeek] = useState<RateWindow | null>(null);
   const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
@@ -55,7 +56,18 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
     api.getUsers().catch(() => {
       // noop
     });
+    api.getAccountUsage().then((res) => setReportedWeek(res.usage?.seven_day ?? null)).catch(() => {});
   }, []);
+
+  // Day/hour of the 7d reset reported by the clients' statusLine, in the
+  // selected timezone. Only a suggestion: the admin applies it explicitly.
+  const reported = reportedWeek ? anchorFromReset(reportedWeek.resets_at, resetTz.trim() || 'UTC') : null;
+
+  const handleUseReported = () => {
+    if (!reported) return;
+    setResetDay(String(reported.day));
+    setResetHour(String(reported.hour));
+  };
 
   const handleSaveName = async () => {
     if (!teamName.trim()) {
@@ -271,6 +283,16 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
               placeholder="America/Lima"
             />
           </div>
+          {reported && (
+            <div className="flex items-center justify-between gap-3 mb-4 rounded-md border border-zinc-800 bg-zinc-800/30 px-3 py-2 text-xs text-zinc-400">
+              <span>
+                Claude reporta reinicio: <span className="text-zinc-200">{DAY_NAMES[reported.day]} {String(reported.hour).padStart(2, '0')}:00</span>
+              </span>
+              <Button size="sm" variant="secondary" onClick={handleUseReported}>
+                Usar este
+              </Button>
+            </div>
+          )}
           <Button size="sm" variant="primary" onClick={handleSaveReset} disabled={savingReset}>
             {savingReset ? 'Guardando...' : 'Guardar Reinicio'}
           </Button>
@@ -324,6 +346,21 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
 }
 
 const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+/** Day (0=Sun) and hour of a reset timestamp in a timezone, rounded to the hour. Null for a bad tz. */
+function anchorFromReset(resetsAtSec: number, tz: string): { day: number; hour: number } | null {
+  try {
+    const rounded = new Date(Math.round(resetsAtSec / 3600) * 3600 * 1000);
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: 'numeric', hourCycle: 'h23' }).formatToParts(rounded);
+    const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value);
+    if (!(weekday in WEEKDAY_INDEX) || !Number.isInteger(hour)) return null;
+    return { day: WEEKDAY_INDEX[weekday], hour };
+  } catch {
+    return null;
+  }
+}
 
 function EffortCard({
   level,

@@ -391,7 +391,10 @@ function parseRateWindow(w) {
  * POST /api/v1/account-usage
  * The limiter's statusLine reports the shared Claude account's 5h / 7d usage
  * (Claude Code's `rate_limits`). Every user shares the account, so the last
- * report wins. The 7d reset also keeps the team's weekly window anchored.
+ * report wins. Any hook token can post here, so the data is display-only:
+ * it must never drive enforcement (e.g. the weekly_reset anchor), or a user
+ * could forge a reset to clear their own weekly quota. The admin applies the
+ * reported reset from Settings instead.
  * Body: { five_hour?: { used_percentage, resets_at }, seven_day?: { ... } }
  */
 router.post('/account-usage', hookAuth, (req, res) => {
@@ -413,14 +416,7 @@ router.post('/account-usage', hookAuth, (req, res) => {
       updated_at: new Date().toISOString(),
       reported_by: req.user.name,
     };
-    const updates = { account_usage: usage };
-
-    if (sevenDay) {
-      const anchor = weeklyAnchorFromReset(sevenDay.resets_at, team.weekly_reset);
-      if (anchor) updates.weekly_reset = anchor;
-    }
-
-    db.updateTeam(team.id, updates);
+    db.updateTeam(team.id, { account_usage: usage });
     broadcast({ type: 'account_usage', usage, timestamp: usage.updated_at });
     res.json({ ok: true });
   } catch (err) {
@@ -428,22 +424,6 @@ router.post('/account-usage', hookAuth, (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-/**
- * Weekly anchor { day, hour, tz } for a 7d reset timestamp, in the team's
- * configured timezone and rounded to the nearest hour. Returns null when it
- * matches the stored anchor, so the row is only rewritten on a real change.
- */
-function weeklyAnchorFromReset(resetsAtSec, storedJson) {
-  let stored = null;
-  try { stored = db.normalizeWeeklyReset(JSON.parse(storedJson || '{}')); } catch {}
-  const tz = (stored && stored.tz) || 'UTC';
-  const rounded = new Date(Math.round(resetsAtSec / 3600) * 3600 * 1000);
-  const parts = db.getDatePartsInTZ(rounded, tz);
-  const anchor = { day: parts.dayOfWeek, hour: parts.hour, tz };
-  if (stored && stored.day === anchor.day && stored.hour === anchor.hour) return null;
-  return anchor;
-}
 
 /**
  * GET /api/v1/status
