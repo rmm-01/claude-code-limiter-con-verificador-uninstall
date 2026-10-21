@@ -58,7 +58,12 @@ export interface User {
   // Credits consumed on each of the last 7 days (oldest first).
   // Optional — older server builds don't include it.
   daily_credits_7d?: number[];
-  // Last 7 days. Only turns counted by a hook that reports them (v1.5+).
+  // Start of the current subscription week (UTC ISO), i.e. the last weekly reset.
+  week_start?: string;
+  // Credits consumed since week_start.
+  credits_week?: number;
+  // Since week_start (field name kept for compatibility). Only turns counted
+  // by a hook that reports them (v1.5+).
   tokens_7d?: TokenTotals;
   versions_7d?: Array<{ model: string; model_version: string; count: number }>;
   // Timestamp (UTC ISO) of the last time the hook reported a

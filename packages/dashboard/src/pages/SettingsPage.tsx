@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { api } from '../lib/api';
+import { api, type WeeklyResetStatus } from '../lib/api';
 import type { Team, RateWindow } from '../lib/types';
 import { Card, CardBody } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/Modal';
 
 interface SettingsPageProps {
   showToast: (title: string, message: string, type: 'info' | 'success' | 'warning' | 'error') => void;
@@ -34,6 +35,10 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
   const [reportedWeek, setReportedWeek] = useState<RateWindow | null>(null);
   const [reportedBy, setReportedBy] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
+  const [weekStatus, setWeekStatus] = useState<WeeklyResetStatus | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resettingWeek, setResettingWeek] = useState(false);
 
   useEffect(() => {
     const stored = api.getStoredTeam();
@@ -61,7 +66,31 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       setReportedWeek(res.usage?.seven_day ?? null);
       setReportedBy(res.usage?.reported_by ?? '');
     }).catch(() => {});
+    api.getWeeklyResetStatus().then(setWeekStatus).catch(() => {});
   }, []);
+
+  const closeResetDialog = () => {
+    setResetOpen(false);
+    setResetPassword('');
+  };
+
+  const handleResetWeekNow = async () => {
+    if (!resetPassword) {
+      showToast('Error', 'Ingresa la contraseña de admin', 'error');
+      return;
+    }
+    setResettingWeek(true);
+    try {
+      const res = await api.resetWeekNow(resetPassword);
+      setWeekStatus(res);
+      closeResetDialog();
+      showToast('Semana reiniciada', 'Los créditos semanales cuentan desde ahora', 'success');
+    } catch (err) {
+      showToast('Error', err instanceof Error ? err.message : 'No se pudo reiniciar', 'error');
+    } finally {
+      setResettingWeek(false);
+    }
+  };
 
   // Day/hour of the 7d reset reported by the clients' statusLine, in the
   // selected timezone. Only a suggestion: any user can post a report, so the
@@ -303,8 +332,59 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
           <Button size="sm" variant="primary" onClick={handleSaveReset} disabled={savingReset}>
             {savingReset ? 'Guardando...' : 'Guardar Reinicio'}
           </Button>
+
+          <div className="mt-5 pt-4 border-t border-zinc-800">
+            <h4 className="text-xs font-semibold text-zinc-300 mb-1">Reinicio manual</h4>
+            <p className="text-xs text-zinc-500 mb-3">
+              Empieza una semana nueva ahora mismo (por ejemplo si Anthropic adelantó el reinicio). Dura hasta el
+              próximo reinicio automático.
+            </p>
+            {weekStatus && (
+              <div className="text-xs text-zinc-400 mb-3 space-y-0.5">
+                <div>
+                  Semana actual desde:{' '}
+                  <span className="text-zinc-200">{new Date(weekStatus.week_start).toLocaleString('es')}</span>
+                </div>
+                {weekStatus.manual_reset_at && (
+                  <div>
+                    Último reinicio manual:{' '}
+                    <span className="text-zinc-200">{new Date(weekStatus.manual_reset_at).toLocaleString('es')}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <Button size="sm" variant="danger" onClick={() => setResetOpen(true)}>
+              Reiniciar semana ahora
+            </Button>
+          </div>
         </CardBody>
       </Card>
+
+      <Modal open={resetOpen} onClose={closeResetDialog} size="sm">
+        <ModalHeader onClose={closeResetDialog}>Reiniciar semana ahora</ModalHeader>
+        <ModalBody className="space-y-3">
+          <p className="text-sm text-zinc-300">
+            Esto pone a cero los créditos semanales de <strong>todos</strong> los usuarios. No se puede deshacer.
+          </p>
+          <Input
+            type="password"
+            label="Contraseña de admin"
+            value={resetPassword}
+            onChange={(e) => setResetPassword(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleResetWeekNow(); }}
+            autoComplete="current-password"
+            autoFocus
+          />
+        </ModalBody>
+        <ModalFooter>
+          <Button size="sm" variant="secondary" onClick={closeResetDialog} disabled={resettingWeek}>
+            Cancelar
+          </Button>
+          <Button size="sm" variant="danger" onClick={handleResetWeekNow} disabled={resettingWeek}>
+            {resettingWeek ? 'Reiniciando...' : 'Reiniciar'}
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       {/* Change Password */}
       <Card>

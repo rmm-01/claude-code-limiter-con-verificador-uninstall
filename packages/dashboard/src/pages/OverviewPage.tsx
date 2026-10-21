@@ -192,6 +192,14 @@ function StatCard({ label, value, color, sub }: { label: string; value: number |
   );
 }
 
+// "jue 23:00" in the viewer's local time.
+function formatWeekStart(iso: string): string {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString('es', { weekday: 'short' }).replace('.', '');
+  const time = d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${day} ${time}`;
+}
+
 function UserCard({
   user,
   onClick,
@@ -279,14 +287,21 @@ function UserCard({
         )}
       </div>
 
-      {/* Last 7 days: credits (limiter unit) and real tokens, always side by
-          side. Tokens read "n/d" while the machine still runs a pre-1.5 hook. */}
+      {/* Current subscription week (since the last weekly reset): credits
+          (limiter unit) and real tokens, side by side. The sparkline still
+          shows the last 7 calendar days. Tokens read "n/d" while the machine
+          still runs a pre-1.5 hook. */}
       <div className="mb-3 space-y-1.5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col">
-            <span className="text-[10px] uppercase tracking-wider text-zinc-500">Últimos 7 días</span>
+            <span
+              className="text-[10px] uppercase tracking-wider text-zinc-500"
+              title={user.week_start ? `Desde ${new Date(user.week_start).toLocaleString('es')}` : undefined}
+            >
+              {user.week_start ? `Esta semana · desde ${formatWeekStart(user.week_start)}` : 'Últimos 7 días'}
+            </span>
             <span className="text-xs font-mono text-zinc-300">
-              {(user.daily_credits_7d ?? []).reduce((s, n) => s + n, 0)} créditos
+              {user.credits_week ?? (user.daily_credits_7d ?? []).reduce((s, n) => s + n, 0)} créditos
             </span>
             <TokensLine tokens={user.tokens_7d} />
           </div>

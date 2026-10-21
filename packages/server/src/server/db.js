@@ -266,6 +266,11 @@ function runMigrations(db) {
   if (!teamCols.includes('account_usage')) {
     db.exec('ALTER TABLE team ADD COLUMN account_usage TEXT');
   }
+  // Admin-triggered early weekly reset (UTC ISO). It only moves the week start
+  // forward until the next automatic reset takes over.
+  if (!teamCols.includes('manual_reset_at')) {
+    db.exec('ALTER TABLE team ADD COLUMN manual_reset_at TEXT');
+  }
 }
 
 /**
@@ -396,6 +401,7 @@ function updateTeam(teamId, fields) {
   if (fields.credit_weights !== undefined) { sets.push('credit_weights = ?'); values.push(typeof fields.credit_weights === 'string' ? fields.credit_weights : JSON.stringify(fields.credit_weights)); }
   if (fields.effort_multipliers !== undefined) { sets.push('effort_multipliers = ?'); values.push(typeof fields.effort_multipliers === 'string' ? fields.effort_multipliers : JSON.stringify(fields.effort_multipliers)); }
   if (fields.account_usage !== undefined) { sets.push('account_usage = ?'); values.push(fields.account_usage === null || typeof fields.account_usage === 'string' ? fields.account_usage : JSON.stringify(fields.account_usage)); }
+  if (fields.manual_reset_at !== undefined) { sets.push('manual_reset_at = ?'); values.push(fields.manual_reset_at); }
   if (fields.weekly_reset !== undefined) { sets.push('weekly_reset = ?'); values.push(typeof fields.weekly_reset === 'string' ? fields.weekly_reset : JSON.stringify(fields.weekly_reset)); }
   if (fields.admin_password !== undefined) { sets.push('admin_password = ?'); values.push(fields.admin_password); }
   if (sets.length === 0) return;
@@ -646,7 +652,7 @@ function calculateWindowStart(windowType, tz) {
   if (windowType === 'daily') {
     // midnight today in the timezone
   } else if (windowType === 'weekly') {
-    return calculateWeeklyStart(now, getWeeklyReset());
+    return getCurrentWeekStart(now);
   } else if (windowType === 'monthly') {
     day = 1;
   }
@@ -705,6 +711,19 @@ function calculateWeeklyStart(now, anchor) {
   const dt = new Date(Date.UTC(parts.year, parts.month - 1, parts.day - daysBack));
   const local = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}T${String(anchor.hour).padStart(2, '0')}:00:00`;
   return localDateToUTC(local, anchor.tz).toISOString();
+}
+
+/**
+ * Start of the current week, as UTC ISO string: the later of the automatic
+ * weekly reset and a manual reset. A manual reset can only move the start
+ * forward, and it stops mattering once the next automatic reset passes it.
+ */
+function getCurrentWeekStart(now = new Date()) {
+  const auto = calculateWeeklyStart(now, getWeeklyReset());
+  const team = getDefaultTeam();
+  const manual = team && team.manual_reset_at;
+  if (manual && manual > auto && manual <= now.toISOString()) return manual;
+  return auto;
 }
 
 /**
@@ -1168,6 +1187,8 @@ module.exports = {
   // Helpers (exported for services)
   calculateWindowStart,
   calculateWeeklyStart,
+  getCurrentWeekStart,
+  getWeeklyReset,
   normalizeWeeklyReset,
   getDatePartsInTZ,
 };

@@ -100,7 +100,20 @@ router.get('/users', (req, res) => {
       sparkMap[r.user_id][r.date] = r.credits;
     }
 
-    // Same 7-day window: tokens and model versions per user, for the cards.
+    // Card totals (credits, tokens, model versions) count from the last weekly
+    // reset of the shared subscription, so they drop to zero on reset day
+    // instead of trailing a rolling 7-day window.
+    const weekStart = db.getCurrentWeekStart();
+    const weekCreditMap = {};
+    for (const r of db.getDb().prepare(
+      `SELECT ue.user_id, COALESCE(SUM(ue.credit_cost), 0) AS credits
+       FROM usage_event ue
+       JOIN user u ON ue.user_id = u.id
+       WHERE u.team_id = ? AND ue.timestamp >= ?
+       GROUP BY ue.user_id`
+    ).all(team.id, weekStart)) {
+      weekCreditMap[r.user_id] = r.credits;
+    }
     const tokenMap = {};
     for (const r of db.getDb().prepare(
       `SELECT ue.user_id,
@@ -112,7 +125,7 @@ router.get('/users', (req, res) => {
        JOIN user u ON ue.user_id = u.id
        WHERE u.team_id = ? AND ue.timestamp >= ?
        GROUP BY ue.user_id`
-    ).all(team.id, sparkSince)) {
+    ).all(team.id, weekStart)) {
       tokenMap[r.user_id] = { input: r.input, output: r.output, cache_read: r.cache_read, total: r.input + r.output, turns_with_tokens: r.turns_with_tokens };
     }
     const versionMap = {};
@@ -124,7 +137,7 @@ router.get('/users', (req, res) => {
          AND ue.model_version IS NOT NULL AND ue.model_version != ue.model
        GROUP BY ue.user_id, ue.model, ue.model_version
        ORDER BY count DESC`
-    ).all(team.id, sparkSince)) {
+    ).all(team.id, weekStart)) {
       if (!versionMap[r.user_id]) versionMap[r.user_id] = [];
       versionMap[r.user_id].push({ model: r.model, model_version: r.model_version, count: r.count });
     }
@@ -173,6 +186,8 @@ router.get('/users', (req, res) => {
         credit_balance: creditBalance,
         credit_budget: creditBudget,
         daily_credits_7d: dailyCredits7d,
+        week_start: weekStart,
+        credits_week: weekCreditMap[user.id] || 0,
         tokens_7d: tokenMap[user.id] || { input: 0, output: 0, cache_read: 0, total: 0, turns_with_tokens: 0 },
         versions_7d: versionMap[user.id] || [],
         devices: devices.map(d => ({
@@ -652,6 +667,68 @@ router.get('/account-usage', (req, res) => {
     res.json({ usage });
   } catch (err) {
     console.error('GET /account-usage error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/weekly-reset
+ * Current week start and the last manual reset (null if never).
+ */
+router.get('/weekly-reset', (req, res) => {
+  try {
+    res.json({
+      week_start: db.getCurrentWeekStart(),
+      manual_reset_at: req.team.manual_reset_at || null,
+    });
+  } catch (err) {
+    console.error('GET /weekly-reset error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Failed password attempts on the manual reset, per client IP.
+const RESET_MAX_FAILS = 5;
+const RESET_LOCK_MS = 15 * 60 * 1000;
+const resetFails = new Map(); // ip -> { count, first }
+
+/**
+ * POST /api/admin/weekly-reset/now
+ * Start a new week right now: weekly credit windows count from this moment
+ * until the next automatic reset. Destructive for everyone, so the admin
+ * password must be re-entered even with a valid session.
+ * Body: { password }
+ */
+router.post('/weekly-reset/now', (req, res) => {
+  try {
+    const ip = req.ip;
+    const now = Date.now();
+    const fails = resetFails.get(ip);
+    if (fails && now - fails.first > RESET_LOCK_MS) resetFails.delete(ip);
+    const current = resetFails.get(ip);
+    if (current && current.count >= RESET_MAX_FAILS) {
+      return res.status(429).json({ error: 'Demasiados intentos. Prueba de nuevo en 15 minutos.' });
+    }
+
+    const { password } = req.body || {};
+    if (typeof password !== 'string' || !password) {
+      return res.status(400).json({ error: 'Contraseña requerida' });
+    }
+    if (!verifyPassword(password, req.team.admin_password)) {
+      if (current) current.count++;
+      else resetFails.set(ip, { count: 1, first: now });
+      return res.status(403).json({ error: 'Contraseña incorrecta' });
+    }
+    resetFails.delete(ip);
+
+    const resetAt = new Date(now).toISOString();
+    db.updateTeam(req.team.id, { manual_reset_at: resetAt });
+    console.log(`[weekly-reset] manual reset at ${resetAt} from ${ip}`);
+    broadcast({ type: 'weekly_reset', week_start: resetAt });
+
+    res.json({ week_start: db.getCurrentWeekStart(), manual_reset_at: resetAt });
+  } catch (err) {
+    console.error('POST /weekly-reset/now error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

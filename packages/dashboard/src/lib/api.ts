@@ -208,6 +208,22 @@ async function getAccountUsage(): Promise<{ usage: AccountUsage | null }> {
   return request<{ usage: AccountUsage | null }>('/api/admin/account-usage');
 }
 
+export interface WeeklyResetStatus {
+  week_start: string;
+  manual_reset_at: string | null;
+}
+
+async function getWeeklyResetStatus(): Promise<WeeklyResetStatus> {
+  return request<WeeklyResetStatus>('/api/admin/weekly-reset');
+}
+
+async function resetWeekNow(password: string): Promise<WeeklyResetStatus> {
+  return request<WeeklyResetStatus>('/api/admin/weekly-reset/now', {
+    method: 'POST',
+    body: { password },
+  });
+}
+
 async function updateSettings(payload: UpdateSettingsPayload): Promise<{ team: Team }> {
   return request<{ team: Team }>('/api/admin/settings', {
     method: 'PUT',
@@ -231,6 +247,8 @@ export const api = {
   getAnalytics,
   updateSettings,
   getAccountUsage,
+  getWeeklyResetStatus,
+  resetWeekNow,
   getToken,
   getStoredTeam,
   setStoredTeam,
