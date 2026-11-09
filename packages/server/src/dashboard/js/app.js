@@ -1158,6 +1158,48 @@
       html += '</div>'; // right column
       html += '</div>'; // two-col
 
+      // Activity per user (audit)
+      html += '<div class="card mb-2"><div class="card-header"><h3>Actividad por Usuario (' + _analyticsDays + ' días)</h3></div>';
+      html += '<div class="card-body-flush"><div class="table-wrap"><table>';
+      html += '<thead><tr><th>Usuario</th><th>Primera</th><th>Última</th><th>Días activos</th><th>Prompts</th><th>Hora pico</th></tr></thead><tbody>';
+      var activity = data.activity_by_user || [];
+      if (activity.length === 0) {
+        html += '<tr><td colspan="6" class="text-center text-muted">Sin actividad en este rango</td></tr>';
+      } else {
+        for (var ai = 0; ai < activity.length; ai++) {
+          var act = activity[ai];
+          var peak = act.peak_hour == null ? '–' : ('0' + new Date(Date.UTC(2000, 0, 1, act.peak_hour)).getHours()).slice(-2) + ':00';
+          html += '<tr>';
+          html += '<td>' + escapeHtml(act.user_name) + '</td>';
+          html += '<td class="text-sm">' + new Date(act.first_at).toLocaleDateString() + '</td>';
+          html += '<td class="text-sm">' + timeAgo(act.last_at) + '</td>';
+          html += '<td class="text-mono">' + act.active_days + '/' + _analyticsDays + '</td>';
+          html += '<td class="text-mono">' + act.prompts + '</td>';
+          html += '<td class="text-mono">' + peak + '</td>';
+          html += '</tr>';
+        }
+      }
+      html += '</tbody></table></div></div></div>';
+
+      // Blocks per user and category (audit)
+      html += '<div class="card mb-2"><div class="card-header"><h3>Bloqueos por Usuario y Motivo (' + _analyticsDays + ' días)</h3></div>';
+      html += '<div class="card-body-flush"><div class="table-wrap"><table>';
+      html += '<thead><tr><th>Usuario</th><th>Motivo</th><th>Bloqueos</th><th>Último</th></tr></thead><tbody>';
+      var blocks = data.blocks_by_user || [];
+      if (blocks.length === 0) {
+        html += '<tr><td colspan="4" class="text-center text-muted">Sin bloqueos en este rango</td></tr>';
+      } else {
+        for (var bi = 0; bi < blocks.length; bi++) {
+          html += '<tr>';
+          html += '<td>' + escapeHtml(blocks[bi].user_name) + '</td>';
+          html += '<td class="text-sm">' + escapeHtml(blocks[bi].reason) + '</td>';
+          html += '<td class="text-mono">' + blocks[bi].count + '</td>';
+          html += '<td class="text-sm">' + timeAgo(blocks[bi].last_at) + '</td>';
+          html += '</tr>';
+        }
+      }
+      html += '</tbody></table></div></div></div>';
+
       // Devices table
       html += '<div class="card mb-2"><div class="card-header"><h3>Dispositivos</h3></div>';
       html += '<div class="card-body-flush"><div class="table-wrap"><table>';
