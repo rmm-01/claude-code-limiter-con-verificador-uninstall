@@ -222,6 +222,13 @@ export function AnalyticsPage() {
     { day: 'Total', byModel: modelTotal, total: Object.values(modelTotal).reduce((t, v) => t + v, 0) },
   ];
 
+  // Anomalía: un día con más del doble del promedio de los días activos del usuario (mín. 3 días activos).
+  const isSpike = (u: (typeof userDayRows)[number], k: string) => {
+    if (u.id === '__total') return false;
+    const active = last7.filter((d) => (u.byDay[d] ?? 0) > 0).length;
+    return active >= 3 && (u.byDay[k] ?? 0) > (2 * u.total) / active;
+  };
+
   const exportDetail = () =>
     downloadCsv(`detalle-por-fecha_${from}_${to}.csv`, [
       ['Fecha', 'Usuarios', 'Prompts', 'Creditos', 'Tokens entrada', 'Tokens salida', 'Tokens cache', 'Costo USD'],
@@ -279,7 +286,7 @@ export function AnalyticsPage() {
       {/* Tokens por usuario y día (últimos 7 días) */}
       <Card>
         <CardHeader>
-          <h3 className="text-sm font-semibold text-zinc-200">Tokens por Día ({last7.length} días)</h3>
+          <h3 className="text-sm font-semibold text-zinc-200">Tokens por Día ({last7.length} días) <span className="ml-2 text-xs font-normal text-amber-300/80">ámbar = más del doble del promedio del usuario</span></h3>
           <div className="flex items-center gap-2 text-xs text-zinc-400">
             <label>Desde <input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className="rounded border border-zinc-700 bg-zinc-800/50 px-2 py-1 text-zinc-100" /></label>
             <label>Hasta <input type="date" value={to} min={from} max={isoDay(new Date())} onChange={(e) => e.target.value && setTo(e.target.value)} className="rounded border border-zinc-700 bg-zinc-800/50 px-2 py-1 text-zinc-100" /></label>
@@ -294,7 +301,10 @@ export function AnalyticsPage() {
                 key: k,
                 header: k.slice(5),
                 render: (r: (typeof userDayRows)[number]) => (
-                  <span className="font-mono text-zinc-300">
+                  <span
+                    className={`font-mono ${isSpike(r, k) ? 'rounded bg-amber-500/15 px-1 text-amber-300' : 'text-zinc-300'}`}
+                    title={isSpike(r, k) ? 'Más del doble del promedio diario de este usuario' : undefined}
+                  >
                     {r.byDay[k] ? formatTokens(r.byDay[k]) : '–'}
                     {r.usdByDay[k] > 0 && <span className="block text-[10px] text-zinc-500">{formatUsd(r.usdByDay[k])}</span>}
                   </span>
