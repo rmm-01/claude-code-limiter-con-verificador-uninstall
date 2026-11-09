@@ -333,6 +333,12 @@ export function AnalyticsPage() {
         <StatCard label="Créditos" value={dayTotals.credits} sub={delta(dayTotals.credits, prev.credits, String)} />
       </div>
 
+      {/* Ritmo de gasto: promedio diario del rango y proyección a 30 días a ese ritmo */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="Costo diario promedio" value={formatUsd(last7.length ? dayTotals.usd / last7.length : 0)} sub={`promedio de ${last7.length} días del rango`} />
+        <StatCard label="Proyección a 30 días" value={formatUsd(last7.length ? (dayTotals.usd / last7.length) * 30 : 0)} sub="si el ritmo del rango se mantiene" />
+      </div>
+
       {/* Detalle del equipo por fecha */}
       <Card>
         <CardHeader>
