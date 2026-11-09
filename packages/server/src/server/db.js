@@ -1204,6 +1204,31 @@ function getAnalytics(teamId, opts) {
      LIMIT 50`
   ).all(teamId, since, ...userFilterParams);
 
+  // Activity per user (audit view): first/last prompt, active days, prompts and personal peak hour (UTC)
+  const activityByUser = getDb().prepare(
+    `SELECT se.user_id, u.name AS user_name, MIN(se.timestamp) AS first_at, MAX(se.timestamp) AS last_at,
+            COUNT(DISTINCT DATE(se.timestamp)) AS active_days, COUNT(*) AS prompts
+     FROM session_event se
+     JOIN user u ON se.user_id = u.id
+     WHERE u.team_id = ? AND se.timestamp >= ? AND se.type = 'prompt'${userFilter}
+     GROUP BY se.user_id
+     ORDER BY prompts DESC`
+  ).all(teamId, since, ...userFilterParams);
+  const hourRows = getDb().prepare(
+    `SELECT se.user_id, CAST(strftime('%H', se.timestamp) AS INTEGER) AS hour, COUNT(*) AS count
+     FROM session_event se
+     JOIN user u ON se.user_id = u.id
+     WHERE u.team_id = ? AND se.timestamp >= ? AND se.type = 'prompt'${userFilter}
+     GROUP BY se.user_id, hour`
+  ).all(teamId, since, ...userFilterParams);
+  const peakByUser = {};
+  for (const h of hourRows) {
+    if (!peakByUser[h.user_id] || h.count > peakByUser[h.user_id].count) peakByUser[h.user_id] = h;
+  }
+  for (const row of activityByUser) {
+    row.peak_hour = peakByUser[row.user_id] ? peakByUser[row.user_id].hour : null;
+  }
+
   // Average prompt length
   const avgPromptRow = getDb().prepare(
     `SELECT AVG(se.prompt_length) AS avg_len FROM session_event se
@@ -1261,6 +1286,7 @@ function getAnalytics(teamId, opts) {
     daily_credits: dailyCredits,
     block_rate: blockRate,
     blocks_by_user: blocksByUser,
+    activity_by_user: activityByUser,
     avg_prompt_length: avgPromptLength,
     avg_response_length: avgResponseLength,
     avg_prompts_per_session: avgPromptsPerSession,

@@ -507,6 +507,38 @@ export function AnalyticsPage() {
         </div>
       </div>
 
+      {/* Actividad por usuario */}
+      <Card>
+        <CardHeader>
+          <h3 className="text-sm font-semibold text-zinc-200">Actividad por Usuario ({days} días)</h3>
+        </CardHeader>
+        <CardBody flush>
+          <Table
+            columns={[
+              { key: 'user', header: 'Usuario', render: (a) => <span className="text-zinc-200">{a.user_name}</span> },
+              { key: 'first', header: 'Primera', render: (a) => <span className="text-xs">{new Date(a.first_at).toLocaleDateString()}</span> },
+              { key: 'last', header: 'Última', render: (a) => <span className="text-xs">{timeAgo(a.last_at)}</span> },
+              { key: 'days', header: 'Días activos', render: (a) => <span className="font-mono text-zinc-300">{a.active_days}/{days}</span>, className: 'text-right' },
+              { key: 'prompts', header: 'Prompts', render: (a) => <span className="font-mono text-zinc-100">{a.prompts}</span>, className: 'text-right' },
+              {
+                key: 'peak',
+                header: 'Hora pico',
+                // La hora del server es UTC; se muestra en la zona horaria del navegador.
+                render: (a) => (
+                  <span className="font-mono text-zinc-300">
+                    {a.peak_hour == null ? '–' : `${String(new Date(Date.UTC(2000, 0, 1, a.peak_hour)).getHours()).padStart(2, '0')}:00`}
+                  </span>
+                ),
+                className: 'text-right',
+              },
+            ]}
+            data={data.activity_by_user ?? []}
+            keyExtractor={(a) => a.user_id}
+            emptyMessage="Sin actividad en este rango"
+          />
+        </CardBody>
+      </Card>
+
       {/* Bloqueos por usuario y motivo */}
       <Card>
         <CardHeader>

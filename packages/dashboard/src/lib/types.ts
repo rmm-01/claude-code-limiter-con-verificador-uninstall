@@ -205,6 +205,7 @@ export interface AnalyticsData {
     rate: number;
   };
   blocks_by_user?: Array<{ user_id: string; user_name: string; reason: string; count: number; last_at: string }>;
+  activity_by_user?: Array<{ user_id: string; user_name: string; first_at: string; last_at: string; active_days: number; prompts: number; peak_hour: number | null }>;
   model_distribution: { [model: string]: number };
   peak_hours: Array<{ hour: number; count: number }>;
   daily_active: Array<{ date: string; users: number }>;
