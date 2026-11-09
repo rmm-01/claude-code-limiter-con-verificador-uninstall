@@ -12,8 +12,8 @@ import { LiveFeed } from '../components/LiveFeed';
 import { SkeletonPage } from '../components/Skeleton';
 import { Sparkline } from '../components/Charts';
 import { AddUserModal } from './AddUserModal';
-import { ModelChecklist } from '../components/ModelChecklist';
-import { EffortControl } from '../components/EffortControl';
+import { ultracodeAllowed } from '../components/EffortControl';
+import { DollarsExplainer } from '../components/DollarsExplainer';
 import { UpdateCommandModal } from '../components/UpdateCommandModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 
@@ -103,7 +103,7 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
         <h2 className="text-xl font-semibold text-zinc-100">Resumen</h2>
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" onClick={() => setCreditsModalOpen(true)}>
-            ¿Cómo funcionan los créditos?
+            {explainerTitle()}
           </Button>
           <Button variant="primary" onClick={() => setAddModalOpen(true)}>
             + Agregar Usuario
@@ -139,8 +139,6 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
                       user={user}
                       onClick={() => navigate(`/dashboard/users/${user.id}`)}
                       onAction={handleUserAction}
-                      showToast={showToast}
-                      onSaved={silentRefresh}
                       onUpdate={() => setUpdateTarget({ id: user.id, name: user.name })}
                     />
                   ))}
@@ -180,9 +178,9 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
 
       {/* Credits Explainer Modal */}
       <Modal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} size="lg">
-        <ModalHeader onClose={() => setCreditsModalOpen(false)}>¿Cómo funcionan los créditos?</ModalHeader>
+        <ModalHeader onClose={() => setCreditsModalOpen(false)}>{explainerTitle()}</ModalHeader>
         <ModalBody>
-          <CreditsExplainer />
+          <LimitExplainer />
         </ModalBody>
       </Modal>
     </div>
@@ -219,18 +217,17 @@ function UserCard({
   user,
   onClick,
   onAction,
-  showToast,
-  onSaved,
   onUpdate,
 }: {
   user: User;
   onClick: () => void;
   onAction: (userId: string, action: 'pause' | 'kill' | 'reinstate', userName: string) => void;
-  showToast: OverviewPageProps['showToast'];
-  onSaved: () => void;
   onUpdate: () => void;
 }) {
   const limits = user.limits ?? [];
+  const allowedModelList = ['fable', 'opus', 'sonnet', 'haiku'].filter(
+    (m) => !limits.some((r) => r.type === 'per_model' && r.value === 0 && (!r.model || r.model === m)),
+  );
   const usage = user.usage ?? {};
   const dailyUsage: Record<string, number> = usage.daily?.counts ?? {};
   const creditRule = getCreditRule(limits);
@@ -311,8 +308,26 @@ function UserCard({
         )}
       </div>
 
-      <ModelChecklist user={user} onSaved={onSaved} showToast={showToast} className="mb-2" />
-      <EffortControl user={user} onSaved={onSaved} showToast={showToast} className="mb-3" />
+      {/* Read-only: allowed models and effort cap (edited from the user's profile). */}
+      <div className="mb-3 space-y-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-zinc-500">Modelos</span>
+          {allowedModelList.length === 0 ? (
+            <span className="text-xs text-red-400">ninguno permitido</span>
+          ) : (
+            allowedModelList.map((m) => (
+              <span key={m} className="px-1.5 py-0.5 rounded border border-zinc-700/60 text-[10px] font-mono text-zinc-300 capitalize">{m}</span>
+            ))
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-[10px] uppercase tracking-wider text-zinc-500">Effort máx</span>
+          <span className="text-zinc-300 capitalize">{user.max_effort_level === 'max' ? 'sin límite' : user.max_effort_level}</span>
+          <span className={ultracodeAllowed(user.max_effort_level) ? 'text-zinc-500' : 'text-red-400'}>
+            · ultracode {ultracodeAllowed(user.max_effort_level) ? 'permitido' : 'bloqueado'}
+          </span>
+        </div>
+      </div>
 
       {/* Current subscription week (since the last weekly reset): credits
           (limiter unit) and real tokens, side by side. The sparkline still
@@ -407,6 +422,16 @@ function UserCard({
       </div>
     </div>
   );
+}
+
+/** Title of the explainer button/modal: it follows the team's limit mode. */
+export function explainerTitle(): string {
+  return api.getStoredTeam()?.limit_mode === 'dollars' ? '¿Cómo funcionan los dólares?' : '¿Cómo funcionan los créditos?';
+}
+
+/** Explains the active limit mode (dollars or credits). */
+export function LimitExplainer() {
+  return api.getStoredTeam()?.limit_mode === 'dollars' ? <DollarsExplainer /> : <CreditsExplainer />;
 }
 
 export function CreditsExplainer() {

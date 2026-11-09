@@ -19,7 +19,7 @@ import { ultracodeAllowed } from '../components/EffortControl';
 import { ProgressBar } from '../components/ProgressBar';
 import { UpdateCommandModal } from '../components/UpdateCommandModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
-import { CreditsExplainer } from './OverviewPage';
+import { LimitExplainer, explainerTitle } from './OverviewPage';
 
 interface UserDetailPageProps {
   showToast: (title: string, message: string, type: 'info' | 'success' | 'warning' | 'error') => void;
@@ -239,7 +239,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
             </Select>
           </div>
           <Button variant="ghost" size="sm" onClick={() => setCreditsModalOpen(true)}>
-            ¿Cómo funcionan los créditos?
+            {explainerTitle()}
           </Button>
           <Button size="sm" onClick={() => setEditLimitsOpen(true)}>
             Editar Límites
@@ -818,9 +818,9 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
 
       {/* Credits Modal */}
       <Modal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} size="lg">
-        <ModalHeader onClose={() => setCreditsModalOpen(false)}>¿Cómo funcionan los créditos?</ModalHeader>
+        <ModalHeader onClose={() => setCreditsModalOpen(false)}>{explainerTitle()}</ModalHeader>
         <ModalBody>
-          <CreditsExplainer />
+          <LimitExplainer />
         </ModalBody>
       </Modal>
 
