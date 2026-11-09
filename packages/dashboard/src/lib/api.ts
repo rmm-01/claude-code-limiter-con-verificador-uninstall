@@ -214,6 +214,8 @@ async function getEvents(params?: {
 async function getAnalytics(params?: {
   days?: number;
   user_id?: string;
+  from?: string;
+  to?: string;
 }): Promise<AnalyticsData> {
   return request(`/api/admin/analytics${buildQS(params)}`);
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
-import type { AnalyticsData, Device, DailyUsageRow } from '../lib/types';
+import type { AnalyticsData, Device, DailyUsageRow, User } from '../lib/types';
 import { timeAgo, formatTokens, formatUsd, TOKENS_NA, TOKENS_NA_HINT } from '../lib/utils';
 import { TokenValue } from '../components/Tokens';
 import { Card, CardHeader, CardBody } from '../components/Card';
@@ -31,6 +31,22 @@ export function AnalyticsPage() {
   const [from, setFrom] = useState(() => isoDay(new Date(Date.now() - 6 * 864e5)));
   const [to, setTo] = useState(() => isoDay(new Date()));
   const [rangeRows, setRangeRows] = useState<DailyUsageRow[]>([]);
+  // Bloqueos y actividad del rango Desde/Hasta (el server acepta fechas exactas).
+  const [rangeAn, setRangeAn] = useState<AnalyticsData | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    if (!from || !to || from > to) return;
+    api.getAnalytics({ from, to })
+      .then(setRangeAn)
+      .catch(() => { /* handled by interceptor */ });
+  }, [from, to]);
+
+  useEffect(() => {
+    api.getUsers()
+      .then((res) => setUsers(res.users ?? []))
+      .catch(() => { /* handled by interceptor */ });
+  }, []);
 
   // El server filtra por "últimos N días", así que se pide desde el inicio del periodo anterior
   // (mismo largo que el rango mostrado, máx. 31 días) hasta hoy, para poder comparar.
@@ -205,6 +221,16 @@ export function AnalyticsPage() {
     before > 0
       ? `${cur >= before ? '▲' : '▼'} ${Math.abs(((cur - before) / before) * 100).toFixed(0)}% vs ${fmt(before)} (periodo anterior)`
       : 'Sin datos del periodo anterior';
+  // Gastar más es peor: subida en rojo, bajada en verde.
+  const deltaCls = (cur: number, before: number) =>
+    before > 0 ? (cur > before ? 'text-red-400' : cur < before ? 'text-green-400' : undefined) : undefined;
+  // Presupuesto en dólares del equipo = suma de la regla 'dollars' de cada usuario, llevada a 30 días.
+  const perMonth: Record<string, number> = { daily: 30, sliding_24h: 30, weekly: 30 / 7, monthly: 1 };
+  const teamBudget30 = users.reduce(
+    (t, u) => t + (u.limits ?? []).filter((l) => l.type === 'dollars' && l.value != null).reduce((x, l) => x + (l.value as number) * (perMonth[l.window ?? 'monthly'] ?? 1), 0),
+    0,
+  );
+  const projected30 = last7.length ? (dayTotals.usd / last7.length) * 30 : 0;
   const curTokens = dayTotals.input + dayTotals.output;
 
   // Costo (USD) por modelo y día dentro del rango; modelos ordenados por gasto total.
@@ -233,6 +259,21 @@ export function AnalyticsPage() {
     downloadCsv(`detalle-por-fecha_${from}_${to}.csv`, [
       ['Fecha', 'Usuarios', 'Prompts', 'Creditos', 'Tokens entrada', 'Tokens salida', 'Tokens cache', 'Costo USD'],
       ...[...perDay, dayTotals].map((x) => [x.day, x.users, x.prompts, x.credits, x.input, x.output, x.cache, x.usd.toFixed(2)]),
+    ]);
+  const exportModels = () =>
+    downloadCsv(`costo-por-modelo_${from}_${to}.csv`, [
+      ['Fecha', ...models, 'Total USD'],
+      ...modelRows.map((x) => [x.day, ...models.map((m) => (x.byModel[m] ?? 0).toFixed(2)), x.total.toFixed(2)]),
+    ]);
+  const exportBlocks = () =>
+    downloadCsv(`bloqueos_${from}_${to}.csv`, [
+      ['Usuario', 'Motivo', 'Bloqueos', 'Ultimo'],
+      ...(rangeAn?.blocks_by_user ?? []).map((b) => [b.user_name, b.reason, b.count, b.last_at]),
+    ]);
+  const exportActivity = () =>
+    downloadCsv(`actividad_${from}_${to}.csv`, [
+      ['Usuario', 'Primera', 'Ultima', 'Dias activos', 'Prompts', 'Hora pico UTC'],
+      ...(rangeAn?.activity_by_user ?? []).map((a) => [a.user_name, a.first_at, a.last_at, a.active_days, a.prompts, a.peak_hour ?? '']),
     ]);
   const exportUsers = () =>
     downloadCsv(`tokens-por-usuario_${from}_${to}.csv`, [
@@ -327,16 +368,26 @@ export function AnalyticsPage() {
 
       {/* Comparativa contra el periodo anterior de igual largo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Costo" value={formatUsd(dayTotals.usd)} sub={delta(dayTotals.usd, prev.usd, formatUsd)} />
-        <StatCard label="Tokens (entrada+salida)" value={formatTokens(curTokens)} sub={delta(curTokens, prev.tokens, formatTokens)} />
-        <StatCard label="Prompts" value={dayTotals.prompts} sub={delta(dayTotals.prompts, prev.prompts, String)} />
-        <StatCard label="Créditos" value={dayTotals.credits} sub={delta(dayTotals.credits, prev.credits, String)} />
+        <StatCard label="Costo" value={formatUsd(dayTotals.usd)} sub={delta(dayTotals.usd, prev.usd, formatUsd)} subClass={deltaCls(dayTotals.usd, prev.usd)} />
+        <StatCard label="Tokens (entrada+salida)" value={formatTokens(curTokens)} sub={delta(curTokens, prev.tokens, formatTokens)} subClass={deltaCls(curTokens, prev.tokens)} />
+        <StatCard label="Prompts" value={dayTotals.prompts} sub={delta(dayTotals.prompts, prev.prompts, String)} subClass={deltaCls(dayTotals.prompts, prev.prompts)} />
+        <StatCard label="Créditos" value={dayTotals.credits} sub={delta(dayTotals.credits, prev.credits, String)} subClass={deltaCls(dayTotals.credits, prev.credits)} />
       </div>
 
       {/* Ritmo de gasto: promedio diario del rango y proyección a 30 días a ese ritmo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Costo diario promedio" value={formatUsd(last7.length ? dayTotals.usd / last7.length : 0)} sub={`promedio de ${last7.length} días del rango`} />
-        <StatCard label="Proyección a 30 días" value={formatUsd(last7.length ? (dayTotals.usd / last7.length) * 30 : 0)} sub="si el ritmo del rango se mantiene" />
+        <StatCard
+          label="Proyección a 30 días"
+          value={formatUsd(projected30)}
+          sub={teamBudget30 > 0 ? `${((projected30 / teamBudget30) * 100).toFixed(0)}% del presupuesto del equipo` : 'si el ritmo del rango se mantiene'}
+          subClass={teamBudget30 > 0 ? (projected30 > teamBudget30 ? 'text-red-400' : 'text-green-400') : undefined}
+        />
+        <StatCard
+          label="Presupuesto del equipo (30 días)"
+          value={teamBudget30 > 0 ? formatUsd(teamBudget30) : '–'}
+          sub={teamBudget30 > 0 ? 'suma de las reglas en dólares de cada usuario' : 'sin reglas en dólares configuradas'}
+        />
       </div>
 
       {/* Detalle del equipo por fecha */}
@@ -368,6 +419,7 @@ export function AnalyticsPage() {
       <Card>
         <CardHeader>
           <h3 className="text-sm font-semibold text-zinc-200">Costo por Modelo y Día ({from} → {to})</h3>
+          <Button size="sm" onClick={exportModels} disabled={models.length === 0}>Exportar CSV</Button>
         </CardHeader>
         <CardBody flush>
           <Table
@@ -526,7 +578,8 @@ export function AnalyticsPage() {
       {/* Actividad por usuario */}
       <Card>
         <CardHeader>
-          <h3 className="text-sm font-semibold text-zinc-200">Actividad por Usuario ({days} días)</h3>
+          <h3 className="text-sm font-semibold text-zinc-200">Actividad por Usuario ({from} → {to})</h3>
+          <Button size="sm" onClick={exportActivity} disabled={!rangeAn?.activity_by_user?.length}>Exportar CSV</Button>
         </CardHeader>
         <CardBody flush>
           <Table
@@ -534,7 +587,7 @@ export function AnalyticsPage() {
               { key: 'user', header: 'Usuario', render: (a) => <span className="text-zinc-200">{a.user_name}</span> },
               { key: 'first', header: 'Primera', render: (a) => <span className="text-xs">{new Date(a.first_at).toLocaleDateString()}</span> },
               { key: 'last', header: 'Última', render: (a) => <span className="text-xs">{timeAgo(a.last_at)}</span> },
-              { key: 'days', header: 'Días activos', render: (a) => <span className="font-mono text-zinc-300">{a.active_days}/{days}</span>, className: 'text-right' },
+              { key: 'days', header: 'Días activos', render: (a) => <span className="font-mono text-zinc-300">{a.active_days}/{Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1}</span>, className: 'text-right' },
               { key: 'prompts', header: 'Prompts', render: (a) => <span className="font-mono text-zinc-100">{a.prompts}</span>, className: 'text-right' },
               {
                 key: 'peak',
@@ -548,7 +601,7 @@ export function AnalyticsPage() {
                 className: 'text-right',
               },
             ]}
-            data={data.activity_by_user ?? []}
+            data={rangeAn?.activity_by_user ?? []}
             keyExtractor={(a) => a.user_id}
             emptyMessage="Sin actividad en este rango"
           />
@@ -558,7 +611,8 @@ export function AnalyticsPage() {
       {/* Bloqueos por usuario y motivo */}
       <Card>
         <CardHeader>
-          <h3 className="text-sm font-semibold text-zinc-200">Bloqueos por Usuario y Motivo ({days} días)</h3>
+          <h3 className="text-sm font-semibold text-zinc-200">Bloqueos por Usuario y Motivo ({from} → {to})</h3>
+          <Button size="sm" onClick={exportBlocks} disabled={!rangeAn?.blocks_by_user?.length}>Exportar CSV</Button>
         </CardHeader>
         <CardBody flush>
           <Table
@@ -568,7 +622,7 @@ export function AnalyticsPage() {
               { key: 'count', header: 'Bloqueos', render: (b) => <span className="font-mono text-zinc-100">{b.count}</span>, className: 'text-right' },
               { key: 'last', header: 'Último', render: (b) => <span className="text-xs">{timeAgo(b.last_at)}</span> },
             ]}
-            data={data.blocks_by_user ?? []}
+            data={rangeAn?.blocks_by_user ?? []}
             keyExtractor={(b) => `${b.user_id}|${b.reason}`}
             emptyMessage="Sin bloqueos en este rango"
           />
@@ -601,13 +655,13 @@ export function AnalyticsPage() {
   );
 }
 
-function StatCard({ label, value, color, sub }: { label: string; value: number | string; color?: string; sub?: string }) {
+function StatCard({ label, value, color, sub, subClass }: { label: string; value: number | string; color?: string; sub?: string; subClass?: string }) {
   return (
     <Card>
       <div className="p-4">
         <div className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{label}</div>
         <div className={`text-2xl font-bold mt-1 ${color ?? 'text-zinc-100'}`}>{value}</div>
-        {sub && <div className="text-xs text-zinc-500 mt-0.5">{sub}</div>}
+        {sub && <div className={`text-xs mt-0.5 ${subClass ?? 'text-zinc-500'}`}>{sub}</div>}
       </div>
     </Card>
   );
