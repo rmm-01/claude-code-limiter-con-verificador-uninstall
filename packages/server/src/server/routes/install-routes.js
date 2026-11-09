@@ -13,6 +13,8 @@
  */
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const db = require('../db');
 
 const router = express.Router();
@@ -41,6 +43,25 @@ function resolveServerUrl(req) {
 function psQuote(value) {
   return String(value).replace(/'/g, "''");
 }
+
+/**
+ * GET /install/cli-bundle?code=<install code>
+ * The installer files (packages/cli/src) for the updater, so the client needs
+ * neither git nor access to the (private) GitHub repo. Gated by the unused
+ * install code the updater script was rendered with.
+ */
+router.get('/cli-bundle', (req, res) => {
+  const code = String((req.query && req.query.code) || '');
+  const ok = code && db.getDb().prepare('SELECT 1 FROM install_code WHERE code = ? AND used = 0').get(code);
+  if (!ok) return res.status(403).json({ error: 'Código inválido o ya usado' });
+  const dir = path.join(__dirname, '..', '..', '..', '..', 'cli', 'src');
+  if (!fs.existsSync(dir)) return res.status(404).json({ error: 'Instalador no disponible en este servidor' });
+  const files = fs.readdirSync(dir).filter((n) => n.endsWith('.js')).map((n) => ({
+    path: `packages/cli/src/${n}`,
+    content: fs.readFileSync(path.join(dir, n)).toString('base64'),
+  }));
+  res.set('Cache-Control', 'no-store').json({ files });
+});
 
 /**
  * GET /install/update.ps1?token=<auth_token>
@@ -143,15 +164,21 @@ Write-Host ''
 
 $installCode = '${psQuote(installCode)}'
 $serverUrl   = '${psQuote(serverUrl)}'
-$repoUrl     = '${psQuote(repoUrl)}'
 
-# Working directory: fresh temp clone so we don't depend on where the
-# user has the repo (or whether they have it at all).
+# Working directory: a fresh temp folder filled with the installer files the
+# server hands out (no GitHub or git needed; the repo may be private).
 $workDir = Join-Path $env:TEMP ('clm-update-' + [guid]::NewGuid().ToString('N').Substring(0,8))
-Write-Host ('[1/4] Clonando repo en ' + $workDir)
-git clone --depth 1 $repoUrl $workDir 2>&1 | Out-Host
-if ($LASTEXITCODE -ne 0) {
-  Write-Host '[X] git clone falló. Asegurate de tener git instalado y conexión al repo.' -ForegroundColor Red
+Write-Host ('[1/4] Descargando instalador en ' + $workDir)
+try {
+  $bundle = Invoke-RestMethod -Uri ($serverUrl.TrimEnd('/') + '/install/cli-bundle?code=' + $installCode) -UseBasicParsing
+  foreach ($f in $bundle.files) {
+    $dest = Join-Path $workDir ($f.path -replace '/', '\\')
+    New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
+    [IO.File]::WriteAllBytes($dest, [Convert]::FromBase64String($f.content))
+  }
+  if (-not (Test-Path (Join-Path $workDir 'packages\\cli\\src\\installer.js'))) { throw 'el servidor no entregó installer.js' }
+} catch {
+  Write-Host ('[X] No se pudo descargar el instalador del servidor: ' + $_.Exception.Message) -ForegroundColor Red
   return
 }
 
