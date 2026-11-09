@@ -5,6 +5,7 @@ const fs = require('fs');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 let db = null;
 
@@ -90,6 +91,16 @@ function init(dbPath) {
     CREATE TABLE IF NOT EXISTS install_code (
       code        TEXT PRIMARY KEY,
       user_id     TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+      used        BOOLEAN DEFAULT 0,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Expiring single-use link for the client updater (replaces handing out the
+    -- permanent auth_token in a URL).
+    CREATE TABLE IF NOT EXISTS update_link (
+      token       TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+      expires_at  TEXT NOT NULL,
       used        BOOLEAN DEFAULT 0,
       created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -865,6 +876,34 @@ function invalidateUnusedInstallCodes(userId) {
   ).run(userId);
 }
 
+// --------------- Update link helpers ---------------
+
+/** New link for the user; any earlier unused one stops working. */
+function createUpdateLink(userId, expiresAt) {
+  const token = crypto.randomBytes(24).toString('hex');
+  const d = getDb();
+  d.prepare('UPDATE update_link SET used = 1 WHERE user_id = ? AND used = 0').run(userId);
+  d.prepare('INSERT INTO update_link (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, userId, expiresAt);
+  return token;
+}
+
+/** Latest unused, unexpired link for the user, or undefined. */
+function getActiveUpdateLink(userId) {
+  return getDb().prepare(
+    'SELECT token, expires_at FROM update_link WHERE user_id = ? AND used = 0 AND expires_at > ? ORDER BY created_at DESC, rowid DESC LIMIT 1'
+  ).get(userId, new Date().toISOString());
+}
+
+/** Spend a link atomically. Returns the user_id, or null if unknown/used/expired. */
+function consumeUpdateLink(token) {
+  const d = getDb();
+  const row = d.prepare('SELECT user_id FROM update_link WHERE token = ?').get(token);
+  if (!row) return null;
+  const res = d.prepare('UPDATE update_link SET used = 1 WHERE token = ? AND used = 0 AND expires_at > ?')
+    .run(token, new Date().toISOString());
+  return res.changes === 1 ? row.user_id : null;
+}
+
 // --------------- Device helpers ---------------
 
 /**
@@ -1176,6 +1215,9 @@ module.exports = {
   useInstallCode,
   getUnusedInstallCode,
   invalidateUnusedInstallCodes,
+  createUpdateLink,
+  getActiveUpdateLink,
+  consumeUpdateLink,
   // Device
   upsertDevice,
   getDevices,

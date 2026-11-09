@@ -55,12 +55,25 @@ function psQuote(value) {
  */
 router.get('/update.ps1', (req, res) => {
   const token = (req.query && req.query.token) || '';
-  if (!token) {
-    res.status(400).type('text/plain').send('# Falta el query string ?token=<auth_token>\nWrite-Host "ERROR: este URL necesita ?token=<auth_token>" -ForegroundColor Red\nexit 1\n');
+  const link = (req.query && req.query.link) || '';
+  if (!token && !link) {
+    res.status(400).type('text/plain').send('# Falta el query string ?link=<link>\nWrite-Host "ERROR: este URL necesita ?link=<link>" -ForegroundColor Red\nexit 1\n');
     return;
   }
 
-  const user = db.getUserByToken(token);
+  let user;
+  if (link) {
+    // Expiring single-use link generated from the dashboard.
+    const linkUserId = db.consumeUpdateLink(String(link));
+    if (!linkUserId) {
+      res.status(410).type('text/plain').send('# Link vencido o ya usado\nWrite-Host "ERROR: el link venció o ya fue usado. Pedile al admin que lo renueve." -ForegroundColor Red\nexit 1\n');
+      return;
+    }
+    user = db.getUser(linkUserId);
+  } else {
+    // Legacy: permanent auth_token in the URL (kept so existing commands keep working).
+    user = db.getUserByToken(token);
+  }
   if (!user) {
     res.status(404).type('text/plain').send('# Token desconocido\nWrite-Host "ERROR: token no reconocido por el server. Pedile al admin un link nuevo." -ForegroundColor Red\nexit 1\n');
     return;
@@ -178,3 +191,4 @@ finally {
 }
 
 module.exports = router;
+module.exports.resolveServerUrl = resolveServerUrl;

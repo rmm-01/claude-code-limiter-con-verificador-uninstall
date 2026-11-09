@@ -6,6 +6,7 @@ const db = require('../db');
 const { verifyPassword, hashPassword, createJWT, adminAuth } = require('../services/auth');
 const { getUsageSummary, getCreditBalance } = require('../services/usage');
 const { broadcast } = require('../ws');
+const { allowedModels } = require('../services/limiter');
 
 function pickDefined(obj, keys) {
   const result = {};
@@ -314,6 +315,7 @@ router.put('/users/:id', (req, res) => {
     }
 
     if (Array.isArray(limits)) {
+      const modelsBefore = JSON.stringify(allowedModels(user));
       db.deleteLimitRulesForUser(userId);
       for (const rule of limits) {
         db.createLimitRule({
@@ -326,6 +328,10 @@ router.put('/users/:id', (req, res) => {
           schedule_end: rule.schedule_end,
           schedule_tz: rule.schedule_tz,
         });
+      }
+      // The watchdog will rewrite managed-settings.json (availableModels), so the old hash is stale.
+      if (JSON.stringify(allowedModels(user)) !== modelsBefore) {
+        db.updateUser(userId, { expected_managed_settings_hash: null });
       }
     }
 
@@ -401,6 +407,51 @@ router.post('/users/:id/install-code', (req, res) => {
     res.json({ install_code: code });
   } catch (err) {
     console.error('POST /users/:id/install-code error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+const UPDATE_LINK_TTL_MS = 30 * 60 * 1000;
+
+function updateLinkPayload(req, link) {
+  if (!link) return { command: null, expires_at: null };
+  const { resolveServerUrl } = require('./install-routes');
+  return {
+    command: `iwr -useb "${resolveServerUrl(req)}/install/update.ps1?link=${link.token}" | iex`,
+    expires_at: link.expires_at,
+  };
+}
+
+/**
+ * GET /api/admin/users/:id/update-link
+ * The active (unused, unexpired) updater command for the user, if any.
+ */
+router.get('/users/:id/update-link', (req, res) => {
+  try {
+    const user = db.getUser(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.team_id !== req.teamId) return res.status(403).json({ error: 'Forbidden' });
+    res.json(updateLinkPayload(req, db.getActiveUpdateLink(user.id)));
+  } catch (err) {
+    console.error('GET /users/:id/update-link error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/admin/users/:id/update-link
+ * Generate (or renew) the updater command; invalidates the previous one.
+ */
+router.post('/users/:id/update-link', (req, res) => {
+  try {
+    const user = db.getUser(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.team_id !== req.teamId) return res.status(403).json({ error: 'Forbidden' });
+    const expiresAt = new Date(Date.now() + UPDATE_LINK_TTL_MS).toISOString();
+    const token = db.createUpdateLink(user.id, expiresAt);
+    res.status(201).json(updateLinkPayload(req, { token, expires_at: expiresAt }));
+  } catch (err) {
+    console.error('POST /users/:id/update-link error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -559,6 +610,23 @@ router.get('/events', (req, res) => {
     res.json({ events });
   } catch (err) {
     console.error('GET /events error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/mismatches?user_id=X
+ * Turns where the declared model differed from the one that really ran.
+ */
+router.get('/mismatches', (req, res) => {
+  try {
+    const user = db.getUser(req.query.user_id);
+    if (!user || user.team_id !== req.team.id) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ mismatches: db.getSessionEvents(user.id, { type: 'model_mismatch', limit: 20 }) });
+  } catch (err) {
+    console.error('GET /mismatches error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

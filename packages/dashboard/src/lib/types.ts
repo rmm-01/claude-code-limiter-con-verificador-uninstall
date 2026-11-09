@@ -145,6 +145,20 @@ export interface UsageEvent {
   timestamp: string;
 }
 
+export interface UpdateLink {
+  command: string | null;
+  /** ISO timestamp; null when there is no active link. */
+  expires_at: string | null;
+}
+
+export interface ModelMismatch {
+  id: number | string;
+  model: string;
+  /** "declared <model>, ran <model>" */
+  blocked_reason: string | null;
+  timestamp: string;
+}
+
 export interface DailyUsageRow {
   day: string;
   user_id?: string;
@@ -222,6 +236,7 @@ export interface CreateUserResponse {
 export type WSEventType =
   | 'user_check'
   | 'user_blocked'
+  | 'model_mismatch'
   | 'user_counted'
   | 'user_status_change'
   | 'user_killed'
@@ -235,6 +250,7 @@ export interface WSEvent {
   userId?: string;
   userName?: string;
   model?: string;
+  declared?: string;
   modelVersion?: string | null;
   reason?: string;
   creditCost?: number;

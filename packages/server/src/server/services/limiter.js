@@ -109,6 +109,13 @@ function evaluateLimits(user, model, creditWeights, extra) {
 
     if (limit === -1) continue; // unlimited
     if (limit === 0 || count >= limit) {
+      if (limit === 0) {
+        return {
+          allowed: false,
+          reason: `El modelo ${capitalize(targetModel)} no está permitido para ${user.name}.\n\nUsá otro modelo o contactá al admin.`,
+          usage: usageSummary,
+        };
+      }
       const windowLabel = windowToLabel(rule.window);
       return {
         allowed: false,
@@ -216,6 +223,22 @@ function evaluateLimits(user, model, creditWeights, extra) {
   };
 }
 
+// Hard block only (checklist unticked = per_model value 0). Caps are not checked
+// here: they are judged on the declared model, so a legit /model switch is not punished.
+function isModelBlocked(user, model) {
+  return db.getLimitRules(user.id).some(r => r.type === 'per_model' && r.value === 0 && (!r.model || r.model === model));
+}
+
+const KNOWN_MODELS = ['fable', 'opus', 'sonnet', 'haiku'];
+
+// Value for Claude Code's managed `availableModels`; null = leave unrestricted.
+// shortcut: all four blocked also yields null (an empty list is ambiguous), so
+// the hook's own per_model block is the only guard then; revisit if that is used.
+function allowedModels(user) {
+  const allowed = KNOWN_MODELS.filter(m => !isModelBlocked(user, m));
+  return allowed.length === 0 || allowed.length === KNOWN_MODELS.length ? null : allowed;
+}
+
 const EFFORT_HIERARCHY = ['low', 'medium', 'high', 'xhigh', 'max'];
 
 function isEffortAllowed(requested, maxAllowed) {
@@ -287,6 +310,8 @@ function capitalize(str) {
 
 module.exports = {
   evaluateLimits,
+  isModelBlocked,
+  allowedModels,
   isInTimeWindow,
   isEffortAllowed,
   EFFORT_HIERARCHY,

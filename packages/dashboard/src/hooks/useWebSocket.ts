@@ -44,6 +44,14 @@ function wsEventToFeed(evt: WSEvent): FeedItem | null {
         time: evt.timestamp,
       };
     }
+    case 'model_mismatch':
+      return {
+        id: nextFeedId(),
+        type: 'blocked',
+        user: evt.userName ?? 'Desconocido',
+        detail: `Modelo falsificado: declaró ${evt.declared ?? '?'}, ejecutó ${evt.model ?? '?'}`,
+        time: evt.timestamp,
+      };
     case 'user_counted':
       return {
         id: nextFeedId(),

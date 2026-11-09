@@ -727,6 +727,25 @@ function parseTurnFromTranscript(transcriptPath) {
   return result;
 }
 
+// Raw model of the latest main-thread assistant turn, or null when absent or
+// older than 5 min. The age cap keeps a legit /model switch from being judged
+// by a stale turn (no new turn can run while blocked, so it would never clear).
+function lastObservedModel(transcriptPath) {
+  if (!transcriptPath) return null;
+  try {
+    const { lines } = readTailLines(resolveContinuedTranscript(transcriptPath), 256 << 10);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      let e;
+      try { e = JSON.parse(lines[i]); } catch { continue; }
+      if (e.type !== "assistant" || e.isSidechain || !e.message || normalizeModel(e.message.model) === "default") continue;
+      return Date.now() - Date.parse(e.timestamp) < 5 * 60 * 1000 ? e.message.model : null;
+    }
+  } catch (err) {
+    debugLog(`OBSERVED_MODEL error: ${err.message}`);
+  }
+  return null;
+}
+
 // ════════════════════════════════════════════════════════════
 // ACTIONS
 // ════════════════════════════════════════════════════════════
@@ -883,6 +902,7 @@ async function actionCheck(config) {
 
   const serverResp = await serverRequest("/api/v1/check", {
     model,
+    observed_model: normalizeModel(lastObservedModel(stdinData.transcript_path)),
     model_version: modelVersion,
     effort_level: effortLevel,
     agent_id: agentId,
@@ -984,6 +1004,8 @@ async function actionCount(config) {
     output_tokens: turn.output,
     cache_read_tokens: turn.cacheRead,
     subagent_tokens: turn.subagents,
+    // What settings/env claimed vs what the transcript says ran; server flags a mismatch.
+    declared_model: normalizeModel(detectModelRaw(stdinData, config)),
     timestamp: new Date().toISOString(),
     session_id: stdinData.session_id || null,
     response_length: (stdinData.last_assistant_message || "").length,

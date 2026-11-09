@@ -230,6 +230,10 @@ function generateManagedSettings(existingSettings, policy = {}) {
     // >= 2.1.128 for disableRemoteControl.
     disableRemoteControl: lockAgents,
     disableAgentView: lockAgents,
+    // Models the admin left ticked; absent = unrestricted. The watchdog keeps it
+    // in sync with /policy. A managed list is not merged with user lists and
+    // also blocks ANTHROPIC_MODEL / alias remaps to an unlisted model.
+    ...(Array.isArray(policy.allowed_models) ? { availableModels: policy.allowed_models } : {}),
     // Wraps the user's own statusLine (read from ~/.claude/settings.json on
     // every run) and reports the account's 5h / 7d usage to the server.
     // Static on purpose: nothing rewrites it after install, so the tamper
@@ -318,6 +322,22 @@ function setupWatchdog() {
       `      if ($null -ne $ms.allowManagedHooksOnly) { $cur = [bool]$ms.allowManagedHooksOnly }`,
       `      if ($cur -ne $lock) {`,
       `        if ($null -ne $ms.allowManagedHooksOnly) { $ms.allowManagedHooksOnly = $lock } else { $ms | Add-Member -NotePropertyName allowManagedHooksOnly -NotePropertyValue $lock }`,
+      `        [IO.File]::WriteAllText($bm, ($ms | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding $false))`,
+      `        Copy-Item $bm $m -Force`,
+      `      }`,
+      `    }`,
+      // Same pattern for the model checklist: availableModels = ticked models,
+      // removed when nothing is blocked. Skipped on an older server that does
+      // not send the field, so a missing field never wipes the list.
+      `    if ($pol.PSObject.Properties['allowed_models']) {`,
+      `      $want = $pol.allowed_models`,
+      `      $ms = Get-Content $bm -Raw | ConvertFrom-Json`,
+      `      $curM = $ms.availableModels`,
+      `      $same = (($null -eq $want) -and ($null -eq $curM)) -or (($null -ne $want) -and ($null -ne $curM) -and ((@($want) -join ',') -eq (@($curM) -join ',')))`,
+      `      if (-not $same) {`,
+      `        if ($null -eq $want) { $ms.PSObject.Properties.Remove('availableModels') }`,
+      `        elseif ($null -ne $curM) { $ms.availableModels = @($want) }`,
+      `        else { $ms | Add-Member -NotePropertyName availableModels -NotePropertyValue @($want) }`,
       `        [IO.File]::WriteAllText($bm, ($ms | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding $false))`,
       `        Copy-Item $bm $m -Force`,
       `      }`,

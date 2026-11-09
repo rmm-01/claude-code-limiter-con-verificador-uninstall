@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { hookAuth } = require('../services/auth');
-const { evaluateLimits } = require('../services/limiter');
+const { evaluateLimits, isModelBlocked, allowedModels } =require('../services/limiter');
 const { getUsageSummary, getCreditBalance } = require('../services/usage');
 const { broadcast } = require('../ws');
 
@@ -185,10 +185,20 @@ router.post('/check', hookAuth, (req, res) => {
     });
 
     // Evaluate limits (pass effort + subagent context)
-    const result = evaluateLimits(user, model, creditWeights, {
+    let result = evaluateLimits(user, model, creditWeights, {
       effort_level: effortLevel,
       is_subagent: !!agentId,
     });
+
+    // Declared model looked fine but the last real turn ran a blocked one: spoofed name.
+    const observed = req.body.observed_model;
+    if (result.allowed && observed && observed !== model && isModelBlocked(user, observed)) {
+      result = {
+        allowed: false,
+        reason: `Tu último turno corrió con ${observed}, un modelo no permitido para ${user.name}, aunque la sesión indica ${model}.\n\nUsá solo los modelos habilitados por el admin.`,
+        usage: result.usage,
+      };
+    }
 
     // If blocked, also record a blocked event
     if (!result.allowed) {
@@ -328,6 +338,22 @@ router.post('/count', hookAuth, (req, res) => {
       timestamp,
     });
 
+    // Settings/env claimed one model, the transcript says another ran: flag it.
+    const declared = req.body.declared_model;
+    if (declared && declared !== 'default' && declared !== model) {
+      db.recordSessionEvent({
+        user_id: user.id,
+        device_id: (devices.length > 0) ? devices[0].id : null,
+        type: 'model_mismatch',
+        model,
+        model_version: modelVersion,
+        blocked_reason: `declared ${declared}, ran ${model}`,
+        session_id: req.body.session_id || null,
+        timestamp,
+      });
+      broadcast({ type: 'model_mismatch', userId: user.id, userName: user.name, model, declared, timestamp });
+    }
+
     // Recalculate credit balance
     const limits = db.getLimitRules(user.id);
     const creditRule = limits.find(r => r.type === 'credits');
@@ -371,6 +397,7 @@ router.get('/policy', hookAuth, (req, res) => {
   res.json({
     allow_user_hooks: !!req.user.allow_user_hooks,
     allow_agents: !!req.user.allow_agents,
+    allowed_models: allowedModels(req.user),
   });
 });
 
@@ -532,6 +559,7 @@ router.post('/register', (req, res) => {
       policy: {
         allow_user_hooks: !!user.allow_user_hooks,
         allow_agents: !!user.allow_agents,
+        allowed_models: allowedModels(user),
       },
     });
   } catch (err) {

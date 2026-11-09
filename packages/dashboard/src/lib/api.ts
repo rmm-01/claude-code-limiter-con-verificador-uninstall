@@ -12,6 +12,8 @@ import type {
   AccountUsage,
   Team,
   UsageEvent,
+  ModelMismatch,
+  UpdateLink,
   DailyUsageRow,
   AnalyticsData,
   VersionUsage,
@@ -167,6 +169,14 @@ async function regenerateInstallCode(id: string): Promise<{ install_code: string
   });
 }
 
+async function getUpdateLink(id: string): Promise<UpdateLink> {
+  return request<UpdateLink>(`/api/admin/users/${id}/update-link`);
+}
+
+async function createUpdateLink(id: string): Promise<UpdateLink> {
+  return request<UpdateLink>(`/api/admin/users/${id}/update-link`, { method: 'POST' });
+}
+
 async function getUsage(params?: {
   user_id?: string;
   window?: string;
@@ -188,6 +198,10 @@ async function getUsageVersions(params?: {
   subagents?: SubagentUsage[];
 }> {
   return request(`/api/admin/usage/versions${buildQS(params)}`);
+}
+
+async function getMismatches(userId: string): Promise<{ mismatches: ModelMismatch[] }> {
+  return request(`/api/admin/mismatches${buildQS({ user_id: userId })}`);
 }
 
 async function getEvents(params?: {
@@ -241,9 +255,12 @@ export const api = {
   deleteUser,
   getInstallCode,
   regenerateInstallCode,
+  getUpdateLink,
+  createUpdateLink,
   getUsage,
   getUsageVersions,
   getEvents,
+  getMismatches,
   getAnalytics,
   updateSettings,
   getAccountUsage,
