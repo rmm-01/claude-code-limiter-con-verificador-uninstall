@@ -1,9 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import type { AccountUsage, RateWindow, WSEvent } from '../lib/types';
 
 const OPEN_KEY = 'account_usage_widget_open';
 const SEGMENTS = 10;
+const MUTE_KEY = 'account_usage_widget_muted';
+
+let audioCtx: AudioContext | null = null;
+
+/** Browsers keep audio locked until a user gesture: create/resume the context on the first one. */
+function unlockAudio() {
+  try {
+    audioCtx ??= new AudioContext();
+    void audioCtx.resume();
+  } catch { /* no audio available */ }
+}
+
+/** Short two-tone chime. Browsers keep audio locked until the page has had a click/keypress; then it stays silent. */
+function playChime() {
+  try {
+    if (audioCtx?.state !== 'running') return; // unlocked by unlockAudio() after the first click
+    const t0 = audioCtx.currentTime;
+    [660, 880].forEach((freq, i) => {
+      const osc = audioCtx!.createOscillator();
+      const gain = audioCtx!.createGain();
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0 + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.12, t0 + i * 0.12 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.12 + 0.11);
+      osc.connect(gain).connect(audioCtx!.destination);
+      osc.start(t0 + i * 0.12);
+      osc.stop(t0 + i * 0.12 + 0.12);
+    });
+  } catch { /* no audio available */ }
+}
 
 /** Percentage to show: a window whose reset already passed counts as 0. */
 function effectivePct(w: RateWindow | null, nowSec: number): number | null {
@@ -37,8 +67,26 @@ function formatAgo(iso: string, nowMs: number): string {
   return `hace ${Math.floor(h / 24)} d`;
 }
 
-function WindowRow({ label, w, nowSec }: { label: string; w: RateWindow | null; nowSec: number }) {
+function WindowRow({ label, w, nowSec, onFill }: { label: string; w: RateWindow | null; nowSec: number; onFill: () => void }) {
   const pct = effectivePct(w, nowSec);
+  const filledNow = pct === null ? null : Math.round((pct / 100) * SEGMENTS);
+  const [prevFilled, setPrevFilled] = useState<number | null>(filledNow);
+  const [pulseIdx, setPulseIdx] = useState<number | null>(null);
+
+  // A new square filled since the last reading (not on first load, not when it drops).
+  // Derived while rendering, so no setState runs inside an effect.
+  if (filledNow !== prevFilled) {
+    setPrevFilled(filledNow);
+    if (prevFilled !== null && filledNow !== null && filledNow > prevFilled) setPulseIdx(filledNow - 1);
+  }
+
+  useEffect(() => {
+    if (pulseIdx === null) return;
+    onFill();
+    const t = setTimeout(() => setPulseIdx(null), 1600);
+    return () => clearTimeout(t);
+  }, [pulseIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (pct === null || !w) {
     return (
       <div className="flex items-center gap-3 text-xs">
@@ -48,13 +96,13 @@ function WindowRow({ label, w, nowSec }: { label: string; w: RateWindow | null; 
     );
   }
   const color = pctColor(pct);
-  const filled = Math.round((pct / 100) * SEGMENTS);
+  const filled = filledNow ?? 0;
   return (
     <div className="flex items-center gap-3 text-xs">
       <span className="w-6 text-zinc-500">{label}</span>
       <div className="flex gap-0.5">
         {Array.from({ length: SEGMENTS }, (_, i) => (
-          <div key={i} className={`w-3 h-3 rounded-sm ${i < filled ? color.bar : 'bg-zinc-700'}`} />
+          <div key={i} className={`w-3 h-3 rounded-sm ${i < filled ? color.bar : 'bg-zinc-700'} ${i === pulseIdx ? 'animate-segment-pulse' : ''}`} />
         ))}
       </div>
       <span className={`font-mono ${color.text}`}>
@@ -75,6 +123,15 @@ export function AccountUsageWidget({ lastEvent }: { lastEvent: WSEvent | null })
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+  }, []);
+
+  useEffect(() => {
     api.getAccountUsage().then((res) => setUsage(res.usage)).catch(() => {});
   }, []);
 
@@ -87,6 +144,21 @@ export function AccountUsageWidget({ lastEvent }: { lastEvent: WSEvent | null })
     const t = setInterval(() => setNowMs(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
+
+  const [muted, setMuted] = useState(() => localStorage.getItem(MUTE_KEY) === '1');
+  const lastChime = useRef(0);
+  // Both windows can fill in one update: one chime is enough.
+  const onFill = () => {
+    if (muted || Date.now() - lastChime.current < 500) return;
+    lastChime.current = Date.now();
+    playChime();
+  };
+  const toggleMute = () => {
+    setMuted((v) => {
+      localStorage.setItem(MUTE_KEY, v ? '0' : '1');
+      return !v;
+    });
+  };
 
   const toggle = () => {
     setOpen((v) => {
@@ -122,13 +194,18 @@ export function AccountUsageWidget({ lastEvent }: { lastEvent: WSEvent | null })
     <div className="fixed bottom-4 right-4 z-40 w-72 rounded-lg border border-zinc-700 bg-zinc-900/95 shadow-lg animate-fade-in">
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="text-xs font-semibold text-zinc-300">Uso de la cuenta Claude</span>
-        <button onClick={toggle} title="Minimizar" className="text-zinc-500 hover:text-zinc-200 text-sm leading-none px-1">
-          –
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={toggleMute} title={muted ? 'Activar sonido' : 'Silenciar'} className="text-zinc-500 hover:text-zinc-200 text-xs leading-none px-1">
+            {muted ? '🔕' : '🔔'}
+          </button>
+          <button onClick={toggle} title="Minimizar" className="text-zinc-500 hover:text-zinc-200 text-sm leading-none px-1">
+            –
+          </button>
+        </div>
       </div>
       <div className="px-3 py-3 space-y-2">
-        <WindowRow label="5h" w={usage?.five_hour ?? null} nowSec={nowSec} />
-        <WindowRow label="7d" w={usage?.seven_day ?? null} nowSec={nowSec} />
+        <WindowRow label="5h" w={usage?.five_hour ?? null} nowSec={nowSec} onFill={onFill} />
+        <WindowRow label="7d" w={usage?.seven_day ?? null} nowSec={nowSec} onFill={onFill} />
       </div>
       <div className="px-3 pb-2 text-[11px] text-zinc-500">
         {usage

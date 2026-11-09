@@ -123,3 +123,11 @@ body {
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
   border-radius: 6px;
 }
+
+/* A segment of the account-usage meter that just filled. */
+@keyframes segment-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(251, 146, 60, 0.9); }
+  35% { transform: scale(1.45); box-shadow: 0 0 10px 3px rgba(251, 146, 60, 0.7); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(251, 146, 60, 0); }
+}
+.animate-segment-pulse { animation: segment-pulse 0.8s ease-out 2; }
