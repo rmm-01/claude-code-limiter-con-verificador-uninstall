@@ -184,6 +184,8 @@ Current time: 8:15 PM. Try sonnet or haiku instead.
 |------|---------|-------------|
 | **Cap por modelo** | `opus: 5/día, sonnet: 20/día` | Tope duro por modelo y ventana de tiempo |
 | **Presupuesto de créditos** | `100 créditos/día` | Un único presupuesto entre todos los modelos — opus cuesta 10, sonnet 3, haiku 1 |
+| **Presupuesto en dólares** | `US$10/día` | Costo estimado real de cada turno (tokens × precio del modelo). Alternativa a los créditos, ver [Modo de límites](#modo-de-límites-créditos-o-dólares) |
+| **Modelos permitidos** | `opus: bloqueado` | Checklist por usuario; un modelo desmarcado se bloquea (también dentro de Claude Code con `availableModels`) |
 | **Horario por modelo** | `opus: 9am–6pm` | Restringir modelos caros al horario laboral |
 | **Effort level** | `max_effort: high` | Bloquea niveles de razonamiento superiores al permitido |
 | **Subagentes / Workflows** | `subagents: 50/día` | Tope de ejecuciones de subagentes y workflows |
@@ -223,6 +225,35 @@ El costo base de créditos se multiplica según el nivel de razonamiento:
 
 Configurables en **Dashboard → Settings → Multiplicadores de Effort**.
 
+### Modo de límites: créditos o dólares
+
+El límite de consumo puede medirse de dos formas, **en paralelo**. Se elige por equipo en **Dashboard → Configuración → Modo de Límites** y cada usuario puede usar otro modo desde **Editar Límites** (si no elige, hereda el del equipo). Los límites del modo que no está activo se conservan pero no se aplican. Los equipos existentes arrancan en **créditos**, así que actualizar no cambia los límites de nadie.
+
+| | Créditos | Dólares |
+|---|---|---|
+| Qué mide | Turnos × peso del modelo × multiplicador de effort | Costo estimado real: tokens usados × precio del modelo |
+| Unidad | Créditos (unidad interna) | US$ (equivalente a precios de API, no lo que se cobra por la suscripción) |
+| Effort | Multiplicador configurable | No hace falta: un effort alto ya gasta más tokens de salida |
+
+**Cómo se calcula un turno en dólares:** entrada + salida + lectura de caché + escritura de caché, cada una con su precio por millón de tokens. La escritura de caché se envía por separado desde el hook; los subagentes se valoran con el precio de su propio modelo. El costo queda **congelado** al contar el turno, así que cambiar precios no reescribe el historial (los turnos que no tenían precio sí se valoran al cargarlo).
+
+**Precios (USD por millón de tokens).** Un equipo sin precios recibe una vez la tabla sugerida, que usa las versiones más recientes de la [página de precios de Anthropic](https://platform.claude.com/docs/en/about-claude/pricing). Es editable en Configuración y tiene un botón «Restaurar sugeridos»:
+
+| Modelo | Entrada | Salida | Caché (lectura) | Caché (escritura) |
+|--------|---------|--------|-----------------|-------------------|
+| Fable 5.1 | 10 | 50 | 0.25 | 12.5 |
+| Opus 5.5 | 4 | 20 | 0.20 | 5 |
+| Sonnet 5.5 | 2 | 10 | 0.10 | 2.5 |
+| Haiku 5.5 (prompts ≤ 100k) | 0.10 | 0.50 | 0.01 | 0.125 |
+
+Se valora por familia de modelo; las versiones anteriores cuestan más (p. ej. Opus 5 es 5/25, Sonnet 4.6 es 3/15), así que ajusta la tabla si las usan. Un modelo sin precio no cuenta como gratis: se estima con el precio más alto configurado.
+
+**Presupuesto para todo el equipo.** En modo dólares, Configuración permite fijar el mismo presupuesto y ventana a todos los usuarios de una vez (reemplaza el presupuesto en dólares de cada uno y conserva sus demás reglas; `-1` lo quita). Después se ajusta por persona en Editar Límites.
+
+**Defensas:** los conteos de tokens que reporta el hook se validan en el servidor (los negativos o inválidos se descartan), el costo nunca baja de cero y la escritura de caché no puede superar la entrada.
+
+> El modo dólares sin conexión no se aplica: el hook solo evalúa localmente los límites de créditos.
+
 ### Controles de admin
 
 - :bar_chart: **Dashboard en tiempo real** — barras de uso en vivo, desglose por usuario, feed de eventos por WebSocket
@@ -237,6 +268,11 @@ Configurables en **Dashboard → Settings → Multiplicadores de Effort**.
 - :brain: **Límites por effort level** (fork) — cap por usuario del nivel de razonamiento (low/medium/high/xhigh/max) + multiplicadores de créditos configurables
 - :octopus: **Control de Workflows / Subagentes** (fork) — toggle por usuario para habilitar/deshabilitar workflows masivos y subagentes + límite numérico configurable
 - :straight_ruler: **Tracking de tokens reales** (fork) — lee `input_tokens` y `output_tokens` del transcript de Claude y los registra. Permite poner topes por tokens consumidos
+- :ballot_box_with_check: **Modelos permitidos por usuario** (fork) — checklist en la tarjeta del usuario y en su perfil. Se guarda como un tope `per_model` de valor 0 y se escribe como `availableModels` en `managed-settings.json` (lo aplica el watchdog), de modo que Claude Code rechaza `/model`, `--model` y `ANTHROPIC_MODEL` con un modelo no permitido
+- :detective: **Anti-falsificación de modelo** (fork) — el hook compara el modelo declarado (settings, variables de entorno) con el que realmente respondió según el transcript. Si el último turno corrió un modelo bloqueado, el siguiente prompt se bloquea; y cada discrepancia queda registrada (`model_mismatch`) en el feed en vivo y en la tarjeta «Infracciones Detectadas» del usuario
+- :arrow_up_small: **Tope de effort aplicado por Claude Code** (fork) — el tope por usuario se escribe como `maxEffortLevel` en `managed-settings.json`. `UserPromptSubmit` no recibe el effort, así que además se registra `effort_exceeded` cuando un turno termina por encima del tope. `ultracode` corre en `xhigh`: queda permitido solo con un tope `xhigh` o `max` (las tarjetas muestran su estado)
+- :link: **Comando de actualización por usuario** (fork) — botón «Actualizar» en cada tarjeta y en el perfil: genera el comando del updater con vencimiento de 30 minutos, un solo uso, cuenta regresiva y renovación. No lleva el `auth_token` del usuario
+- :calendar: **Consumo por día** (fork) — Analíticas muestra una tabla usuario × día con los tokens (y el costo en US$) de los últimos 7 días
 - :globe_with_meridians: **Cobertura Claude Code web** (fork) — hook de repo stateless que funciona en sesiones cloud (claude.ai/code) + comando `gen-repo-hook`
 
 ---
@@ -288,7 +324,7 @@ Usuario escribe un prompt
 
 ## :lock: Seguridad
 
-8 capas de protección. La única forma de bypasear esto es con la contraseña root/admin de la máquina — y si alguien la tiene, ya tiene acceso a las credenciales de la suscripción de todos modos.
+9 capas de protección. La única forma de bypasear esto es con la contraseña root/admin de la máquina — y si alguien la tiene, ya tiene acceso a las credenciales de la suscripción de todos modos.
 
 | # | Capa | Qué previene |
 |---|------|--------------|
@@ -300,6 +336,7 @@ Usuario escribe un prompt
 | 6 | **Kill switch** | Bloqueo remoto instantáneo + fuerza `claude auth logout` |
 | 7 | **Tokens por usuario** | Cada usuario tiene un token único guardado en archivo root-only — previene suplantación |
 | 8 | **Fail-closed** | Config faltante = denegado, no permitido. El watchdog restaura archivos en menos de 5 min |
+| 9 | **Modelo y effort verificados** | `availableModels` y `maxEffortLevel` en managed settings los aplica Claude Code mismo; además el servidor compara el modelo declarado con el real del transcript y registra las discrepancias |
 
 ### Ubicación de archivos
 
@@ -422,6 +459,16 @@ Los límites se configuran por usuario vía dashboard. Las reglas se apilan — 
 { "type": "tokens", "window": "daily", "value": 500000 }
 ```
 
+**Presupuesto en dólares** (solo se aplica con el modo dólares; `-1` = ilimitado, `0` = bloqueado):
+```json
+{ "type": "dollars", "window": "daily", "value": 10 }
+```
+
+**Modelo bloqueado** (lo que genera la casilla desmarcada del checklist):
+```json
+{ "type": "per_model", "model": "opus", "window": "daily", "value": 0 }
+```
+
 ### Pesos de créditos
 
 Configurados por equipo en el servidor. Default:
@@ -446,7 +493,8 @@ Todas las reglas se evalúan en cada prompt. La primera regla que niega, gana:
 1. ¿Usuario killed o paused?           → BLOQUEA
 2. ¿Modelo dentro de su horario?       → si no, BLOQUEA
 3. ¿Cap por modelo excedido?           → si sí, BLOQUEA
-4. ¿Presupuesto de créditos excedido?  → si sí, BLOQUEA
+4. ¿Presupuesto excedido?              → si sí, BLOQUEA
+                                          (en dólares o en créditos, según el modo del usuario)
 5. ¿Effort level sobre el cap?         → si sí, BLOQUEA
 6. ¿Subagentes sobre el límite?        → si sí, BLOQUEA
 7. ¿Tokens consumidos sobre el tope?   → si sí, BLOQUEA
