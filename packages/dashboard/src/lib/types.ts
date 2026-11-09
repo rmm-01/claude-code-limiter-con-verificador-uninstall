@@ -153,6 +153,7 @@ export interface UpdateLink {
 
 export interface ModelMismatch {
   id: number | string;
+  type: 'model_mismatch' | 'effort_exceeded';
   model: string;
   /** "declared <model>, ran <model>" */
   blocked_reason: string | null;
@@ -237,6 +238,7 @@ export type WSEventType =
   | 'user_check'
   | 'user_blocked'
   | 'model_mismatch'
+  | 'effort_exceeded'
   | 'user_counted'
   | 'user_status_change'
   | 'user_killed'
@@ -251,6 +253,8 @@ export interface WSEvent {
   userName?: string;
   model?: string;
   declared?: string;
+  effort?: string;
+  cap?: string;
   modelVersion?: string | null;
   reason?: string;
   creditCost?: number;

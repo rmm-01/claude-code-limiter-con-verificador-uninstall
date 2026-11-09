@@ -52,6 +52,14 @@ function wsEventToFeed(evt: WSEvent): FeedItem | null {
         detail: `Modelo falsificado: declaró ${evt.declared ?? '?'}, ejecutó ${evt.model ?? '?'}`,
         time: evt.timestamp,
       };
+    case 'effort_exceeded':
+      return {
+        id: nextFeedId(),
+        type: 'blocked',
+        user: evt.userName ?? 'Desconocido',
+        detail: `Effort ${evt.effort ?? '?'} sobre su tope (${evt.cap ?? '?'})`,
+        time: evt.timestamp,
+      };
     case 'user_counted':
       return {
         id: nextFeedId(),

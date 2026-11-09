@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { hookAuth } = require('../services/auth');
-const { evaluateLimits, isModelBlocked, allowedModels } =require('../services/limiter');
+const { evaluateLimits, isModelBlocked, allowedModels, isEffortAllowed } =require('../services/limiter');
 const { getUsageSummary, getCreditBalance } = require('../services/usage');
 const { broadcast } = require('../ws');
 
@@ -354,6 +354,23 @@ router.post('/count', hookAuth, (req, res) => {
       broadcast({ type: 'model_mismatch', userId: user.id, userName: user.name, model, declared, timestamp });
     }
 
+    // Effort above the user's cap: the prompt-time hook never sees effort, so this
+    // is detected after the turn (Claude Code itself also enforces the cap via maxEffortLevel).
+    if (effortLevel && user.max_effort_level && !isEffortAllowed(effortLevel, user.max_effort_level)) {
+      db.recordSessionEvent({
+        user_id: user.id,
+        device_id: (devices.length > 0) ? devices[0].id : null,
+        type: 'effort_exceeded',
+        model,
+        model_version: modelVersion,
+        effort_level: effortLevel,
+        blocked_reason: `effort ${effortLevel} over cap ${user.max_effort_level}`,
+        session_id: req.body.session_id || null,
+        timestamp,
+      });
+      broadcast({ type: 'effort_exceeded', userId: user.id, userName: user.name, model, effort: effortLevel, cap: user.max_effort_level, timestamp });
+    }
+
     // Recalculate credit balance
     const limits = db.getLimitRules(user.id);
     const creditRule = limits.find(r => r.type === 'credits');
@@ -398,6 +415,7 @@ router.get('/policy', hookAuth, (req, res) => {
     allow_user_hooks: !!req.user.allow_user_hooks,
     allow_agents: !!req.user.allow_agents,
     allowed_models: allowedModels(req.user),
+    max_effort_level: req.user.max_effort_level || 'max',
   });
 });
 
@@ -560,6 +578,7 @@ router.post('/register', (req, res) => {
         allow_user_hooks: !!user.allow_user_hooks,
         allow_agents: !!user.allow_agents,
         allowed_models: allowedModels(user),
+        max_effort_level: user.max_effort_level || 'max',
       },
     });
   } catch (err) {

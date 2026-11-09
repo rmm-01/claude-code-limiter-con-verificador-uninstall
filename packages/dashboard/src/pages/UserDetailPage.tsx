@@ -14,6 +14,7 @@ import { HorizontalBarChart, TrendLineChart, PeakHoursChart } from '../component
 import { SkeletonPage } from '../components/Skeleton';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EditLimitsModal } from './EditLimitsModal';
+import { ModelChecklist } from '../components/ModelChecklist';
 import { UpdateCommandModal } from '../components/UpdateCommandModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 import { CreditsExplainer } from './OverviewPage';
@@ -472,6 +473,10 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                 </div>
               </div>
 
+              <div className="w-full pt-2 border-t border-zinc-800">
+                <ModelChecklist user={user} onSaved={loadData} showToast={showToast} />
+              </div>
+
               {/* Max effort level selector */}
               <div className="w-full pt-2 border-t border-zinc-800">
                 <div className="flex items-center justify-between">
@@ -716,17 +721,18 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
             </CardBody>
           </Card>
 
-          {/* Modelo declarado vs ejecutado: solo aparece si hubo discrepancias */}
+          {/* Modelo falsificado o effort sobre el tope: solo aparece si hubo infracciones */}
           {mismatches.length > 0 && (
             <Card>
               <CardHeader>
-                <h3 className="text-sm font-semibold text-red-300">Modelo Falsificado</h3>
+                <h3 className="text-sm font-semibold text-red-300">Infracciones Detectadas</h3>
               </CardHeader>
               <CardBody flush>
                 <Table
                   columns={[
                     { key: 'time', header: 'Hora', render: (m) => <span className="font-mono text-xs">{timeAgo(m.timestamp)}</span> },
-                    { key: 'ran', header: 'Ejecutó', render: (m) => <Badge variant="model">{m.model}</Badge> },
+                    { key: 'kind', header: 'Tipo', render: (m) => <span className="text-xs text-zinc-300">{m.type === 'effort_exceeded' ? 'Effort sobre el tope' : 'Modelo falsificado'}</span> },
+                    { key: 'ran', header: 'Modelo', render: (m) => <Badge variant="model">{m.model}</Badge> },
                     { key: 'detail', header: 'Detalle', render: (m) => <span className="text-xs text-zinc-400">{m.blocked_reason ?? ''}</span> },
                   ]}
                   data={mismatches}

@@ -306,7 +306,8 @@ router.put('/users/:id', (req, res) => {
 
     // Reset expected hash when toggling agents or user hooks — the hook will
     // modify managed-settings.json on next sync, so the old hash is stale.
-    if (updates.allow_agents !== undefined || updates.allow_user_hooks !== undefined) {
+    if (updates.allow_agents !== undefined || updates.allow_user_hooks !== undefined
+      || (updates.max_effort_level !== undefined && updates.max_effort_level !== (user.max_effort_level || 'max'))) {
       updates.expected_managed_settings_hash = null;
     }
 
@@ -616,7 +617,7 @@ router.get('/events', (req, res) => {
 
 /**
  * GET /api/admin/mismatches?user_id=X
- * Turns where the declared model differed from the one that really ran.
+ * Detected violations: declared model differed from the one that ran, or effort over the user's cap.
  */
 router.get('/mismatches', (req, res) => {
   try {
@@ -624,7 +625,10 @@ router.get('/mismatches', (req, res) => {
     if (!user || user.team_id !== req.team.id) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json({ mismatches: db.getSessionEvents(user.id, { type: 'model_mismatch', limit: 20 }) });
+    const rows = db.getDb().prepare(
+      "SELECT * FROM session_event WHERE user_id = ? AND type IN ('model_mismatch', 'effort_exceeded') ORDER BY timestamp DESC LIMIT 20"
+    ).all(user.id);
+    res.json({ mismatches: rows });
   } catch (err) {
     console.error('GET /mismatches error:', err);
     res.status(500).json({ error: 'Internal server error' });

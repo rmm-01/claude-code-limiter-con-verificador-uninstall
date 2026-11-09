@@ -234,6 +234,8 @@ function generateManagedSettings(existingSettings, policy = {}) {
     // in sync with /policy. A managed list is not merged with user lists and
     // also blocks ANTHROPIC_MODEL / alias remaps to an unlisted model.
     ...(Array.isArray(policy.allowed_models) ? { availableModels: policy.allowed_models } : {}),
+    // Effort cap enforced by Claude Code itself; absent = no cap. The watchdog keeps it in sync.
+    ...(policy.max_effort_level && policy.max_effort_level !== "max" ? { maxEffortLevel: policy.max_effort_level } : {}),
     // Wraps the user's own statusLine (read from ~/.claude/settings.json on
     // every run) and reports the account's 5h / 7d usage to the server.
     // Static on purpose: nothing rewrites it after install, so the tamper
@@ -338,6 +340,20 @@ function setupWatchdog() {
       `        if ($null -eq $want) { $ms.PSObject.Properties.Remove('availableModels') }`,
       `        elseif ($null -ne $curM) { $ms.availableModels = @($want) }`,
       `        else { $ms | Add-Member -NotePropertyName availableModels -NotePropertyValue @($want) }`,
+      `        [IO.File]::WriteAllText($bm, ($ms | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding $false))`,
+      `        Copy-Item $bm $m -Force`,
+      `      }`,
+      `    }`,
+      // Effort cap: maxEffortLevel = the user's level, removed for "max" (no cap).
+      `    if ($pol.PSObject.Properties['max_effort_level']) {`,
+      `      $wantE = [string]$pol.max_effort_level`,
+      `      if ($wantE -eq 'max') { $wantE = $null }`,
+      `      $ms = Get-Content $bm -Raw | ConvertFrom-Json`,
+      `      $curE = $null; if ($ms.PSObject.Properties['maxEffortLevel']) { $curE = [string]$ms.maxEffortLevel }`,
+      `      if ($wantE -ne $curE) {`,
+      `        if ($null -eq $wantE) { $ms.PSObject.Properties.Remove('maxEffortLevel') }`,
+      `        elseif ($null -ne $curE) { $ms.maxEffortLevel = $wantE }`,
+      `        else { $ms | Add-Member -NotePropertyName maxEffortLevel -NotePropertyValue $wantE }`,
       `        [IO.File]::WriteAllText($bm, ($ms | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding $false))`,
       `        Copy-Item $bm $m -Force`,
       `      }`,
