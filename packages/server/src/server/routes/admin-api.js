@@ -755,6 +755,7 @@ router.get('/account-usage', (req, res) => {
   try {
     let usage = null;
     try { usage = JSON.parse(req.team.account_usage || 'null'); } catch {}
+    if (usage) delete usage.reports; // per-user readings are internal
     res.json({ usage });
   } catch (err) {
     console.error('GET /account-usage error:', err);

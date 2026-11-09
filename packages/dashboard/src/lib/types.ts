@@ -308,6 +308,8 @@ export interface AccountUsage {
   seven_day: RateWindow | null;
   updated_at: string;
   reported_by: string;
+  /** Users whose reading from the last 10 minutes is part of the shown value. */
+  reporters?: string[];
 }
 
 export interface FeedItem {

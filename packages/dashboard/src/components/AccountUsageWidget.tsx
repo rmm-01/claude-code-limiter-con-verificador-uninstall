@@ -217,7 +217,7 @@ export function AccountUsageWidget() {
       </div>
       <div className="px-3 pb-2 text-[11px] text-zinc-500">
         {usage
-          ? `Actualizado ${formatAgo(usage.updated_at, nowMs)} · ${usage.reported_by}`
+          ? `Actualizado ${formatAgo(usage.updated_at, nowMs)} · ${usage.reported_by}${(usage.reporters?.length ?? 0) > 1 ? ` (+${usage.reporters!.length - 1} más reportando)` : ''}`
           : 'Sin reportes aún: llegan desde el statusLine de los clientes actualizados.'}
       </div>
     </div>

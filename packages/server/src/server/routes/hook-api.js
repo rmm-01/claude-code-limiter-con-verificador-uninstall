@@ -6,6 +6,7 @@ const db = require('../db');
 const { hookAuth } = require('../services/auth');
 const { evaluateLimits, isModelBlocked, allowedModels, isEffortAllowed, hookLimits } = require('../services/limiter');
 const { parsePrices, computeCostUsd } = require('../services/pricing');
+const { combineReports, pruneReports } = require('../services/accountUsage');
 const { getUsageSummary, getCreditBalance } = require('../services/usage');
 const { broadcast } = require('../ws');
 
@@ -477,14 +478,27 @@ router.post('/account-usage', hookAuth, (req, res) => {
     let previous = {};
     try { previous = JSON.parse(team.account_usage || '{}') || {}; } catch {}
 
-    // A window can be missing from one report; keep the last known value.
-    const usage = {
-      five_hour: fiveHour || previous.five_hour || null,
-      seven_day: sevenDay || previous.seven_day || null,
-      updated_at: new Date().toISOString(),
-      reported_by: req.user.name,
+    // Keep each user's latest reading and show the combination of the recent ones,
+    // so overlapping reports from several machines can't overwrite a newer or higher value.
+    const nowMs = Date.now();
+    const reports = pruneReports(previous.reports, nowMs);
+    const mine = reports[req.user.id] || {};
+    reports[req.user.id] = {
+      name: req.user.name,
+      five_hour: fiveHour || mine.five_hour || null, // a window can be missing from one report
+      seven_day: sevenDay || mine.seven_day || null,
+      at: nowMs,
     };
-    db.updateTeam(team.id, { account_usage: usage });
+    const combined = combineReports(reports, nowMs);
+    const usage = {
+      // A window with no live reading keeps the last known value instead of vanishing.
+      five_hour: combined.five_hour || previous.five_hour || null,
+      seven_day: combined.seven_day || previous.seven_day || null,
+      updated_at: new Date(nowMs).toISOString(),
+      reported_by: combined.reported_by || req.user.name,
+      reporters: combined.reporters,
+    };
+    db.updateTeam(team.id, { account_usage: { ...usage, reports } });
     broadcast({ type: 'account_usage', usage, timestamp: usage.updated_at });
     res.json({ ok: true });
   } catch (err) {
