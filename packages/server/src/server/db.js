@@ -1192,6 +1192,18 @@ function getAnalytics(teamId, opts) {
   const blocked = blockedCount.count;
   const blockRate = { total, blocked, rate: total > 0 ? +(blocked / total).toFixed(4) : 0 };
 
+  // Blocks per user and reason (audit view)
+  const blocksByUser = getDb().prepare(
+    `SELECT se.user_id, u.name AS user_name, COALESCE(se.blocked_reason, 'sin motivo') AS reason,
+            COUNT(*) AS count, MAX(se.timestamp) AS last_at
+     FROM session_event se
+     JOIN user u ON se.user_id = u.id
+     WHERE u.team_id = ? AND se.timestamp >= ? AND se.type = 'blocked'${userFilter}
+     GROUP BY se.user_id, reason
+     ORDER BY count DESC
+     LIMIT 50`
+  ).all(teamId, since, ...userFilterParams);
+
   // Average prompt length
   const avgPromptRow = getDb().prepare(
     `SELECT AVG(se.prompt_length) AS avg_len FROM session_event se
@@ -1248,6 +1260,7 @@ function getAnalytics(teamId, opts) {
     daily_active: dailyActive,
     daily_credits: dailyCredits,
     block_rate: blockRate,
+    blocks_by_user: blocksByUser,
     avg_prompt_length: avgPromptLength,
     avg_response_length: avgResponseLength,
     avg_prompts_per_session: avgPromptsPerSession,

@@ -507,6 +507,26 @@ export function AnalyticsPage() {
         </div>
       </div>
 
+      {/* Bloqueos por usuario y motivo */}
+      <Card>
+        <CardHeader>
+          <h3 className="text-sm font-semibold text-zinc-200">Bloqueos por Usuario y Motivo ({days} días)</h3>
+        </CardHeader>
+        <CardBody flush>
+          <Table
+            columns={[
+              { key: 'user', header: 'Usuario', render: (b) => <span className="text-zinc-200">{b.user_name}</span> },
+              { key: 'reason', header: 'Motivo', render: (b) => <span className="text-xs text-zinc-400">{b.reason}</span> },
+              { key: 'count', header: 'Bloqueos', render: (b) => <span className="font-mono text-zinc-100">{b.count}</span>, className: 'text-right' },
+              { key: 'last', header: 'Último', render: (b) => <span className="text-xs">{timeAgo(b.last_at)}</span> },
+            ]}
+            data={data.blocks_by_user ?? []}
+            keyExtractor={(b) => `${b.user_id}|${b.reason}`}
+            emptyMessage="Sin bloqueos en este rango"
+          />
+        </CardBody>
+      </Card>
+
       {/* Dispositivos table */}
       <Card>
         <CardHeader>
