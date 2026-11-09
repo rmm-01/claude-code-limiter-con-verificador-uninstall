@@ -12,6 +12,7 @@ import { LiveFeed } from '../components/LiveFeed';
 import { SkeletonPage } from '../components/Skeleton';
 import { Sparkline } from '../components/Charts';
 import { AddUserModal } from './AddUserModal';
+import { ModelChecklist } from '../components/ModelChecklist';
 import { UpdateCommandModal } from '../components/UpdateCommandModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 
@@ -87,19 +88,6 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
     }
   };
 
-  // Tick/untick a model straight from the card: unticked = per_model rule of value 0.
-  const handleToggleModel = async (user: User, model: string, allowed: boolean) => {
-    const rest = (user.limits ?? []).filter((r) => !(r.type === 'per_model' && r.model === model));
-    const limits = allowed ? rest : [...rest, { type: 'per_model' as const, model, window: 'daily', value: 0 }];
-    try {
-      await api.updateUser(user.id, { limits });
-      showToast('Modelos actualizados', `${model} ${allowed ? 'permitido' : 'bloqueado'} para ${user.name}`, allowed ? 'success' : 'warning');
-      silentRefresh();
-    } catch (err) {
-      showToast('Error', err instanceof Error ? err.message : 'No se pudo guardar', 'error');
-    }
-  };
-
   if (loading) return <SkeletonPage />;
 
   const totalUsers = users.length;
@@ -150,7 +138,8 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
                       user={user}
                       onClick={() => navigate(`/dashboard/users/${user.id}`)}
                       onAction={handleUserAction}
-                      onToggleModel={(m, allowed) => handleToggleModel(user, m, allowed)}
+                      showToast={showToast}
+                      onSaved={silentRefresh}
                       onUpdate={() => setUpdateTarget({ id: user.id, name: user.name })}
                     />
                   ))}
@@ -229,13 +218,15 @@ function UserCard({
   user,
   onClick,
   onAction,
-  onToggleModel,
+  showToast,
+  onSaved,
   onUpdate,
 }: {
   user: User;
   onClick: () => void;
   onAction: (userId: string, action: 'pause' | 'kill' | 'reinstate', userName: string) => void;
-  onToggleModel: (model: string, allowed: boolean) => void;
+  showToast: OverviewPageProps['showToast'];
+  onSaved: () => void;
   onUpdate: () => void;
 }) {
   const limits = user.limits ?? [];
@@ -316,19 +307,7 @@ function UserCard({
         )}
       </div>
 
-      {/* Allowed-models checklist (unticked = blocked, a per_model rule of value 0). */}
-      <div className="mb-3 flex items-center gap-3 flex-wrap" onClick={(e) => e.stopPropagation()}>
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500">Modelos permitidos</span>
-        {['fable', 'opus', 'sonnet', 'haiku'].map((m) => {
-          const blocked = limits.some((r) => r.type === 'per_model' && r.value === 0 && (!r.model || r.model === m));
-          return (
-            <label key={m} className={`flex items-center gap-1 text-xs capitalize cursor-pointer ${blocked ? 'text-red-400' : 'text-zinc-300'}`}>
-              <input type="checkbox" checked={!blocked} onChange={(e) => onToggleModel(m, e.target.checked)} />
-              {m}
-            </label>
-          );
-        })}
-      </div>
+      <ModelChecklist user={user} onSaved={onSaved} showToast={showToast} className="mb-3" />
 
       {/* Current subscription week (since the last weekly reset): credits
           (limiter unit) and real tokens, side by side. The sparkline still
