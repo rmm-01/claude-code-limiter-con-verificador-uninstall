@@ -4,6 +4,7 @@ import type { Team, RateWindow } from '../lib/types';
 import { Card, CardBody } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { LimitModeSettings } from '../components/LimitModeSettings';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/Modal';
 
 interface SettingsPageProps {
@@ -237,6 +238,8 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
           </div>
         </CardBody>
       </Card>
+
+      <LimitModeSettings key={team ? 'ready' : 'loading'} team={team}onTeamUpdate={(t) => { setTeam(t); onTeamUpdate(t); }} showToast={showToast} />
 
       {/* Credit Weights */}
       <Card>

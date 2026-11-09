@@ -624,6 +624,7 @@ function addUsage(acc, entry) {
   const u = msg.usage;
   acc.input += (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0);
   acc.cacheRead += u.cache_read_input_tokens || 0;
+  acc.cacheCreation += u.cache_creation_input_tokens || 0; // also inside acc.input; priced apart by the server
   acc.output += u.output_tokens || 0;
   acc.found = true;
 }
@@ -660,10 +661,10 @@ function resolveContinuedTranscript(transcriptPath) {
  * are more reliable than settings.json (they are what actually ran).
  */
 function parseTurnFromTranscript(transcriptPath) {
-  const result = { input: null, output: null, cacheRead: null, model: null, effort: null, subagents: null };
+  const result = { input: null, output: null, cacheRead: null, cacheCreation: null, model: null, effort: null, subagents: null };
   if (!transcriptPath) return result;
   transcriptPath = resolveContinuedTranscript(transcriptPath);
-  const acc = { input: 0, output: 0, cacheRead: 0, seen: new Set(), found: false };
+  const acc = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, seen: new Set(), found: false };
   const subagents = {};
   const subSeen = new Set();
   let promptTs = null;
@@ -672,7 +673,7 @@ function parseTurnFromTranscript(transcriptPath) {
     // tool calls can span several MB).
     for (const bytes of [1 << 20, 8 << 20, 32 << 20]) {
       const { lines, complete } = readTailLines(transcriptPath, bytes);
-      acc.input = 0; acc.output = 0; acc.cacheRead = 0; acc.seen.clear(); acc.found = false;
+      acc.input = 0; acc.output = 0; acc.cacheRead = 0; acc.cacheCreation = 0; acc.seen.clear(); acc.found = false;
       result.model = null; result.effort = null;
       for (let i = lines.length - 1; i >= 0; i--) {
         let entry;
@@ -719,6 +720,7 @@ function parseTurnFromTranscript(transcriptPath) {
       result.input = acc.input;
       result.output = acc.output;
       result.cacheRead = acc.cacheRead;
+      result.cacheCreation = acc.cacheCreation;
     }
     if (Object.keys(subagents).length) result.subagents = subagents;
   } catch (err) {
@@ -1003,6 +1005,7 @@ async function actionCount(config) {
     input_tokens: turn.input,
     output_tokens: turn.output,
     cache_read_tokens: turn.cacheRead,
+    cache_creation_tokens: turn.cacheCreation,
     subagent_tokens: turn.subagents,
     // What settings/env claimed vs what the transcript says ran; server flags a mismatch.
     declared_model: normalizeModel(detectModelRaw(stdinData, config)),

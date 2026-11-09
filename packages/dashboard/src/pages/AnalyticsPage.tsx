@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
 import type { AnalyticsData, Device, DailyUsageRow } from '../lib/types';
-import { timeAgo, formatTokens, TOKENS_NA, TOKENS_NA_HINT } from '../lib/utils';
+import { timeAgo, formatTokens, formatUsd, TOKENS_NA, TOKENS_NA_HINT } from '../lib/utils';
 import { TokenValue } from '../components/Tokens';
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { Select } from '../components/Input';
@@ -112,17 +112,20 @@ export function AnalyticsPage() {
     d.setDate(d.getDate() - (6 - i));
     return d.toISOString().split('T')[0];
   });
-  const userDay: Record<string, { name: string; byDay: Record<string, number> }> = {};
+  const userDay: Record<string, { name: string; byDay: Record<string, number>; usdByDay: Record<string, number> }> = {};
   for (const row of usageDaily) {
     if (!row.user_id || !last7.includes(row.day)) continue;
-    const u = (userDay[row.user_id] ??= { name: row.user_name ?? row.user_id, byDay: {} });
+    const u = (userDay[row.user_id] ??= { name: row.user_name ?? row.user_id, byDay: {}, usdByDay: {} });
     u.byDay[row.day] = (u.byDay[row.day] ?? 0) + (row.input_tokens ?? 0) + (row.output_tokens ?? 0);
+    u.usdByDay[row.day] = (u.usdByDay[row.day] ?? 0) + (row.cost_usd ?? 0);
   }
   const userDayRows = Object.entries(userDay).map(([id, u]) => ({
     id,
     name: u.name,
     byDay: u.byDay,
+    usdByDay: u.usdByDay,
     total: last7.reduce((s, k) => s + (u.byDay[k] ?? 0), 0),
+    totalUsd: last7.reduce((s, k) => s + (u.usdByDay[k] ?? 0), 0),
   })).sort((a, b) => b.total - a.total);
 
   const devices: Array<Device & { user_name?: string; user_slug?: string }> = data.devices ?? [];
@@ -181,11 +184,19 @@ export function AnalyticsPage() {
                 key: k,
                 header: k.slice(5),
                 render: (r: (typeof userDayRows)[number]) => (
-                  <span className="font-mono text-zinc-300">{r.byDay[k] ? formatTokens(r.byDay[k]) : '–'}</span>
+                  <span className="font-mono text-zinc-300">
+                    {r.byDay[k] ? formatTokens(r.byDay[k]) : '–'}
+                    {r.usdByDay[k] > 0 && <span className="block text-[10px] text-zinc-500">{formatUsd(r.usdByDay[k])}</span>}
+                  </span>
                 ),
                 className: 'text-right',
               })),
-              { key: 'total', header: 'Total', render: (r) => <span className="font-mono text-zinc-100">{formatTokens(r.total)}</span>, className: 'text-right' },
+              { key: 'total', header: 'Total', render: (r) => (
+                <span className="font-mono text-zinc-100">
+                  {formatTokens(r.total)}
+                  {r.totalUsd > 0 && <span className="block text-[10px] text-zinc-500">{formatUsd(r.totalUsd)}</span>}
+                </span>
+              ), className: 'text-right' },
             ]}
             data={userDayRows}
             keyExtractor={(r) => r.id}

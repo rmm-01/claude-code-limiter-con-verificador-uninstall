@@ -125,8 +125,28 @@ function evaluateLimits(user, model, creditWeights, extra) {
     }
   }
 
-  // 4. Check credit budget rules
-  const creditRules = rules.filter(r => r.type === 'credits');
+  // 4a. Dollar budget (only in dollars mode; the other mode's rule stays stored but dormant)
+  const mode = effectiveLimitMode(user);
+  if (mode === 'dollars') {
+    for (const rule of rules.filter(r => r.type === 'dollars')) {
+      if (rule.value === -1) continue;
+      const used = db.getUsdUsage(user.id, db.calculateWindowStart(rule.window));
+      const balance = Math.max(0, rule.value - used);
+      if (!usageSummary[rule.window]) usageSummary[rule.window] = {};
+      usageSummary[rule.window]._usd = { used, budget: rule.value, balance };
+      if (rule.value === 0 || used >= rule.value) {
+        const windowLabel = windowToLabel(rule.window);
+        return {
+          allowed: false,
+          reason: `Presupuesto ${windowLabel} en dólares agotado para ${user.name}.\nUsados US$${used.toFixed(2)} de US$${Number(rule.value).toFixed(2)}.\n\nEsperá a que se reinicie la ventana o contactá al admin.`,
+          usage: usageSummary,
+        };
+      }
+    }
+  }
+
+  // 4. Check credit budget rules (only in credits mode)
+  const creditRules = mode === 'credits' ? rules.filter(r => r.type === 'credits') : [];
   for (const rule of creditRules) {
     const budget = rule.value;
     if (budget === -1) continue; // unlimited
@@ -229,6 +249,19 @@ function isModelBlocked(user, model) {
   return db.getLimitRules(user.id).some(r => r.type === 'per_model' && r.value === 0 && (!r.model || r.model === model));
 }
 
+/** 'credits' or 'dollars': the user's override, else the team's, else credits. */
+function effectiveLimitMode(user) {
+  if (user.limit_mode === 'credits' || user.limit_mode === 'dollars') return user.limit_mode;
+  const team = db.getTeam(user.team_id);
+  return team && team.limit_mode === 'dollars' ? 'dollars' : 'credits';
+}
+
+/** Rules the hook needs for offline evaluation: no dollar rules, no dormant credit rule. */
+function hookLimits(user, rules) {
+  const credits = effectiveLimitMode(user) === 'credits';
+  return rules.filter(r => r.type !== 'dollars' && (r.type !== 'credits' || credits));
+}
+
 const KNOWN_MODELS = ['fable', 'opus', 'sonnet', 'haiku'];
 
 // Value for Claude Code's managed `availableModels`; null = leave unrestricted.
@@ -312,6 +345,8 @@ module.exports = {
   evaluateLimits,
   isModelBlocked,
   allowedModels,
+  effectiveLimitMode,
+  hookLimits,
   isInTimeWindow,
   isEffortAllowed,
   EFFORT_HIERARCHY,

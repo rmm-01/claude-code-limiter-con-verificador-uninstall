@@ -282,6 +282,29 @@ function runMigrations(db) {
   if (!teamCols.includes('manual_reset_at')) {
     db.exec('ALTER TABLE team ADD COLUMN manual_reset_at TEXT');
   }
+  // Limit mode: 'credits' (weights x effort) or 'dollars' (real tokens x price table).
+  // Existing teams stay on 'credits' so deploying changes nobody's limits.
+  if (!teamCols.includes('limit_mode')) {
+    db.exec(`ALTER TABLE team ADD COLUMN limit_mode TEXT NOT NULL DEFAULT 'credits'`);
+  }
+  // USD per million tokens by model family (see services/pricing.js); '{}' = unset.
+  if (!teamCols.includes('prices')) {
+    db.exec(`ALTER TABLE team ADD COLUMN prices TEXT NOT NULL DEFAULT '{}'`);
+  }
+  // Per-user override of the team limit mode; NULL = inherit.
+  const userModeCols = db.pragma('table_info(user)').map(c => c.name);
+  if (!userModeCols.includes('limit_mode')) {
+    db.exec('ALTER TABLE user ADD COLUMN limit_mode TEXT');
+  }
+  // Dollar cost frozen when the turn is counted; NULL = could not be priced.
+  const usageCostCols = db.pragma('table_info(usage_event)').map(c => c.name);
+  if (!usageCostCols.includes('cost_usd')) {
+    db.exec('ALTER TABLE usage_event ADD COLUMN cost_usd REAL');
+  }
+  // Cache writes (already inside input_tokens), kept apart because they are priced differently.
+  if (!usageCostCols.includes('cache_creation_tokens')) {
+    db.exec('ALTER TABLE usage_event ADD COLUMN cache_creation_tokens INTEGER');
+  }
 }
 
 /**
@@ -415,6 +438,8 @@ function updateTeam(teamId, fields) {
   if (fields.manual_reset_at !== undefined) { sets.push('manual_reset_at = ?'); values.push(fields.manual_reset_at); }
   if (fields.weekly_reset !== undefined) { sets.push('weekly_reset = ?'); values.push(typeof fields.weekly_reset === 'string' ? fields.weekly_reset : JSON.stringify(fields.weekly_reset)); }
   if (fields.admin_password !== undefined) { sets.push('admin_password = ?'); values.push(fields.admin_password); }
+  if (fields.limit_mode !== undefined) { sets.push('limit_mode = ?'); values.push(fields.limit_mode); }
+  if (fields.prices !== undefined) { sets.push('prices = ?'); values.push(typeof fields.prices === 'string' ? fields.prices : JSON.stringify(fields.prices)); }
   if (sets.length === 0) return;
   values.push(teamId);
   getDb().prepare(`UPDATE team SET ${sets.join(', ')} WHERE id = ?`).run(...values);
@@ -486,6 +511,7 @@ function updateUser(userId, fields) {
     sets.push('max_effort_level = ?');
     values.push(fields.max_effort_level);
   }
+  if (fields.limit_mode !== undefined) { sets.push('limit_mode = ?'); values.push(fields.limit_mode); }
   if (sets.length === 0) return;
   values.push(userId);
   getDb().prepare(`UPDATE user SET ${sets.join(', ')} WHERE id = ?`).run(...values);
@@ -534,12 +560,12 @@ function deleteLimitRulesForUser(userId) {
 
 // --------------- Usage Event helpers ---------------
 
-function recordUsage({ userId, model, modelVersion, creditCost, timestamp, source, effortLevel, isSubagent, inputTokens, outputTokens, cacheReadTokens, subagentTokens }) {
+function recordUsage({ userId, model, modelVersion, creditCost, timestamp, source, effortLevel, isSubagent, inputTokens, outputTokens, cacheReadTokens, subagentTokens, costUsd, cacheCreationTokens }) {
   const ts = timestamp || new Date().toISOString();
   const src = source || 'hook';
   return getDb().prepare(
-    'INSERT INTO usage_event (user_id, model, model_version, credit_cost, timestamp, source, effort_level, is_subagent, input_tokens, output_tokens, cache_read_tokens, subagent_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(userId, model, modelVersion || null, creditCost, ts, src, effortLevel || null, isSubagent ? 1 : 0, inputTokens != null ? inputTokens : null, outputTokens != null ? outputTokens : null, cacheReadTokens != null ? cacheReadTokens : null, sanitizeSubagentTokens(subagentTokens));
+    'INSERT INTO usage_event (user_id, model, model_version, credit_cost, timestamp, source, effort_level, is_subagent, input_tokens, output_tokens, cache_read_tokens, subagent_tokens, cost_usd, cache_creation_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(userId, model, modelVersion || null, creditCost, ts, src, effortLevel || null, isSubagent ? 1 : 0, inputTokens != null ? inputTokens : null, outputTokens != null ? outputTokens : null, cacheReadTokens != null ? cacheReadTokens : null, sanitizeSubagentTokens(subagentTokens), costUsd != null ? costUsd : null, cacheCreationTokens != null ? cacheCreationTokens : null);
 }
 
 /**
@@ -874,6 +900,39 @@ function invalidateUnusedInstallCodes(userId) {
   getDb().prepare(
     'UPDATE install_code SET used = 1 WHERE user_id = ? AND used = 0'
   ).run(userId);
+}
+
+// --------------- Dollar cost helpers ---------------
+
+/** Total USD spent by a user since a timestamp (unpriced turns count as 0). */
+function getUsdUsage(userId, since) {
+  return getDb().prepare(
+    'SELECT COALESCE(SUM(cost_usd), 0) AS total FROM usage_event WHERE user_id = ? AND timestamp >= ?'
+  ).get(userId, since).total;
+}
+
+/**
+ * Price turns that have tokens but no cost yet (history from before dollars, or
+ * from before prices were set). Already-priced turns are never touched.
+ */
+function backfillCostUsd(teamId, priceFn) {
+  const d = getDb();
+  const rows = d.prepare(
+    `SELECT ue.id, ue.model, ue.input_tokens, ue.output_tokens, ue.cache_read_tokens, ue.cache_creation_tokens, ue.subagent_tokens
+     FROM usage_event ue JOIN user u ON ue.user_id = u.id
+     WHERE u.team_id = ? AND ue.cost_usd IS NULL AND (ue.input_tokens IS NOT NULL OR ue.output_tokens IS NOT NULL)`
+  ).all(teamId);
+  const upd = d.prepare('UPDATE usage_event SET cost_usd = ? WHERE id = ?');
+  let filled = 0;
+  d.transaction(() => {
+    for (const r of rows) {
+      let subagents = null;
+      try { subagents = r.subagent_tokens ? JSON.parse(r.subagent_tokens) : null; } catch { /* keep null */ }
+      const c = priceFn({ model: r.model, input: r.input_tokens, output: r.output_tokens, cacheRead: r.cache_read_tokens, cacheCreation: r.cache_creation_tokens, subagents });
+      if (c != null) { upd.run(c, r.id); filled++; }
+    }
+  })();
+  return filled;
 }
 
 // --------------- Update link helpers ---------------
@@ -1216,6 +1275,9 @@ module.exports = {
   getUnusedInstallCode,
   invalidateUnusedInstallCodes,
   createUpdateLink,
+  getUsdUsage,
+  backfillCostUsd,
+  sanitizeSubagentTokens,
   getActiveUpdateLink,
   consumeUpdateLink,
   // Device

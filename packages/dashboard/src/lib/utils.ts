@@ -105,6 +105,12 @@ export function copyToClipboard(text: string): Promise<void> {
   });
 }
 
+/** "US$1.23"; "US$0.004" below a cent so tiny turns do not read as zero. */
+export function formatUsd(n: number | null | undefined): string {
+  if (!n) return 'US$0.00';
+  return n < 0.01 ? `US$${n.toFixed(3)}` : `US$${n.toFixed(2)}`;
+}
+
 /** 950 → "950", 12_345 → "12.3k", 4_038_609 → "4.04M" */
 export function formatTokens(n: number | null | undefined): string {
   const v = n ?? 0;

@@ -6,7 +6,7 @@ export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface LimitRule {
   id?: string;
-  type: 'per_model' | 'credits' | 'time_of_day' | 'subagents' | 'tokens';
+  type: 'per_model' | 'credits' | 'dollars' | 'time_of_day' | 'subagents' | 'tokens';
   model?: string;
   window?: string;
   value?: number;
@@ -55,6 +55,14 @@ export interface User {
   allow_user_hooks: boolean;
   allow_workflows: boolean;
   max_effort_level: EffortLevel;
+  /** Effective limit mode (the user's override, else the team's). */
+  limit_mode?: LimitMode;
+  /** The user's own override; null = inherits the team mode. */
+  limit_mode_override?: LimitMode | null;
+  /** USD spent since week_start, and in the window of the dollar rule (if any). */
+  usd_week?: number;
+  usd_used?: number;
+  usd_budget?: number | null;
   // Credits consumed on each of the last 7 days (oldest first).
   // Optional — older server builds don't include it.
   daily_credits_7d?: number[];
@@ -71,6 +79,17 @@ export interface User {
   // Null = never tampered (or older client/server without tamper detection).
   last_tampering_at?: string | null;
 }
+
+export type LimitMode = 'credits' | 'dollars';
+
+/** USD per million tokens for one model family. */
+export interface ModelPrice {
+  input?: number;
+  output?: number;
+  cache_read?: number;
+  cache_write?: number;
+}
+export type PriceTable = Record<string, ModelPrice>;
 
 export interface TokenTotals {
   input: number;       // new input + cache writes
@@ -116,6 +135,8 @@ export interface Team {
   credit_weights: CreditWeights;
   effort_multipliers?: EffortMultipliers;
   weekly_reset?: WeeklyReset;
+  limit_mode?: LimitMode;
+  prices?: PriceTable;
 }
 
 /** When the Claude subscription's weekly limit resets (day 0=Sun..6=Sat). */
@@ -167,6 +188,7 @@ export interface DailyUsageRow {
   model: string;
   count: number;
   credits: number;
+  cost_usd?: number;
   input_tokens?: number;
   output_tokens?: number;
   cache_read_tokens?: number;
@@ -206,6 +228,8 @@ export interface UpdateUserPayload {
   allow_user_hooks?: boolean;
   allow_workflows?: boolean;
   max_effort_level?: EffortLevel;
+  /** null clears the override (inherit the team mode). */
+  limit_mode?: LimitMode | null;
 }
 
 export interface UpdateSettingsPayload {
@@ -213,6 +237,8 @@ export interface UpdateSettingsPayload {
   credit_weights?: CreditWeights;
   effort_multipliers?: EffortMultipliers;
   weekly_reset?: WeeklyReset;
+  limit_mode?: LimitMode;
+  prices?: PriceTable;
   admin_password?: string;
 }
 

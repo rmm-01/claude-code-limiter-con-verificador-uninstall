@@ -4,7 +4,8 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { hookAuth } = require('../services/auth');
-const { evaluateLimits, isModelBlocked, allowedModels, isEffortAllowed } =require('../services/limiter');
+const { evaluateLimits, isModelBlocked, allowedModels, isEffortAllowed, hookLimits } = require('../services/limiter');
+const { parsePrices, computeCostUsd } = require('../services/pricing');
 const { getUsageSummary, getCreditBalance } = require('../services/usage');
 const { broadcast } = require('../ws');
 
@@ -122,7 +123,7 @@ router.post('/sync', hookAuth, (req, res) => {
     res.json({
       user_name: user.name,
       status: user.status,
-      limits: limits.map(sanitizeRule),
+      limits: hookLimits(user, limits).map(sanitizeRule),
       credit_weights: creditWeights,
       effort_multipliers: effortMultipliers,
       usage,
@@ -257,7 +258,7 @@ router.post('/check', hookAuth, (req, res) => {
       allowed: result.allowed,
       reason: result.reason || null,
       status: user.status,
-      limits: limits.map(sanitizeRule),
+      limits: hookLimits(user, limits).map(sanitizeRule),
       usage,
       credit_balance: creditBalance,
       credit_budget: creditBudget,
@@ -299,6 +300,17 @@ router.post('/count', hookAuth, (req, res) => {
     const effortMult = (effortLevel && effortMultipliers[effortLevel]) || 1;
     const creditCost = Math.round(baseCost * effortMult);
 
+    // Dollar cost frozen now (null when the turn has no tokens or the model has no price).
+    const cacheCreationTokens = req.body.cache_creation_tokens != null ? req.body.cache_creation_tokens : null;
+    const costUsd = computeCostUsd(parsePrices(team), {
+      model,
+      input: inputTokens,
+      output: outputTokens,
+      cacheRead: cacheReadTokens,
+      cacheCreation: cacheCreationTokens,
+      subagents: JSON.parse(db.sanitizeSubagentTokens(req.body.subagent_tokens) || 'null'),
+    });
+
     // Record the usage event with new fields
     db.recordUsage({
       userId: user.id,
@@ -313,6 +325,8 @@ router.post('/count', hookAuth, (req, res) => {
       outputTokens,
       cacheReadTokens,
       subagentTokens: req.body.subagent_tokens,
+      costUsd,
+      cacheCreationTokens,
     });
 
     // Update device last_seen and IP
@@ -521,7 +535,7 @@ router.get('/status', hookAuth, (req, res) => {
       credit_weights: creditWeights,
       credit_balance: creditBalance,
       credit_budget: creditBudget,
-      limits: limits.map(sanitizeRule),
+      limits: hookLimits(user, limits).map(sanitizeRule),
       per_model: perModelStatus,
       usage: usageSummary,
     });
@@ -570,7 +584,7 @@ router.post('/register', (req, res) => {
         slug: user.slug,
         status: user.status,
       },
-      limits: limits.map(sanitizeRule),
+      limits: hookLimits(user, limits).map(sanitizeRule),
       credit_weights: creditWeights,
       // Lets the installer write managed-settings.json already matching the
       // policy, so nothing rewrites it after the first sync records its hash.

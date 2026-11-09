@@ -6,7 +6,8 @@ const db = require('../db');
 const { verifyPassword, hashPassword, createJWT, adminAuth } = require('../services/auth');
 const { getUsageSummary, getCreditBalance } = require('../services/usage');
 const { broadcast } = require('../ws');
-const { allowedModels } = require('../services/limiter');
+const { allowedModels, effectiveLimitMode } = require('../services/limiter');
+const { parsePrices, sanitizePrices, computeCostUsd } = require('../services/pricing');
 
 function pickDefined(obj, keys) {
   const result = {};
@@ -46,19 +47,7 @@ router.post('/login', (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
-    let effortMults = { low: 0.5, medium: 1, high: 2, xhigh: 4, max: 6 };
-    try { effortMults = JSON.parse(team.effort_multipliers || '{}'); } catch {}
-
-    res.json({
-      token,
-      team: {
-        id: team.id,
-        name: team.name,
-        credit_weights: JSON.parse(team.credit_weights),
-        effort_multipliers: effortMults,
-        weekly_reset: parseWeeklyReset(team),
-      },
-    });
+    res.json({ token, team: teamPayload(team) });
   } catch (err) {
     console.error('POST /login error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -115,6 +104,16 @@ router.get('/users', (req, res) => {
     ).all(team.id, weekStart)) {
       weekCreditMap[r.user_id] = r.credits;
     }
+    const usdWeekMap = {};
+    for (const r of db.getDb().prepare(
+      `SELECT ue.user_id, COALESCE(SUM(ue.cost_usd), 0) AS usd
+       FROM usage_event ue
+       JOIN user u ON ue.user_id = u.id
+       WHERE u.team_id = ? AND ue.timestamp >= ?
+       GROUP BY ue.user_id`
+    ).all(team.id, weekStart)) {
+      usdWeekMap[r.user_id] = r.usd;
+    }
     const tokenMap = {};
     for (const r of db.getDb().prepare(
       `SELECT ue.user_id,
@@ -153,6 +152,8 @@ router.get('/users', (req, res) => {
         'SELECT MAX(timestamp) AS last_session FROM session_event WHERE user_id = ? AND type = \'session_start\''
       ).get(user.id);
 
+      const usdRule = limits.find(r => r.type === 'dollars');
+
       // Credit info
       const creditRule = limits.find(r => r.type === 'credits');
       let creditBalance = null;
@@ -189,6 +190,11 @@ router.get('/users', (req, res) => {
         daily_credits_7d: dailyCredits7d,
         week_start: weekStart,
         credits_week: weekCreditMap[user.id] || 0,
+        limit_mode: effectiveLimitMode(user),
+        limit_mode_override: user.limit_mode || null,
+        usd_week: usdWeekMap[user.id] || 0,
+        usd_used: usdRule ? db.getUsdUsage(user.id, db.calculateWindowStart(usdRule.window)) : 0,
+        usd_budget: usdRule ? usdRule.value : null,
         tokens_7d: tokenMap[user.id] || { input: 0, output: 0, cache_read: 0, total: 0, turns_with_tokens: 0 },
         versions_7d: versionMap[user.id] || [],
         devices: devices.map(d => ({
@@ -302,7 +308,11 @@ router.put('/users/:id', (req, res) => {
     }
 
     const { limits } = req.body;
-    const updates = pickDefined(req.body, ['name', 'slug', 'status', 'allow_self_uninstall', 'allow_agents', 'allow_user_hooks', 'allow_workflows', 'max_effort_level']);
+    const updates = pickDefined(req.body, ['name', 'slug', 'status', 'allow_self_uninstall', 'allow_agents', 'allow_user_hooks', 'allow_workflows', 'max_effort_level', 'limit_mode']);
+    // null clears the override (inherit the team mode); anything else must be a known mode.
+    if (updates.limit_mode !== undefined && updates.limit_mode !== null && updates.limit_mode !== 'credits' && updates.limit_mode !== 'dollars') {
+      return res.status(400).json({ error: "limit_mode debe ser 'credits', 'dollars' o null" });
+    }
 
     // Reset expected hash when toggling agents or user hooks — the hook will
     // modify managed-settings.json on next sync, so the old hash is stale.
@@ -517,6 +527,7 @@ router.get('/usage', (req, res) => {
                 COALESCE(SUM(input_tokens), 0) AS input_tokens,
                 COALESCE(SUM(output_tokens), 0) AS output_tokens,
                 COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
+                COALESCE(SUM(cost_usd), 0) AS cost_usd,
                 COUNT(input_tokens) AS turns_with_tokens
          FROM usage_event
          WHERE user_id = ? AND timestamp >= ?
@@ -535,6 +546,7 @@ router.get('/usage', (req, res) => {
                 COALESCE(SUM(e.input_tokens), 0) AS input_tokens,
                 COALESCE(SUM(e.output_tokens), 0) AS output_tokens,
                 COALESCE(SUM(e.cache_read_tokens), 0) AS cache_read_tokens,
+                COALESCE(SUM(e.cost_usd), 0) AS cost_usd,
                 COUNT(e.input_tokens) AS turns_with_tokens
          FROM usage_event e
          JOIN user u ON e.user_id = u.id
@@ -681,9 +693,20 @@ router.get('/analytics', (req, res) => {
 router.put('/settings', (req, res) => {
   try {
     const team = req.team;
-    const { name, credit_weights, effort_multipliers, weekly_reset, admin_password } = req.body;
+    const { name, credit_weights, effort_multipliers, weekly_reset, admin_password, limit_mode, prices } = req.body;
 
     const updates = {};
+    if (limit_mode !== undefined) {
+      if (limit_mode !== 'credits' && limit_mode !== 'dollars') {
+        return res.status(400).json({ error: "limit_mode debe ser 'credits' o 'dollars'" });
+      }
+      updates.limit_mode = limit_mode;
+    }
+    if (prices !== undefined) {
+      const clean = sanitizePrices(prices);
+      if (!clean) return res.status(400).json({ error: 'Precios inválidos: números >= 0 por modelo (input, output, cache_read, cache_write)' });
+      updates.prices = clean;
+    }
     if (name !== undefined) {
       if (typeof name === 'string' && name.trim().length > 50) {
         return res.status(400).json({ error: 'El nombre del equipo no puede superar los 50 caracteres' });
@@ -710,18 +733,14 @@ router.put('/settings', (req, res) => {
     db.updateTeam(team.id, updates);
 
     const updatedTeam = db.getTeam(team.id);
-    let parsedEffortMultipliers = { low: 0.5, medium: 1, high: 2, xhigh: 4, max: 6 };
-    try { parsedEffortMultipliers = JSON.parse(updatedTeam.effort_multipliers || '{}'); } catch {}
+    // New prices: price the history that has tokens but no cost yet (priced turns stay frozen).
+    let backfilled = 0;
+    if (updates.prices !== undefined) {
+      const prices = parsePrices(updatedTeam);
+      backfilled = db.backfillCostUsd(team.id, (t) => computeCostUsd(prices, t));
+    }
 
-    res.json({
-      team: {
-        id: updatedTeam.id,
-        name: updatedTeam.name,
-        credit_weights: JSON.parse(updatedTeam.credit_weights),
-        effort_multipliers: parsedEffortMultipliers,
-        weekly_reset: parseWeeklyReset(updatedTeam),
-      },
-    });
+    res.json({ team: teamPayload(updatedTeam), backfilled });
   } catch (err) {
     console.error('PUT /settings error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -814,6 +833,21 @@ function parseWeeklyReset(team) {
   } catch {
     return { day: 1, hour: 0, tz: 'UTC' };
   }
+}
+
+/** Team settings as the dashboard stores them (login and PUT /settings). */
+function teamPayload(team) {
+  let effortMults = { low: 0.5, medium: 1, high: 2, xhigh: 4, max: 6 };
+  try { effortMults = JSON.parse(team.effort_multipliers || '{}'); } catch {}
+  return {
+    id: team.id,
+    name: team.name,
+    credit_weights: JSON.parse(team.credit_weights),
+    effort_multipliers: effortMults,
+    weekly_reset: parseWeeklyReset(team),
+    limit_mode: team.limit_mode === 'dollars' ? 'dollars' : 'credits',
+    prices: parsePrices(team),
+  };
 }
 
 module.exports = router;

@@ -3,6 +3,8 @@ interface ProgressBarProps {
   used: number;
   limit: number;
   large?: boolean;
+  /** How to print used/limit; defaults to plain numbers. */
+  format?: (n: number) => string;
 }
 
 function getProgressColor(pct: number): string {
@@ -17,9 +19,9 @@ function getGradient(pct: number): string {
   return 'bg-gradient-to-r from-blue-600 to-blue-400';
 }
 
-export function ProgressBar({ label, used, limit, large = false }: ProgressBarProps) {
+export function ProgressBar({ label, used, limit, large = false, format = String }: ProgressBarProps) {
   const pct = limit > 0 ? Math.min(used / limit, 1) : 0;
-  const valStr = limit > 0 ? `${used} / ${limit}` : limit === -1 ? `${used} / ilimitado` : `${used}`;
+  const valStr = limit > 0 ? `${format(used)} / ${format(limit)}` : limit === -1 ? `${format(used)} / ilimitado` : `${format(used)}`;
 
   return (
     <div className="space-y-1">

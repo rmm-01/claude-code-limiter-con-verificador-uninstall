@@ -27,6 +27,9 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [modeOverride, setModeOverride] = useState<'' | 'credits' | 'dollars'>('');
+  const [dollars, setDollars] = useState('-1');
+  const [dollarsWindow, setDollarsWindow] = useState('daily');
   const [credits, setCredits] = useState('-1');
   const [creditsWindow, setCreditsWindow] = useState('daily');
   const [modelLimits, setModelLimits] = useState<Record<string, string>>({});
@@ -35,6 +38,8 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
   const [tokens, setTokens] = useState('-1');
   const [tokensWindow, setTokensWindow] = useState('daily');
   const [timeRules, setTimeRules] = useState<TimeRule[]>([]);
+  const teamMode = api.getStoredTeam()?.limit_mode ?? 'credits';
+  const effectiveMode = modeOverride || teamMode;
 
   useEffect(() => {
     if (!open || !userId) return;
@@ -46,6 +51,10 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
         const creditRule = getCreditRule(limits);
         setCredits(creditRule ? String(creditRule.value) : '-1');
         setCreditsWindow(creditRule?.window ?? 'daily');
+        const dollarRule = limits.find((r) => r.type === 'dollars');
+        setDollars(dollarRule ? String(dollarRule.value) : '-1');
+        setDollarsWindow(dollarRule?.window ?? 'daily');
+        setModeOverride(u.limit_mode_override ?? '');
         setModelLimits(Object.fromEntries(MODELS.map(([id]) => [id, String(getModelLimit(limits, id, 'daily'))])));
         const subagentRule = limits.find((r) => r.type === 'subagents');
         setSubagents(subagentRule ? String(subagentRule.value) : '-1');
@@ -79,6 +88,12 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
       limits.push({ type: 'credits', window: creditsWindow, value: creditsVal });
     }
 
+    // Both budgets are saved; only the active mode's one is enforced by the server.
+    const dollarsVal = parseFloat(dollars);
+    if (!isNaN(dollarsVal) && dollarsVal !== -1) {
+      limits.push({ type: 'dollars', window: dollarsWindow, value: dollarsVal });
+    }
+
     for (const [model] of MODELS) {
       const v = parseInt(modelLimits[model] ?? '-1', 10);
       if (!isNaN(v) && v !== -1) {
@@ -108,7 +123,7 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
 
     setSaving(true);
     try {
-      await api.updateUser(userId, { limits });
+      await api.updateUser(userId, { limits, limit_mode: modeOverride || null });
       showToast('Límites Actualizados', 'Los límites han sido guardados', 'success');
       onSaved();
       onClose();
@@ -147,7 +162,50 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
           </div>
         ) : (
           <div className="space-y-5">
+            {/* Modo de límite del usuario */}
+            <div>
+              <Select
+                label={`Modo de límite (equipo: ${teamMode === 'dollars' ? 'dólares' : 'créditos'})`}
+                value={modeOverride}
+                onChange={(e) => setModeOverride(e.target.value as '' | 'credits' | 'dollars')}
+              >
+                <option value="">Heredar del equipo</option>
+                <option value="dollars">Dólares</option>
+                <option value="credits">Créditos</option>
+              </Select>
+            </div>
+
+            <hr className="border-zinc-800" />
+
+            {/* Presupuesto en dólares */}
+            {effectiveMode === 'dollars' && (
+              <>
+                <div>
+                  <h4 className="text-sm font-medium text-zinc-300 mb-3">Presupuesto en Dólares</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      label="Valor en US$ (-1 = ilimitado, 0 = bloqueado)"
+                      type="number"
+                      step="0.01"
+                      value={dollars}
+                      onChange={(e) => setDollars(e.target.value)}
+                      hint="Equivalente a precio de API, según la tabla de Configuración"
+                    />
+                    <Select label="Ventana" value={dollarsWindow} onChange={(e) => setDollarsWindow(e.target.value)}>
+                      <option value="daily">Diaria</option>
+                      <option value="weekly">Semanal</option>
+                      <option value="monthly">Mensual</option>
+                      <option value="sliding_24h">Últimas 24h</option>
+                    </Select>
+                  </div>
+                </div>
+
+                <hr className="border-zinc-800" />
+              </>
+            )}
+
             {/* Presupuesto de créditos */}
+            {effectiveMode === 'credits' && (
             <div>
               <h4 className="text-sm font-medium text-zinc-300 mb-3">Presupuesto de Créditos</h4>
               <div className="grid grid-cols-2 gap-3">
@@ -169,8 +227,9 @@ export function EditLimitsModal({ open, onClose, userId, onSaved, showToast }: E
                 </Select>
               </div>
             </div>
+            )}
 
-            <hr className="border-zinc-800" />
+            {effectiveMode === 'credits' && <hr className="border-zinc-800" />}
 
             {/* Límites por modelo */}
             <div>

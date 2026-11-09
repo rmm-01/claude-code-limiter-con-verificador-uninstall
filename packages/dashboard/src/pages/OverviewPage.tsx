@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { User, FeedItem, UsageEvent } from '../lib/types';
-import { hashColor, getInitials, getModelLimit, getCreditRule, nextFeedId, countedDetail } from '../lib/utils';
+import { hashColor, getInitials, getModelLimit, getCreditRule, nextFeedId, countedDetail, formatUsd } from '../lib/utils';
 import { TokensLine } from '../components/Tokens';
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { StatusBadge, Badge } from '../components/Badge';
@@ -13,6 +13,7 @@ import { SkeletonPage } from '../components/Skeleton';
 import { Sparkline } from '../components/Charts';
 import { AddUserModal } from './AddUserModal';
 import { ModelChecklist } from '../components/ModelChecklist';
+import { EffortControl } from '../components/EffortControl';
 import { UpdateCommandModal } from '../components/UpdateCommandModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 
@@ -276,12 +277,15 @@ function UserCard({
       </div>
 
       <div className="space-y-2 mb-3">
-        {creditRule && user.credit_budget && user.credit_budget > 0 && (
+        {user.limit_mode !== 'dollars' && creditRule && user.credit_budget && user.credit_budget > 0 && (
           <ProgressBar
             label="Créditos"
             used={user.credit_budget - (user.credit_balance ?? 0)}
             limit={user.credit_budget}
           />
+        )}
+        {user.limit_mode === 'dollars' && user.usd_budget != null && user.usd_budget > 0 && (
+          <ProgressBar label="Dólares" used={user.usd_used ?? 0} limit={user.usd_budget} format={formatUsd} />
         )}
         {['fable', 'opus', 'sonnet', 'haiku'].map((m) => {
           const mLimit = getModelLimit(limits, m);
@@ -307,7 +311,8 @@ function UserCard({
         )}
       </div>
 
-      <ModelChecklist user={user} onSaved={onSaved} showToast={showToast} className="mb-3" />
+      <ModelChecklist user={user} onSaved={onSaved} showToast={showToast} className="mb-2" />
+      <EffortControl user={user} onSaved={onSaved} showToast={showToast} className="mb-3" />
 
       {/* Current subscription week (since the last weekly reset): credits
           (limiter unit) and real tokens, side by side. The sparkline still
@@ -323,7 +328,10 @@ function UserCard({
               {user.week_start ? `Esta semana · desde ${formatWeekStart(user.week_start)}` : 'Últimos 7 días'}
             </span>
             <span className="text-xs font-mono text-zinc-300">
-              {user.credits_week ?? (user.daily_credits_7d ?? []).reduce((s, n) => s + n, 0)} créditos
+              {user.limit_mode === 'dollars'
+                ? formatUsd(user.usd_week)
+                : `${user.credits_week ?? (user.daily_credits_7d ?? []).reduce((s, n) => s + n, 0)} créditos`}
+              {(user.usd_week ?? 0) > 0 && user.limit_mode !== 'dollars' && <span className="text-zinc-500"> · {formatUsd(user.usd_week)}</span>}
             </span>
             <TokensLine tokens={user.tokens_7d} />
           </div>

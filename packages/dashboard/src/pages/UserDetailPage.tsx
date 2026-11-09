@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { User, DailyUsageRow, UsageEvent, ModelMismatch, AnalyticsData, VersionUsage, SubagentUsage } from '../lib/types';
-import { hashColor, getInitials, getModelLimit, getCreditRule, timeAgo, TOKENS_NA_HINT } from '../lib/utils';
+import { hashColor, getInitials, getModelLimit, getCreditRule, timeAgo, TOKENS_NA_HINT, formatUsd } from '../lib/utils';
 import { TokensLine, TokenValue } from '../components/Tokens';
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { StatusBadge, Badge } from '../components/Badge';
@@ -15,6 +15,8 @@ import { SkeletonPage } from '../components/Skeleton';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EditLimitsModal } from './EditLimitsModal';
 import { ModelChecklist } from '../components/ModelChecklist';
+import { ultracodeAllowed } from '../components/EffortControl';
+import { ProgressBar } from '../components/ProgressBar';
 import { UpdateCommandModal } from '../components/UpdateCommandModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 import { CreditsExplainer } from './OverviewPage';
@@ -483,6 +485,9 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                   <div>
                     <div className="text-xs font-medium text-zinc-300">Effort Máximo</div>
                     <div className="text-xs text-zinc-600 mt-0.5">Nivel de razonamiento máximo permitido</div>
+                    <div className={`text-xs mt-0.5 ${ultracodeAllowed(user.max_effort_level) ? 'text-zinc-500' : 'text-red-400'}`}>
+                      ultracode (corre en xhigh): {ultracodeAllowed(user.max_effort_level) ? 'permitido' : 'bloqueado'}
+                    </div>
                   </div>
                   <select
                     value={user.max_effort_level || 'max'}
@@ -507,7 +512,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
               </div>
 
               {/* Credit gauge */}
-              {creditRule && user.credit_budget && user.credit_budget > 0 && (
+              {user.limit_mode !== 'dollars' && creditRule && user.credit_budget && user.credit_budget > 0 && (
                 <div className="pt-4">
                   <CreditGauge
                     used={user.credit_budget - (user.credit_balance ?? 0)}
@@ -515,6 +520,22 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                   />
                 </div>
               )}
+
+              {/* Dollar budget and spend (dollars mode) */}
+              <div className="pt-4 w-full space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-zinc-500 uppercase tracking-wider text-[10px]">
+                    Modo: {user.limit_mode === 'dollars' ? 'dólares' : 'créditos'}
+                    {user.limit_mode_override ? '' : ' (equipo)'}
+                  </span>
+                  <span className="font-mono text-zinc-300" title="Desde el último reinicio semanal">
+                    {formatUsd(user.usd_week)} esta semana
+                  </span>
+                </div>
+                {user.limit_mode === 'dollars' && user.usd_budget != null && user.usd_budget > 0 && (
+                  <ProgressBar label="Dólares" used={user.usd_used ?? 0} limit={user.usd_budget} format={formatUsd} />
+                )}
+              </div>
             </CardBody>
           </Card>
         </div>
