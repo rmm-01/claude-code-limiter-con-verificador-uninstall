@@ -14,6 +14,20 @@ export function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [usageDaily, setUsageDaily] = useState<DailyUsageRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Rango propio de la tabla "Tokens por Día" (UTC, como las gráficas); por defecto últimos 7 días.
+  const isoDay = (d: Date) => d.toISOString().split('T')[0];
+  const [from, setFrom] = useState(() => isoDay(new Date(Date.now() - 6 * 864e5)));
+  const [to, setTo] = useState(() => isoDay(new Date()));
+  const [rangeRows, setRangeRows] = useState<DailyUsageRow[]>([]);
+
+  // El server filtra por "últimos N días", así que se pide desde el inicio del rango hasta hoy.
+  useEffect(() => {
+    if (!from) return;
+    const back = Math.ceil((Date.now() - Date.parse(from)) / 864e5) + 1;
+    api.getUsage({ days: Math.max(back, 1) })
+      .then((res) => setRangeRows(res.daily ?? []))
+      .catch(() => { /* handled by interceptor */ });
+  }, [from]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -106,19 +120,33 @@ export function AnalyticsPage() {
     (a, b) => shownTokens(b) - shownTokens(a) || b.credits - a.credits,
   );
 
-  // Tokens (input+output) per user per day, last 7 days. Days are UTC like the trend charts above.
-  const last7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() - (6 - i));
-    return d.toISOString().split('T')[0];
-  });
+  // Tokens (input+output) per user per day in the chosen range (max 31 days shown, ending at `to`).
+  const rangeDays: string[] = [];
+  for (let t = Date.parse(from); t <= Date.parse(to); t += 864e5) rangeDays.push(isoDay(new Date(t)));
+  const last7 = rangeDays.slice(-31);
   const userDay: Record<string, { name: string; byDay: Record<string, number>; usdByDay: Record<string, number> }> = {};
-  for (const row of usageDaily) {
+  for (const row of rangeRows) {
     if (!row.user_id || !last7.includes(row.day)) continue;
     const u = (userDay[row.user_id] ??= { name: row.user_name ?? row.user_id, byDay: {}, usdByDay: {} });
     u.byDay[row.day] = (u.byDay[row.day] ?? 0) + (row.input_tokens ?? 0) + (row.output_tokens ?? 0);
     u.usdByDay[row.day] = (u.usdByDay[row.day] ?? 0) + (row.cost_usd ?? 0);
   }
+  // Resumen del equipo por día dentro del mismo rango.
+  const perDay = last7.map((day) => {
+    const rows = rangeRows.filter((x) => x.day === day && x.user_id);
+    const sum = (f: (x: DailyUsageRow) => number | undefined | null) => rows.reduce((t, x) => t + (f(x) ?? 0), 0);
+    return {
+      day,
+      users: new Set(rows.map((x) => x.user_id)).size,
+      prompts: sum((x) => x.count),
+      credits: sum((x) => x.credits),
+      input: sum((x) => x.input_tokens),
+      output: sum((x) => x.output_tokens),
+      cache: sum((x) => x.cache_read_tokens),
+      usd: sum((x) => x.cost_usd),
+    };
+  }).reverse();
+
   const userDayRows = Object.entries(userDay).map(([id, u]) => ({
     id,
     name: u.name,
@@ -174,7 +202,11 @@ export function AnalyticsPage() {
       {/* Tokens por usuario y día (últimos 7 días) */}
       <Card>
         <CardHeader>
-          <h3 className="text-sm font-semibold text-zinc-200">Tokens por Día (últimos 7 días)</h3>
+          <h3 className="text-sm font-semibold text-zinc-200">Tokens por Día ({last7.length} días)</h3>
+          <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <label>Desde <input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className="rounded border border-zinc-700 bg-zinc-800/50 px-2 py-1 text-zinc-100" /></label>
+            <label>Hasta <input type="date" value={to} min={from} max={isoDay(new Date())} onChange={(e) => e.target.value && setTo(e.target.value)} className="rounded border border-zinc-700 bg-zinc-800/50 px-2 py-1 text-zinc-100" /></label>
+          </div>
         </CardHeader>
         <CardBody flush>
           <Table
@@ -200,7 +232,31 @@ export function AnalyticsPage() {
             ]}
             data={userDayRows}
             keyExtractor={(r) => r.id}
-            emptyMessage="Sin consumo registrado en los últimos 7 días"
+            emptyMessage="Sin consumo registrado en el rango seleccionado"
+          />
+        </CardBody>
+      </Card>
+
+      {/* Detalle del equipo por fecha */}
+      <Card>
+        <CardHeader>
+          <h3 className="text-sm font-semibold text-zinc-200">Detalle por Fecha ({from} → {to})</h3>
+        </CardHeader>
+        <CardBody flush>
+          <Table
+            columns={[
+              { key: 'day', header: 'Fecha', render: (r) => <span className="font-mono text-zinc-200">{r.day}</span> },
+              { key: 'users', header: 'Usuarios', render: (r) => <span className="font-mono text-zinc-300">{r.users}</span>, className: 'text-right' },
+              { key: 'prompts', header: 'Prompts', render: (r) => <span className="font-mono text-zinc-300">{r.prompts}</span>, className: 'text-right' },
+              { key: 'credits', header: 'Créditos', render: (r) => <span className="font-mono text-zinc-300">{r.credits}</span>, className: 'text-right' },
+              { key: 'input', header: 'Entrada', render: (r) => <span className="font-mono text-zinc-300">{formatTokens(r.input)}</span>, className: 'text-right' },
+              { key: 'output', header: 'Salida', render: (r) => <span className="font-mono text-zinc-300">{formatTokens(r.output)}</span>, className: 'text-right' },
+              { key: 'cache', header: 'Caché', render: (r) => <span className="font-mono text-zinc-500">{formatTokens(r.cache)}</span>, className: 'text-right' },
+              { key: 'usd', header: 'Costo', render: (r) => <span className="font-mono text-zinc-100">{formatUsd(r.usd)}</span>, className: 'text-right' },
+            ]}
+            data={perDay}
+            keyExtractor={(r) => r.day}
+            emptyMessage="Sin datos en el rango seleccionado"
           />
         </CardBody>
       </Card>
