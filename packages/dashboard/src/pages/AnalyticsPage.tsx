@@ -5,9 +5,23 @@ import { timeAgo, formatTokens, formatUsd, TOKENS_NA, TOKENS_NA_HINT } from '../
 import { TokenValue } from '../components/Tokens';
 import { Card, CardHeader, CardBody } from '../components/Card';
 import { Select } from '../components/Input';
+import { Button } from '../components/Button';
 import { Table } from '../components/Table';
 import { TrendLineChart, PeakHoursChart, DonutChart, BlockRateGauge } from '../components/Charts';
 import { SkeletonPage } from '../components/Skeleton';
+
+function downloadCsv(name: string, rows: Array<Array<string | number>>) {
+  const esc = (v: string | number) => (/[",
+]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+  // BOM para que Excel abra bien los acentos.
+  const blob = new Blob(['﻿' + rows.map((r) => r.map(esc).join(',')).join('
+')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
 export function AnalyticsPage() {
   const [days, setDays] = useState(30);
@@ -146,6 +160,16 @@ export function AnalyticsPage() {
       usd: sum((x) => x.cost_usd),
     };
   }).reverse();
+  const dayTotals = {
+    day: 'Total',
+    users: new Set(rangeRows.filter((x) => x.user_id && last7.includes(x.day)).map((x) => x.user_id)).size,
+    prompts: perDay.reduce((t, x) => t + x.prompts, 0),
+    credits: perDay.reduce((t, x) => t + x.credits, 0),
+    input: perDay.reduce((t, x) => t + x.input, 0),
+    output: perDay.reduce((t, x) => t + x.output, 0),
+    cache: perDay.reduce((t, x) => t + x.cache, 0),
+    usd: perDay.reduce((t, x) => t + x.usd, 0),
+  };
 
   const userDayRows = Object.entries(userDay).map(([id, u]) => ({
     id,
@@ -155,6 +179,25 @@ export function AnalyticsPage() {
     total: last7.reduce((s, k) => s + (u.byDay[k] ?? 0), 0),
     totalUsd: last7.reduce((s, k) => s + (u.usdByDay[k] ?? 0), 0),
   })).sort((a, b) => b.total - a.total);
+  const userTotalRow = {
+    id: '__total',
+    name: 'Total',
+    byDay: Object.fromEntries(last7.map((k) => [k, userDayRows.reduce((t, u) => t + (u.byDay[k] ?? 0), 0)])),
+    usdByDay: Object.fromEntries(last7.map((k) => [k, userDayRows.reduce((t, u) => t + (u.usdByDay[k] ?? 0), 0)])),
+    total: userDayRows.reduce((t, u) => t + u.total, 0),
+    totalUsd: userDayRows.reduce((t, u) => t + u.totalUsd, 0),
+  };
+
+  const exportDetail = () =>
+    downloadCsv(`detalle-por-fecha_${from}_${to}.csv`, [
+      ['Fecha', 'Usuarios', 'Prompts', 'Creditos', 'Tokens entrada', 'Tokens salida', 'Tokens cache', 'Costo USD'],
+      ...[...perDay, dayTotals].map((x) => [x.day, x.users, x.prompts, x.credits, x.input, x.output, x.cache, x.usd.toFixed(2)]),
+    ]);
+  const exportUsers = () =>
+    downloadCsv(`tokens-por-usuario_${from}_${to}.csv`, [
+      ['Usuario', ...last7, 'Total tokens', 'Total USD'],
+      ...[...userDayRows, userTotalRow].map((u) => [u.name, ...last7.map((k) => u.byDay[k] ?? 0), u.total, u.totalUsd.toFixed(2)]),
+    ]);
 
   const devices: Array<Device & { user_name?: string; user_slug?: string }> = data.devices ?? [];
 
@@ -206,6 +249,7 @@ export function AnalyticsPage() {
           <div className="flex items-center gap-2 text-xs text-zinc-400">
             <label>Desde <input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className="rounded border border-zinc-700 bg-zinc-800/50 px-2 py-1 text-zinc-100" /></label>
             <label>Hasta <input type="date" value={to} min={from} max={isoDay(new Date())} onChange={(e) => e.target.value && setTo(e.target.value)} className="rounded border border-zinc-700 bg-zinc-800/50 px-2 py-1 text-zinc-100" /></label>
+            <Button size="sm" onClick={exportUsers} disabled={userDayRows.length === 0}>Exportar CSV</Button>
           </div>
         </CardHeader>
         <CardBody flush>
@@ -230,7 +274,7 @@ export function AnalyticsPage() {
                 </span>
               ), className: 'text-right' },
             ]}
-            data={userDayRows}
+            data={userDayRows.length > 0 ? [...userDayRows, userTotalRow] : []}
             keyExtractor={(r) => r.id}
             emptyMessage="Sin consumo registrado en el rango seleccionado"
           />
@@ -241,6 +285,7 @@ export function AnalyticsPage() {
       <Card>
         <CardHeader>
           <h3 className="text-sm font-semibold text-zinc-200">Detalle por Fecha ({from} → {to})</h3>
+          <Button size="sm" onClick={exportDetail} disabled={perDay.every((x) => x.prompts === 0)}>Exportar CSV</Button>
         </CardHeader>
         <CardBody flush>
           <Table
@@ -254,7 +299,7 @@ export function AnalyticsPage() {
               { key: 'cache', header: 'Caché', render: (r) => <span className="font-mono text-zinc-500">{formatTokens(r.cache)}</span>, className: 'text-right' },
               { key: 'usd', header: 'Costo', render: (r) => <span className="font-mono text-zinc-100">{formatUsd(r.usd)}</span>, className: 'text-right' },
             ]}
-            data={perDay}
+            data={perDay.some((x) => x.prompts > 0) ? [...perDay, dayTotals] : []}
             keyExtractor={(r) => r.day}
             emptyMessage="Sin datos en el rango seleccionado"
           />
