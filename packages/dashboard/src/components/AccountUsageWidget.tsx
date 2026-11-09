@@ -114,7 +114,7 @@ function WindowRow({ label, w, nowSec, onFill }: { label: string; w: RateWindow 
 }
 
 /**
- * Floating corner widget with the shared Claude account's 5h / 7d usage, as
+ * Floating corner widget with the shared Claude account's weekly (7d) usage, as
  * last reported by any client's statusLine. Collapses to a pill; the
  * open/closed state is remembered across reloads.
  */
@@ -182,12 +182,10 @@ export function AccountUsageWidget() {
   };
 
   const nowSec = Math.floor(nowMs / 1000);
-  const five = effectivePct(usage?.five_hour ?? null, nowSec);
   const seven = effectivePct(usage?.seven_day ?? null, nowSec);
 
   if (!open) {
-    const worst = Math.max(five ?? 0, seven ?? 0);
-    const color = pctColor(worst);
+    const color = pctColor(seven ?? 0);
     return (
       <button
         onClick={toggle}
@@ -195,9 +193,6 @@ export function AccountUsageWidget() {
         className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/95 px-3 py-1.5 text-xs font-mono shadow-lg hover:border-zinc-500 transition-colors"
       >
         <span className={`w-2 h-2 rounded-full ${usage ? color.bar : 'bg-zinc-600'}`} />
-        <span className="text-zinc-400">5h</span>
-        <span className="text-zinc-200">{five === null ? '–' : `${five}%`}</span>
-        <span className="text-zinc-600">·</span>
         <span className="text-zinc-400">7d</span>
         <span className="text-zinc-200">{seven === null ? '–' : `${seven}%`}</span>
       </button>
@@ -218,7 +213,6 @@ export function AccountUsageWidget() {
         </div>
       </div>
       <div className="px-3 py-3 space-y-2">
-        <WindowRow label="5h" w={usage?.five_hour ?? null} nowSec={nowSec} onFill={onFill} />
         <WindowRow label="7d" w={usage?.seven_day ?? null} nowSec={nowSec} onFill={onFill} />
       </div>
       <div className="px-3 pb-2 text-[11px] text-zinc-500">
