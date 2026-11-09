@@ -11,11 +11,9 @@ import { TrendLineChart, PeakHoursChart, DonutChart, BlockRateGauge } from '../c
 import { SkeletonPage } from '../components/Skeleton';
 
 function downloadCsv(name: string, rows: Array<Array<string | number>>) {
-  const esc = (v: string | number) => (/[",
-]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+  const esc = (v: string | number) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
   // BOM para que Excel abra bien los acentos.
-  const blob = new Blob(['﻿' + rows.map((r) => r.map(esc).join(',')).join('
-')], { type: 'text/csv;charset=utf-8' });
+  const blob = new Blob(['\ufeff' + rows.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
