@@ -132,7 +132,7 @@ $principal = New-Object Security.Principal.WindowsPrincipal($current)
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
   Write-Host '[X] Este script necesita PowerShell como Administrador.' -ForegroundColor Red
   Write-Host '    Cerrá esta ventana y reabrí PowerShell con clic derecho -> Ejecutar como administrador.' -ForegroundColor Yellow
-  exit 1
+  return
 }
 
 Write-Host ''
@@ -152,7 +152,7 @@ Write-Host ('[1/4] Clonando repo en ' + $workDir)
 git clone --depth 1 $repoUrl $workDir 2>&1 | Out-Host
 if ($LASTEXITCODE -ne 0) {
   Write-Host '[X] git clone falló. Asegurate de tener git instalado y conexión al repo.' -ForegroundColor Red
-  exit 1
+  return
 }
 
 Push-Location $workDir
@@ -173,7 +173,7 @@ try {
   node packages\\cli\\src\\installer.js setup --code $installCode --server $serverUrl --yes
   if ($LASTEXITCODE -ne 0) {
     Write-Host '[X] setup falló. Revisá el output de arriba.' -ForegroundColor Red
-    exit 1
+    return
   }
 
   Write-Host ''
