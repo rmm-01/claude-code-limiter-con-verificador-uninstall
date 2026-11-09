@@ -209,6 +209,21 @@ export function AnalyticsPage() {
       : 'Sin datos del periodo anterior';
   const curTokens = dayTotals.input + dayTotals.output;
 
+  // Costo (USD) por modelo y día dentro del rango; modelos ordenados por gasto total.
+  const modelDay: Record<string, Record<string, number>> = {};
+  const modelTotal: Record<string, number> = {};
+  for (const x of rangeRows) {
+    if (!x.user_id || !last7.includes(x.day)) continue;
+    const m = x.model || 'desconocido';
+    (modelDay[x.day] ??= {})[m] = (modelDay[x.day][m] ?? 0) + (x.cost_usd ?? 0);
+    modelTotal[m] = (modelTotal[m] ?? 0) + (x.cost_usd ?? 0);
+  }
+  const models = Object.keys(modelTotal).sort((a, b) => modelTotal[b] - modelTotal[a]);
+  const modelRows = [
+    ...[...last7].reverse().map((day) => ({ day, byModel: modelDay[day] ?? {}, total: Object.values(modelDay[day] ?? {}).reduce((t, v) => t + v, 0) })),
+    { day: 'Total', byModel: modelTotal, total: Object.values(modelTotal).reduce((t, v) => t + v, 0) },
+  ];
+
   const exportDetail = () =>
     downloadCsv(`detalle-por-fecha_${from}_${to}.csv`, [
       ['Fecha', 'Usuarios', 'Prompts', 'Creditos', 'Tokens entrada', 'Tokens salida', 'Tokens cache', 'Costo USD'],
@@ -331,6 +346,32 @@ export function AnalyticsPage() {
             data={perDay.some((x) => x.prompts > 0) ? [...perDay, dayTotals] : []}
             keyExtractor={(r) => r.day}
             emptyMessage="Sin datos en el rango seleccionado"
+          />
+        </CardBody>
+      </Card>
+
+      {/* Costo por modelo y día */}
+      <Card>
+        <CardHeader>
+          <h3 className="text-sm font-semibold text-zinc-200">Costo por Modelo y Día ({from} → {to})</h3>
+        </CardHeader>
+        <CardBody flush>
+          <Table
+            columns={[
+              { key: 'day', header: 'Fecha', render: (r) => <span className="font-mono text-zinc-200">{r.day}</span> },
+              ...models.map((m) => ({
+                key: m,
+                header: m.replace(/^claude-/, ''),
+                render: (r: (typeof modelRows)[number]) => (
+                  <span className="font-mono text-zinc-300">{r.byModel[m] > 0 ? formatUsd(r.byModel[m]) : '–'}</span>
+                ),
+                className: 'text-right',
+              })),
+              { key: 'total', header: 'Total', render: (r) => <span className="font-mono text-zinc-100">{formatUsd(r.total)}</span>, className: 'text-right' },
+            ]}
+            data={models.length > 0 ? modelRows : []}
+            keyExtractor={(r) => r.day}
+            emptyMessage="Sin costo registrado en el rango seleccionado"
           />
         </CardBody>
       </Card>
