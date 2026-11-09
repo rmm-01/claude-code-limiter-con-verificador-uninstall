@@ -666,7 +666,11 @@ router.get('/analytics', (req, res) => {
       }
     }
 
-    const analytics = db.getAnalytics(team.id, { days, user_id: userId });
+    // Optional exact range (UTC days, inclusive) used by the blocks and activity tables.
+    const isDay = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const from = isDay(req.query.from) ? req.query.from : null;
+    const to = isDay(req.query.to) ? req.query.to : null;
+    const analytics = db.getAnalytics(team.id, { days, user_id: userId, from, to });
     res.json(analytics);
   } catch (err) {
     console.error('GET /analytics error:', err);

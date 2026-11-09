@@ -1117,6 +1117,23 @@ function getSessionEvents(userId, opts) {
   ).all(...params);
 }
 
+/** Map the free-text blocked_reason to a stable category for the audit table. */
+function categorizeBlockReason(reason) {
+  const r = String(reason || '');
+  if (!r) return 'Sin motivo';
+  if (/revoked|paused/i.test(r)) return 'Acceso revocado o pausado';
+  if (/is only available/i.test(r)) return 'Fuera de horario';
+  if (/no está permitido|declared .* ran|modelo no permitido/i.test(r)) return 'Modelo no permitido';
+  if (/limit reached/i.test(r)) return 'Límite de prompts por modelo';
+  if (/en dólares agotado/i.test(r)) return 'Presupuesto en dólares agotado';
+  if (/credit budget exhausted/i.test(r)) return 'Presupuesto de créditos agotado';
+  if (/effort/i.test(r)) return 'Nivel de esfuerzo no permitido';
+  if (/subagentes/i.test(r)) return 'Límite de subagentes';
+  if (/de tokens alcanzado/i.test(r)) return 'Límite de tokens';
+  if (/self-uninstall/i.test(r)) return 'Desinstalación deshabilitada';
+  return r.split(/\r?\n/)[0].slice(0, 80);
+}
+
 /**
  * Get analytics data for a team.
  * @param {string} teamId
@@ -1126,7 +1143,13 @@ function getSessionEvents(userId, opts) {
 function getAnalytics(teamId, opts) {
   opts = opts || {};
   const days = opts.days || 7;
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  // An exact range (opts.from / opts.to, UTC days, inclusive) overrides `days`.
+  const since = opts.from
+    ? new Date(opts.from + 'T00:00:00Z').toISOString()
+    : new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const until = opts.to ? new Date(Date.parse(opts.to + 'T00:00:00Z') + 24 * 60 * 60 * 1000).toISOString() : null;
+  const untilClause = until ? ' AND se.timestamp < ?' : '';
+  const untilParams = until ? [until] : [];
 
   const userFilter = opts.user_id ? ' AND se.user_id = ?' : '';
   const userFilterParams = opts.user_id ? [opts.user_id] : [];
@@ -1192,17 +1215,22 @@ function getAnalytics(teamId, opts) {
   const blocked = blockedCount.count;
   const blockRate = { total, blocked, rate: total > 0 ? +(blocked / total).toFixed(4) : 0 };
 
-  // Blocks per user and reason (audit view)
-  const blocksByUser = getDb().prepare(
-    `SELECT se.user_id, u.name AS user_name, COALESCE(se.blocked_reason, 'sin motivo') AS reason,
-            COUNT(*) AS count, MAX(se.timestamp) AS last_at
+  // Blocks per user and category (audit view). blocked_reason is free text with names and
+  // numbers, so it is mapped to a stable category before grouping.
+  const blockRows = getDb().prepare(
+    `SELECT se.user_id, u.name AS user_name, se.blocked_reason AS reason, se.timestamp
      FROM session_event se
      JOIN user u ON se.user_id = u.id
-     WHERE u.team_id = ? AND se.timestamp >= ? AND se.type = 'blocked'${userFilter}
-     GROUP BY se.user_id, reason
-     ORDER BY count DESC
-     LIMIT 50`
-  ).all(teamId, since, ...userFilterParams);
+     WHERE u.team_id = ? AND se.timestamp >= ? AND se.type = 'blocked'${userFilter}${untilClause}`
+  ).all(teamId, since, ...userFilterParams, ...untilParams);
+  const blockMap = {};
+  for (const r of blockRows) {
+    const reason = categorizeBlockReason(r.reason);
+    const e = (blockMap[r.user_id + '|' + reason] ??= { user_id: r.user_id, user_name: r.user_name, reason, count: 0, last_at: r.timestamp });
+    e.count++;
+    if (r.timestamp > e.last_at) e.last_at = r.timestamp;
+  }
+  const blocksByUser = Object.values(blockMap).sort((a, b) => b.count - a.count).slice(0, 50);
 
   // Activity per user (audit view): first/last prompt, active days, prompts and personal peak hour (UTC)
   const activityByUser = getDb().prepare(
@@ -1210,17 +1238,17 @@ function getAnalytics(teamId, opts) {
             COUNT(DISTINCT DATE(se.timestamp)) AS active_days, COUNT(*) AS prompts
      FROM session_event se
      JOIN user u ON se.user_id = u.id
-     WHERE u.team_id = ? AND se.timestamp >= ? AND se.type = 'prompt'${userFilter}
+     WHERE u.team_id = ? AND se.timestamp >= ? AND se.type = 'prompt'${userFilter}${untilClause}
      GROUP BY se.user_id
      ORDER BY prompts DESC`
-  ).all(teamId, since, ...userFilterParams);
+  ).all(teamId, since, ...userFilterParams, ...untilParams);
   const hourRows = getDb().prepare(
     `SELECT se.user_id, CAST(strftime('%H', se.timestamp) AS INTEGER) AS hour, COUNT(*) AS count
      FROM session_event se
      JOIN user u ON se.user_id = u.id
-     WHERE u.team_id = ? AND se.timestamp >= ? AND se.type = 'prompt'${userFilter}
+     WHERE u.team_id = ? AND se.timestamp >= ? AND se.type = 'prompt'${userFilter}${untilClause}
      GROUP BY se.user_id, hour`
-  ).all(teamId, since, ...userFilterParams);
+  ).all(teamId, since, ...userFilterParams, ...untilParams);
   const peakByUser = {};
   for (const h of hourRows) {
     if (!peakByUser[h.user_id] || h.count > peakByUser[h.user_id].count) peakByUser[h.user_id] = h;
