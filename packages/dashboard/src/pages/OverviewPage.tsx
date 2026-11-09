@@ -12,7 +12,6 @@ import { LiveFeed } from '../components/LiveFeed';
 import { SkeletonPage } from '../components/Skeleton';
 import { Sparkline } from '../components/Charts';
 import { AddUserModal } from './AddUserModal';
-import { EditLimitsModal } from './EditLimitsModal';
 import { UpdateCommandModal } from '../components/UpdateCommandModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 
@@ -28,7 +27,6 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
   const [updateTarget, setUpdateTarget] = useState<{ id: string; name: string } | null>(null);
-  const [limitsUserId, setLimitsUserId] = useState<string | null>(null);
   const navigate = useNavigate();
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -89,6 +87,19 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
     }
   };
 
+  // Tick/untick a model straight from the card: unticked = per_model rule of value 0.
+  const handleToggleModel = async (user: User, model: string, allowed: boolean) => {
+    const rest = (user.limits ?? []).filter((r) => !(r.type === 'per_model' && r.model === model));
+    const limits = allowed ? rest : [...rest, { type: 'per_model' as const, model, window: 'daily', value: 0 }];
+    try {
+      await api.updateUser(user.id, { limits });
+      showToast('Modelos actualizados', `${model} ${allowed ? 'permitido' : 'bloqueado'} para ${user.name}`, allowed ? 'success' : 'warning');
+      silentRefresh();
+    } catch (err) {
+      showToast('Error', err instanceof Error ? err.message : 'No se pudo guardar', 'error');
+    }
+  };
+
   if (loading) return <SkeletonPage />;
 
   const totalUsers = users.length;
@@ -139,7 +150,7 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
                       user={user}
                       onClick={() => navigate(`/dashboard/users/${user.id}`)}
                       onAction={handleUserAction}
-                      onEditModels={() => setLimitsUserId(user.id)}
+                      onToggleModel={(m, allowed) => handleToggleModel(user, m, allowed)}
                       onUpdate={() => setUpdateTarget({ id: user.id, name: user.name })}
                     />
                   ))}
@@ -169,13 +180,6 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
         showToast={showToast}
       />
 
-      <EditLimitsModal
-        open={limitsUserId !== null}
-        onClose={() => setLimitsUserId(null)}
-        userId={limitsUserId}
-        onSaved={silentRefresh}
-        showToast={showToast}
-      />
       <UpdateCommandModal
         open={updateTarget !== null}
         onClose={() => setUpdateTarget(null)}
@@ -225,13 +229,13 @@ function UserCard({
   user,
   onClick,
   onAction,
-  onEditModels,
+  onToggleModel,
   onUpdate,
 }: {
   user: User;
   onClick: () => void;
   onAction: (userId: string, action: 'pause' | 'kill' | 'reinstate', userName: string) => void;
-  onEditModels: () => void;
+  onToggleModel: (model: string, allowed: boolean) => void;
   onUpdate: () => void;
 }) {
   const limits = user.limits ?? [];
@@ -312,27 +316,16 @@ function UserCard({
         )}
       </div>
 
-      {/* Allowed models (unticked in Editar Límites = per_model value 0). Click to edit. */}
-      <div
-        className="mb-3 flex items-center gap-1.5 flex-wrap cursor-pointer"
-        title="Editar modelos permitidos"
-        onClick={(e) => { e.stopPropagation(); onEditModels(); }}
-      >
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500">Modelos</span>
+      {/* Allowed-models checklist (unticked = blocked, a per_model rule of value 0). */}
+      <div className="mb-3 flex items-center gap-3 flex-wrap" onClick={(e) => e.stopPropagation()}>
+        <span className="text-[10px] uppercase tracking-wider text-zinc-500">Modelos permitidos</span>
         {['fable', 'opus', 'sonnet', 'haiku'].map((m) => {
           const blocked = limits.some((r) => r.type === 'per_model' && r.value === 0 && (!r.model || r.model === m));
           return (
-            <span
-              key={m}
-              title={blocked ? 'Bloqueado' : 'Permitido'}
-              className={`px-1.5 py-0.5 rounded border text-[10px] font-mono capitalize ${
-                blocked
-                  ? 'border-red-900/60 text-red-400 line-through'
-                  : 'border-zinc-700/60 text-zinc-300'
-              }`}
-            >
+            <label key={m} className={`flex items-center gap-1 text-xs capitalize cursor-pointer ${blocked ? 'text-red-400' : 'text-zinc-300'}`}>
+              <input type="checkbox" checked={!blocked} onChange={(e) => onToggleModel(m, e.target.checked)} />
               {m}
-            </span>
+            </label>
           );
         })}
       </div>
