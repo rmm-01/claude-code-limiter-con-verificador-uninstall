@@ -41,3 +41,23 @@ test('pruneReports drops stale readings only', () => {
   const p = pruneReports({ a: r('Ana', w(1, 100), 11 * 60 * 1000), b: r('Beto', w(1, 100)) }, NOW);
   assert.deepStrictEqual(Object.keys(p), ['b']);
 });
+
+// ---- client: when the hook reports the account usage ----
+const fs = require('node:fs');
+const path = require('node:path');
+const hookSrc = fs.readFileSync(path.join(__dirname, '..', 'packages/cli/src/hook.js'), 'utf8');
+const grab = (name) => hookSrc.match(new RegExp(`^function ${name}\\([\\s\\S]*?^}`, 'm'))[0];
+const due = new Function(
+  'ACCOUNT_USAGE_INTERVAL_MS', 'ACCOUNT_USAGE_MIN_GAP_MS',
+  `${grab('accountUsageSnapshot')}\n${grab('accountUsageReportDue')}\nreturn accountUsageReportDue;`,
+)(60000, 3000);
+const rl = (seven) => ({ seven_day: { used_percentage: seven, resets_at: 1 } });
+
+test('hook: a changed percentage is reported after 3 s even inside the minute (the last reading is not lost)', () => {
+  const stamp = { at: 1_000_000, seven: 55, five: null };
+  assert.strictEqual(due(stamp, rl(58), 1_000_000 + 10_000), true);
+  assert.strictEqual(due(stamp, rl(58), 1_000_000 + 1_000), false); // burst of statusLine runs
+  assert.strictEqual(due(stamp, rl(55), 1_000_000 + 10_000), false); // unchanged: wait for the minute
+  assert.strictEqual(due(stamp, rl(55), 1_000_000 + 61_000), true);
+  assert.strictEqual(due(null, rl(55), 5), true);
+});

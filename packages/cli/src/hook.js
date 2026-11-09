@@ -1176,6 +1176,7 @@ function actionStatus(config) {
 
 const ACCOUNT_USAGE_STAMP = path.join(USAGE_DIR, ".account-usage-report.json");
 const ACCOUNT_USAGE_INTERVAL_MS = 60 * 1000;
+const ACCOUNT_USAGE_MIN_GAP_MS = 3 * 1000;
 const USER_STATUSLINE_TIMEOUT_MS = 5000;
 
 function readStdinRaw(timeoutMs) {
@@ -1250,14 +1251,34 @@ function formatAccountUsageLine(rateLimits) {
 }
 
 /**
- * Hand the account usage to a detached `report-usage` process, at most once
- * per minute, so the statusLine never waits on the network.
+ * Hand the account usage to a detached `report-usage` process (see
+ * accountUsageReportDue for when), so the statusLine never waits on the network.
  */
+function accountUsageSnapshot(rateLimits) {
+  const pct = (w) => (w && typeof w.used_percentage === "number" ? Math.round(w.used_percentage) : null);
+  return { five: pct(rateLimits.five_hour), seven: pct(rateLimits.seven_day) };
+}
+
+/**
+ * A report is due when the rounded percentage changed (at most every 3 s) or a
+ * minute passed. Rate-limiting by time alone dropped the last reading of a
+ * burst: nothing newer arrives once Claude goes idle, so the dashboard stayed
+ * on the stale value.
+ */
+function accountUsageReportDue(stamp, rateLimits, nowMs) {
+  if (!stamp) return true;
+  const age = nowMs - (stamp.at || 0);
+  if (age >= ACCOUNT_USAGE_INTERVAL_MS) return true;
+  const now = accountUsageSnapshot(rateLimits);
+  const changed = now.five !== stamp.five || now.seven !== stamp.seven;
+  return changed && age >= ACCOUNT_USAGE_MIN_GAP_MS;
+}
+
 function scheduleAccountUsageReport(rateLimits) {
   if (!rateLimits || (!rateLimits.five_hour && !rateLimits.seven_day)) return;
   const stamp = readJSON(ACCOUNT_USAGE_STAMP);
-  if (stamp && Date.now() - (stamp.at || 0) < ACCOUNT_USAGE_INTERVAL_MS) return;
-  writeJSON(ACCOUNT_USAGE_STAMP, { at: Date.now() });
+  if (!accountUsageReportDue(stamp, rateLimits, Date.now())) return;
+  writeJSON(ACCOUNT_USAGE_STAMP, { at: Date.now(), ...accountUsageSnapshot(rateLimits) });
 
   const payload = { five_hour: rateLimits.five_hour || null, seven_day: rateLimits.seven_day || null };
   try {
