@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../db');
+const { parsePrices, computeCostUsd, fallbackPrices } = require('./pricing');
 
 /**
  * Evaluate all limit rules for a user/model combination.
@@ -130,7 +131,7 @@ function evaluateLimits(user, model, creditWeights, extra) {
   if (mode === 'dollars') {
     for (const rule of rules.filter(r => r.type === 'dollars')) {
       if (rule.value === -1) continue;
-      const used = db.getUsdUsage(user.id, db.calculateWindowStart(rule.window));
+      const used = usdSpent(user, db.calculateWindowStart(rule.window));
       const balance = Math.max(0, rule.value - used);
       if (!usageSummary[rule.window]) usageSummary[rule.window] = {};
       usageSummary[rule.window]._usd = { used, budget: rule.value, balance };
@@ -256,6 +257,25 @@ function effectiveLimitMode(user) {
   return team && team.limit_mode === 'dollars' ? 'dollars' : 'credits';
 }
 
+/**
+ * USD spent since a timestamp: frozen costs plus a pessimistic estimate for turns
+ * whose model had no price (dearest configured price), so they never count as free.
+ */
+function usdSpent(user, since) {
+  let total = db.getUsdUsage(user.id, since);
+  const fallback = fallbackPrices(parsePrices(db.getTeam(user.team_id)));
+  if (!fallback) return total;
+  for (const t of db.getUnpricedTurns(user.id, since)) {
+    let subagents = null;
+    try { subagents = t.subagent_tokens ? JSON.parse(t.subagent_tokens) : null; } catch { /* ignore */ }
+    total += computeCostUsd(fallback, {
+      model: 'sonnet', input: t.input_tokens, output: t.output_tokens,
+      cacheRead: t.cache_read_tokens, cacheCreation: t.cache_creation_tokens, subagents,
+    }) || 0;
+  }
+  return total;
+}
+
 /** Rules the hook needs for offline evaluation: no dollar rules, no dormant credit rule. */
 function hookLimits(user, rules) {
   const credits = effectiveLimitMode(user) === 'credits';
@@ -347,6 +367,7 @@ module.exports = {
   allowedModels,
   effectiveLimitMode,
   hookLimits,
+  usdSpent,
   isInTimeWindow,
   isEffortAllowed,
   EFFORT_HIERARCHY,

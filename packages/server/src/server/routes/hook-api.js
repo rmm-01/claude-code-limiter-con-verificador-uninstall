@@ -286,9 +286,12 @@ router.post('/count', hookAuth, (req, res) => {
     const effortLevel = req.body.effort_level || null;
     const agentId = req.body.agent_id || null;
     const agentType = req.body.agent_type || null;
-    const inputTokens = req.body.input_tokens != null ? req.body.input_tokens : null;
-    const outputTokens = req.body.output_tokens != null ? req.body.output_tokens : null;
-    const cacheReadTokens = req.body.cache_read_tokens != null ? req.body.cache_read_tokens : null;
+    // Client-reported: anything that is not a finite non-negative number is dropped, so a
+    // forged negative cannot subtract from the user's token or dollar totals.
+    const tokenCount = (v) => (Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
+    const inputTokens = tokenCount(req.body.input_tokens);
+    const outputTokens = tokenCount(req.body.output_tokens);
+    const cacheReadTokens = tokenCount(req.body.cache_read_tokens);
     const timestamp = req.body.timestamp || new Date().toISOString();
     const creditWeights = JSON.parse(team.credit_weights);
     const clientIp = getClientIp(req);
@@ -301,7 +304,7 @@ router.post('/count', hookAuth, (req, res) => {
     const creditCost = Math.round(baseCost * effortMult);
 
     // Dollar cost frozen now (null when the turn has no tokens or the model has no price).
-    const cacheCreationTokens = req.body.cache_creation_tokens != null ? req.body.cache_creation_tokens : null;
+    const cacheCreationTokens = tokenCount(req.body.cache_creation_tokens);
     const costUsd = computeCostUsd(parsePrices(team), {
       model,
       input: inputTokens,

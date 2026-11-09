@@ -45,10 +45,26 @@ function familyOf(modelOrVersion) {
 }
 
 function cost(p, { input = 0, output = 0, cacheRead = 0, cacheCreation = 0 }) {
+  const nn = (n) => (Number.isFinite(n) && n > 0 ? n : 0); // never let a bad count lower the cost
   const write = p.cache_write != null ? p.cache_write : p.input * 1.25;
   const read = p.cache_read != null ? p.cache_read : p.input * 0.1;
-  const plainInput = Math.max(0, input - cacheCreation); // hook sums cache writes into input
-  return (plainInput * p.input + cacheCreation * write + cacheRead * read + output * p.output) / 1e6;
+  const creation = Math.min(nn(cacheCreation), nn(input)); // cache writes sit inside input
+  const plainInput = nn(input) - creation;
+  return Math.max(0, (plainInput * p.input + creation * write + nn(cacheRead) * read + nn(output) * p.output) / 1e6);
+}
+
+/**
+ * Pessimistic price table for turns whose model has no price: every family at the
+ * dearest configured one, so an unpriced model cannot be used to dodge a dollar limit.
+ * Returns null when nothing is configured.
+ */
+function fallbackPrices(prices) {
+  let best = null;
+  for (const fam of FAMILIES) {
+    const p = priceFor(prices, fam);
+    if (p && (!best || p.output + p.input > best.output + best.input)) best = p;
+  }
+  return best ? Object.fromEntries(FAMILIES.map((f) => [f, best])) : null;
 }
 
 /**
@@ -76,4 +92,4 @@ function computeCostUsd(prices, { model, input, output, cacheRead, cacheCreation
   return Math.round(total * 1e6) / 1e6;
 }
 
-module.exports = { FAMILIES, sanitizePrices, parsePrices, priceFor, computeCostUsd };
+module.exports = { FAMILIES, sanitizePrices, parsePrices, priceFor, computeCostUsd, fallbackPrices };

@@ -41,6 +41,22 @@ test('computeCostUsd: subagent tokens are priced at their own model, the rest at
   assert.strictEqual(c, 4.2);
 });
 
+test('computeCostUsd: bad counts never lower the cost; cache writes are capped at input', () => {
+  assert.strictEqual(computeCostUsd(prices, { model: 'sonnet', input: -1_000_000, output: -5, cacheRead: -1, cacheCreation: -3 }), 0);
+  // cache writes cannot exceed input: 1M input, all as cache writes -> 1M * 3.75
+  assert.strictEqual(computeCostUsd(prices, { model: 'sonnet', input: 1_000_000, output: 0, cacheCreation: 9_999_999 }), 3.75);
+  assert.strictEqual(computeCostUsd(prices, { model: 'sonnet', input: NaN, output: 1_000_000 }), 15);
+});
+
+test('fallbackPrices: every family at the dearest configured one; null when none', () => {
+  const { fallbackPrices } = require('../packages/server/src/server/services/pricing');
+  const fb = fallbackPrices(prices);
+  assert.strictEqual(fb.opus.output, 15);
+  assert.strictEqual(fb.haiku.input, 3);
+  assert.strictEqual(fallbackPrices({}), null);
+  assert.strictEqual(fallbackPrices({ opus: { input: 5 } }), null); // input without output is not a price
+});
+
 test('sanitizePrices: keeps valid numbers, rejects negatives and junk', () => {
   assert.deepStrictEqual(sanitizePrices({ opus: { input: '5', output: 25, cache_read: '' }, nope: { input: 1 } }), { opus: { input: 5, output: 25 } });
   assert.strictEqual(sanitizePrices({ opus: { input: -1 } }), null);

@@ -907,8 +907,17 @@ function invalidateUnusedInstallCodes(userId) {
 /** Total USD spent by a user since a timestamp (unpriced turns count as 0). */
 function getUsdUsage(userId, since) {
   return getDb().prepare(
-    'SELECT COALESCE(SUM(cost_usd), 0) AS total FROM usage_event WHERE user_id = ? AND timestamp >= ?'
+    'SELECT COALESCE(SUM(MAX(cost_usd, 0)), 0) AS total FROM usage_event WHERE user_id = ? AND timestamp >= ?'
   ).get(userId, since).total;
+}
+
+/** Turns with tokens but no cost (no price for their model) since a timestamp, for a pessimistic estimate. */
+function getUnpricedTurns(userId, since) {
+  return getDb().prepare(
+    `SELECT model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, subagent_tokens
+     FROM usage_event
+     WHERE user_id = ? AND timestamp >= ? AND cost_usd IS NULL AND (input_tokens IS NOT NULL OR output_tokens IS NOT NULL)`
+  ).all(userId, since);
 }
 
 /**
@@ -1276,6 +1285,7 @@ module.exports = {
   invalidateUnusedInstallCodes,
   createUpdateLink,
   getUsdUsage,
+  getUnpricedTurns,
   backfillCostUsd,
   sanitizeSubagentTokens,
   getActiveUpdateLink,

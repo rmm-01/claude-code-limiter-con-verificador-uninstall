@@ -6,7 +6,7 @@ const db = require('../db');
 const { verifyPassword, hashPassword, createJWT, adminAuth } = require('../services/auth');
 const { getUsageSummary, getCreditBalance } = require('../services/usage');
 const { broadcast } = require('../ws');
-const { allowedModels, effectiveLimitMode } = require('../services/limiter');
+const { allowedModels, effectiveLimitMode, usdSpent } = require('../services/limiter');
 const { parsePrices, sanitizePrices, computeCostUsd } = require('../services/pricing');
 
 function pickDefined(obj, keys) {
@@ -193,7 +193,7 @@ router.get('/users', (req, res) => {
         limit_mode: effectiveLimitMode(user),
         limit_mode_override: user.limit_mode || null,
         usd_week: usdWeekMap[user.id] || 0,
-        usd_used: usdRule ? db.getUsdUsage(user.id, db.calculateWindowStart(usdRule.window)) : 0,
+        usd_used: usdRule ? usdSpent(user, db.calculateWindowStart(usdRule.window)) : 0,
         usd_budget: usdRule ? usdRule.value : null,
         tokens_7d: tokenMap[user.id] || { input: 0, output: 0, cache_read: 0, total: 0, turns_with_tokens: 0 },
         versions_7d: versionMap[user.id] || [],
