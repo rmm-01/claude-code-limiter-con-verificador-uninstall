@@ -12,6 +12,8 @@ import { LiveFeed } from '../components/LiveFeed';
 import { SkeletonPage } from '../components/Skeleton';
 import { Sparkline } from '../components/Charts';
 import { AddUserModal } from './AddUserModal';
+import { EditLimitsModal } from './EditLimitsModal';
+import { UpdateCommandModal } from '../components/UpdateCommandModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 
 interface OverviewPageProps {
@@ -25,6 +27,8 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
   const [loading, setLoading] = useState(true);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
+  const [updateTarget, setUpdateTarget] = useState<{ id: string; name: string } | null>(null);
+  const [limitsUserId, setLimitsUserId] = useState<string | null>(null);
   const navigate = useNavigate();
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -135,6 +139,8 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
                       user={user}
                       onClick={() => navigate(`/dashboard/users/${user.id}`)}
                       onAction={handleUserAction}
+                      onEditModels={() => setLimitsUserId(user.id)}
+                      onUpdate={() => setUpdateTarget({ id: user.id, name: user.name })}
                     />
                   ))}
                 </div>
@@ -160,6 +166,21 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
         open={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         onCreated={() => { silentRefresh(); }}
+        showToast={showToast}
+      />
+
+      <EditLimitsModal
+        open={limitsUserId !== null}
+        onClose={() => setLimitsUserId(null)}
+        userId={limitsUserId}
+        onSaved={silentRefresh}
+        showToast={showToast}
+      />
+      <UpdateCommandModal
+        open={updateTarget !== null}
+        onClose={() => setUpdateTarget(null)}
+        userId={updateTarget?.id ?? null}
+        userName={updateTarget?.name}
         showToast={showToast}
       />
 
@@ -204,10 +225,14 @@ function UserCard({
   user,
   onClick,
   onAction,
+  onEditModels,
+  onUpdate,
 }: {
   user: User;
   onClick: () => void;
   onAction: (userId: string, action: 'pause' | 'kill' | 'reinstate', userName: string) => void;
+  onEditModels: () => void;
+  onUpdate: () => void;
 }) {
   const limits = user.limits ?? [];
   const usage = user.usage ?? {};
@@ -287,6 +312,31 @@ function UserCard({
         )}
       </div>
 
+      {/* Allowed models (unticked in Editar Límites = per_model value 0). Click to edit. */}
+      <div
+        className="mb-3 flex items-center gap-1.5 flex-wrap cursor-pointer"
+        title="Editar modelos permitidos"
+        onClick={(e) => { e.stopPropagation(); onEditModels(); }}
+      >
+        <span className="text-[10px] uppercase tracking-wider text-zinc-500">Modelos</span>
+        {['fable', 'opus', 'sonnet', 'haiku'].map((m) => {
+          const blocked = limits.some((r) => r.type === 'per_model' && r.value === 0 && (!r.model || r.model === m));
+          return (
+            <span
+              key={m}
+              title={blocked ? 'Bloqueado' : 'Permitido'}
+              className={`px-1.5 py-0.5 rounded border text-[10px] font-mono capitalize ${
+                blocked
+                  ? 'border-red-900/60 text-red-400 line-through'
+                  : 'border-zinc-700/60 text-zinc-300'
+              }`}
+            >
+              {m}
+            </span>
+          );
+        })}
+      </div>
+
       {/* Current subscription week (since the last weekly reset): credits
           (limiter unit) and real tokens, side by side. The sparkline still
           shows the last 7 calendar days. Tokens read "n/d" while the machine
@@ -323,7 +373,14 @@ function UserCard({
         )}
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(e) => { e.stopPropagation(); onUpdate(); }}
+        >
+          Actualizar
+        </Button>
         {user.status === 'active' ? (
           <>
             <Button

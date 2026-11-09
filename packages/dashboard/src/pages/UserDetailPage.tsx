@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { User, DailyUsageRow, UsageEvent, ModelMismatch, UpdateLink, AnalyticsData, VersionUsage, SubagentUsage } from '../lib/types';
+import type { User, DailyUsageRow, UsageEvent, ModelMismatch, AnalyticsData, VersionUsage, SubagentUsage } from '../lib/types';
 import { hashColor, getInitials, getModelLimit, getCreditRule, timeAgo, TOKENS_NA_HINT } from '../lib/utils';
 import { TokensLine, TokenValue } from '../components/Tokens';
 import { Card, CardHeader, CardBody } from '../components/Card';
@@ -14,6 +14,7 @@ import { HorizontalBarChart, TrendLineChart, PeakHoursChart } from '../component
 import { SkeletonPage } from '../components/Skeleton';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EditLimitsModal } from './EditLimitsModal';
+import { UpdateCommandModal } from '../components/UpdateCommandModal';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 import { CreditsExplainer } from './OverviewPage';
 
@@ -38,17 +39,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
   const [installCodeModal, setInstallCodeModal] = useState(false);
   const [installCode, setInstallCode] = useState<string | null>(null);
   const [installCodeLoading, setInstallCodeLoading] = useState(false);
-  const [updateModal, setUpdateModal] = useState(false);
-  const [updateLink, setUpdateLink] = useState<UpdateLink | null>(null);
-  const [updateLoading, setUpdateLoading] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
-
-  // Tick once a second only while the updater modal is open, for the countdown.
-  useEffect(() => {
-    if (!updateModal) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [updateModal]);
+  const [updateOpen, setUpdateOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     action: string;
     title: string;
@@ -96,32 +87,6 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
       setInstallCode(null);
     } finally {
       setInstallCodeLoading(false);
-    }
-  };
-
-  const openUpdateModal = async () => {
-    if (!id) return;
-    setUpdateModal(true);
-    setUpdateLoading(true);
-    try {
-      setUpdateLink(await api.getUpdateLink(id));
-    } catch {
-      setUpdateLink(null);
-    } finally {
-      setUpdateLoading(false);
-    }
-  };
-
-  const handleCreateUpdateLink = async () => {
-    if (!id) return;
-    setUpdateLoading(true);
-    try {
-      setUpdateLink(await api.createUpdateLink(id));
-      setNow(Date.now());
-    } catch (err) {
-      showToast('Error', err instanceof Error ? err.message : 'No se pudo generar', 'error');
-    } finally {
-      setUpdateLoading(false);
     }
   };
 
@@ -258,7 +223,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
           </button>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
-          <Button size="sm" variant="ghost" onClick={openUpdateModal}>Comando de actualización</Button>
+          <Button size="sm" variant="ghost" onClick={() => setUpdateOpen(true)}>Comando de actualización</Button>
           <div className="w-36">
             <Select
               value={String(days)}
@@ -822,50 +787,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
         </ModalBody>
       </Modal>
 
-      {/* Updater command */}
-      <Modal open={updateModal} onClose={() => setUpdateModal(false)} size="lg">
-        <ModalHeader onClose={() => setUpdateModal(false)}>Comando de Actualización{user ? `: ${user.name}` : ''}</ModalHeader>
-        <ModalBody>
-          {(() => {
-            const remainingMs = updateLink?.expires_at ? new Date(updateLink.expires_at).getTime() - now : 0;
-            const active = !!updateLink?.command && remainingMs > 0;
-            const mm = String(Math.floor(remainingMs / 60000)).padStart(2, '0');
-            const ss = String(Math.floor((remainingMs % 60000) / 1000)).padStart(2, '0');
-            if (updateLoading && !updateLink) return <div className="py-4 text-center text-zinc-500 text-sm">Cargando...</div>;
-            return (
-              <div className="space-y-4">
-                {active ? (
-                  <>
-                    <p className="text-sm text-zinc-400">
-                      Pegalo en PowerShell <strong>como Administrador</strong> en la máquina del usuario (requiere git).
-                      Es de un solo uso.
-                    </p>
-                    <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 space-y-2">
-                      <code className="block text-xs text-[#cc5500] font-mono break-all">{updateLink?.command}</code>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-zinc-500">Vence en <span className="font-mono text-zinc-300">{mm}:{ss}</span></span>
-                        <button
-                          onClick={() => { navigator.clipboard.writeText(updateLink?.command ?? ''); showToast('Copiado', 'Comando copiado al portapapeles', 'success'); }}
-                          className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-                        >Copiar</button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-sm text-zinc-400">
-                    {updateLink?.command
-                      ? 'El comando anterior venció. Genera uno nuevo.'
-                      : 'No hay un comando activo para este usuario. Dura 30 minutos y es de un solo uso.'}
-                  </p>
-                )}
-                <Button variant={active ? 'ghost' : 'primary'} size="sm" onClick={handleCreateUpdateLink} disabled={updateLoading}>
-                  {updateLoading ? 'Generando...' : active ? 'Renovar (invalida el actual)' : 'Generar comando'}
-                </Button>
-              </div>
-            );
-          })()}
-        </ModalBody>
-      </Modal>
+      <UpdateCommandModal open={updateOpen} onClose={() => setUpdateOpen(false)} userId={id ?? null} userName={user?.name} showToast={showToast} />
 
       {/* Credits Modal */}
       <Modal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} size="lg">
