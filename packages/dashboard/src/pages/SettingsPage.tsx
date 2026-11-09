@@ -59,9 +59,13 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
       setResetHour(String(stored.weekly_reset?.hour ?? 0));
       setResetTz(stored.weekly_reset?.tz ?? 'UTC');
     }
-    // Also do a fresh fetch via getUsers to refresh team data
-    api.getUsers().catch(() => {
-      // noop
+    // Refresh from the server: the stored copy dates from login and may lack newer settings.
+    api.getSettings().then((res) => {
+      setTeam(res.team);
+      api.setStoredTeam(res.team);
+      onTeamUpdate(res.team);
+    }).catch(() => {
+      // keep the stored copy
     });
     api.getAccountUsage().then((res) => {
       setReportedWeek(res.usage?.seven_day ?? null);
@@ -239,7 +243,12 @@ export function SettingsPage({ showToast, onTeamUpdate }: SettingsPageProps) {
         </CardBody>
       </Card>
 
-      <LimitModeSettings key={team ? 'ready' : 'loading'} team={team}onTeamUpdate={(t) => { setTeam(t); onTeamUpdate(t); }} showToast={showToast} />
+      <LimitModeSettings
+        key={`${team ? 'r' : 'l'}-${JSON.stringify(team?.prices ?? {})}`}
+        team={team}
+        onTeamUpdate={(t) => { setTeam(t); onTeamUpdate(t); }}
+        showToast={showToast}
+      />
 
       {/* Credit Weights */}
       <Card>

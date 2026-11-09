@@ -7,6 +7,17 @@
 // the table by version when two versions of one family are priced differently.
 
 const FAMILIES = ['fable', 'opus', 'sonnet', 'haiku'];
+
+// Suggested prices (USD per million tokens): the newest version of each family on
+// Anthropic's public pricing page (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5 for
+// prompts up to 100k tokens). Older versions cost more (e.g. Opus 5 is $5/$25,
+// Sonnet 4.6 is $3/$15), so the admin can edit them in Settings.
+const DEFAULT_PRICES = {
+  fable: { input: 10, output: 50, cache_read: 0.25, cache_write: 12.5 },
+  opus: { input: 4, output: 20, cache_read: 0.2, cache_write: 5 },
+  sonnet: { input: 2, output: 10, cache_read: 0.1, cache_write: 2.5 },
+  haiku: { input: 0.1, output: 0.5, cache_read: 0.01, cache_write: 0.125 },
+};
 const FIELDS = ['input', 'output', 'cache_read', 'cache_write'];
 
 /** Validate/normalize a price table from the admin; returns null when malformed. */
@@ -92,4 +103,4 @@ function computeCostUsd(prices, { model, input, output, cacheRead, cacheCreation
   return Math.round(total * 1e6) / 1e6;
 }
 
-module.exports = { FAMILIES, sanitizePrices, parsePrices, priceFor, computeCostUsd, fallbackPrices };
+module.exports = { FAMILIES, DEFAULT_PRICES, sanitizePrices, parsePrices, priceFor, computeCostUsd, fallbackPrices };

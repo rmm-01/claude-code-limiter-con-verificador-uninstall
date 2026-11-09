@@ -825,6 +825,45 @@ router.post('/weekly-reset/now', (req, res) => {
 });
 
 /**
+ * GET /api/admin/settings
+ * Current team settings, so the dashboard does not rely on what it stored at login.
+ */
+router.get('/settings', (req, res) => {
+  res.json({ team: teamPayload(db.getTeam(req.team.id)) });
+});
+
+/**
+ * POST /api/admin/settings/dollar-budget
+ * Set the same dollar budget on every user of the team (replaces each user's
+ * dollar rule; their other rules are untouched). value -1 clears it (unlimited).
+ * Body: { value: number (>= 0, or -1), window: daily|weekly|monthly|sliding_24h }
+ */
+router.post('/settings/dollar-budget', (req, res) => {
+  try {
+    const { value, window: win } = req.body;
+    const n = Number(value);
+    if (value === '' || value === null || !Number.isFinite(n) || (n < 0 && n !== -1)) {
+      return res.status(400).json({ error: 'El presupuesto debe ser un número >= 0 (o -1 para ilimitado)' });
+    }
+    if (!['daily', 'weekly', 'monthly', 'sliding_24h'].includes(win)) {
+      return res.status(400).json({ error: 'Ventana inválida' });
+    }
+    const users = db.getAllUsers(req.team.id);
+    const d = db.getDb();
+    d.transaction(() => {
+      for (const u of users) {
+        d.prepare("DELETE FROM limit_rule WHERE user_id = ? AND type = 'dollars'").run(u.id);
+        if (n !== -1) db.createLimitRule({ userId: u.id, type: 'dollars', window: win, value: n });
+      }
+    })();
+    res.json({ updated: users.length, value: n, window: win });
+  } catch (err) {
+    console.error('POST /settings/dollar-budget error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * Weekly reset anchor of a team row, with the legacy Monday 00:00 UTC default.
  */
 function parseWeeklyReset(team) {

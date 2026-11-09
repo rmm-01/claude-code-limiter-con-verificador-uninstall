@@ -305,6 +305,19 @@ function runMigrations(db) {
   if (!usageCostCols.includes('cache_creation_tokens')) {
     db.exec('ALTER TABLE usage_event ADD COLUMN cache_creation_tokens INTEGER');
   }
+  // Teams with no prices get the suggested table once, and the history that has
+  // tokens is priced with it. An admin who later clears every price gets the
+  // suggestions back on the next start. (After the cost columns above exist.)
+  {
+    const { DEFAULT_PRICES, parsePrices, computeCostUsd } = require('./services/pricing');
+    const seeded = db.prepare(`UPDATE team SET prices = ? WHERE prices = '{}'`).run(JSON.stringify(DEFAULT_PRICES));
+    if (seeded.changes > 0) {
+      for (const t of db.prepare('SELECT * FROM team').all()) {
+        const prices = parsePrices(t);
+        backfillCostUsd(t.id, (turn) => computeCostUsd(prices, turn));
+      }
+    }
+  }
 }
 
 /**

@@ -238,6 +238,18 @@ async function resetWeekNow(password: string): Promise<WeeklyResetStatus> {
   });
 }
 
+async function getSettings(): Promise<{ team: Team }> {
+  return request<{ team: Team }>('/api/admin/settings');
+}
+
+/** Same dollar budget for every user of the team; value -1 clears it. */
+async function setTeamDollarBudget(value: number, window: string): Promise<{ updated: number }> {
+  return request<{ updated: number }>('/api/admin/settings/dollar-budget', {
+    method: 'POST',
+    body: { value, window },
+  });
+}
+
 async function updateSettings(payload: UpdateSettingsPayload): Promise<{ team: Team }> {
   return request<{ team: Team }>('/api/admin/settings', {
     method: 'PUT',
@@ -263,6 +275,8 @@ export const api = {
   getMismatches,
   getAnalytics,
   updateSettings,
+  getSettings,
+  setTeamDollarBudget,
   getAccountUsage,
   getWeeklyResetStatus,
   resetWeekNow,
