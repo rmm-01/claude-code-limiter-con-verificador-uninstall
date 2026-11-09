@@ -65,7 +65,7 @@ export function UpdateCommandModal({ open, onClose, userId, userName, showToast 
             {active ? (
               <>
                 <p className="text-sm text-zinc-400">
-                  Pegalo en PowerShell <strong>como Administrador</strong> en la máquina del usuario (requiere git).
+                  Pegalo en PowerShell <strong>como Administrador</strong> en la máquina del usuario (requiere Node.js; no necesita git ni acceso a GitHub).
                   Es de un solo uso.
                 </p>
                 <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 space-y-2">
