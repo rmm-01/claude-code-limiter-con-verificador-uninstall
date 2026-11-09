@@ -96,7 +96,7 @@ function AuthenticatedLayout() {
         </div>
       </main>
 
-      <AccountUsageWidget lastEvent={lastEvent} />
+      <AccountUsageWidget />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );

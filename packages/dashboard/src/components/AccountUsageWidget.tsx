@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import type { AccountUsage, RateWindow, WSEvent } from '../lib/types';
+import { ws } from '../lib/ws';
+import type { AccountUsage, RateWindow } from '../lib/types';
 
 const OPEN_KEY = 'account_usage_widget_open';
 const SEGMENTS = 10;
@@ -117,7 +118,7 @@ function WindowRow({ label, w, nowSec, onFill }: { label: string; w: RateWindow 
  * last reported by any client's statusLine. Collapses to a pill; the
  * open/closed state is remembered across reloads.
  */
-export function AccountUsageWidget({ lastEvent }: { lastEvent: WSEvent | null }) {
+export function AccountUsageWidget() {
   const [usage, setUsage] = useState<AccountUsage | null>(null);
   const [open, setOpen] = useState(() => localStorage.getItem(OPEN_KEY) !== '0');
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -131,13 +132,26 @@ export function AccountUsageWidget({ lastEvent }: { lastEvent: WSEvent | null })
     };
   }, []);
 
+  // Live: listen to the WebSocket directly (a shared "last event" slot dropped
+  // reports that arrived together with other events), refetch on every
+  // (re)connect since events sent while disconnected are lost, and poll as a
+  // safety net for connections that die silently.
   useEffect(() => {
-    api.getAccountUsage().then((res) => setUsage(res.usage)).catch(() => {});
+    const refetch = () => { api.getAccountUsage().then((res) => setUsage(res.usage)).catch(() => {}); };
+    refetch();
+    const unsub = ws.onEvent((evt) => {
+      if (evt.type === 'account_usage' && evt.usage) setUsage(evt.usage);
+      else if (evt.type === 'ws_connected') refetch();
+    });
+    const poll = setInterval(() => { if (!document.hidden) refetch(); }, 30000);
+    const onVisible = () => { if (!document.hidden) refetch(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      unsub();
+      clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
-
-  useEffect(() => {
-    if (lastEvent?.type === 'account_usage' && lastEvent.usage) setUsage(lastEvent.usage);
-  }, [lastEvent]);
 
   // Countdowns and "updated ago" tick without new data.
   useEffect(() => {
