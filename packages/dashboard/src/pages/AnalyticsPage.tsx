@@ -34,14 +34,17 @@ export function AnalyticsPage() {
   const [to, setTo] = useState(() => isoDay(new Date()));
   const [rangeRows, setRangeRows] = useState<DailyUsageRow[]>([]);
 
-  // El server filtra por "últimos N días", así que se pide desde el inicio del rango hasta hoy.
+  // El server filtra por "últimos N días", así que se pide desde el inicio del periodo anterior
+  // (mismo largo que el rango mostrado, máx. 31 días) hasta hoy, para poder comparar.
   useEffect(() => {
-    if (!from) return;
-    const back = Math.ceil((Date.now() - Date.parse(from)) / 864e5) + 1;
+    if (!from || !to) return;
+    const n = Math.min(31, Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1));
+    const prevStart = Date.parse(to) - (2 * n - 1) * 864e5;
+    const back = Math.ceil((Date.now() - prevStart) / 864e5) + 1;
     api.getUsage({ days: Math.max(back, 1) })
       .then((res) => setRangeRows(res.daily ?? []))
       .catch(() => { /* handled by interceptor */ });
-  }, [from]);
+  }, [from, to]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -188,6 +191,24 @@ export function AnalyticsPage() {
     totalUsd: userDayRows.reduce((t, u) => t + u.totalUsd, 0),
   };
 
+  // Periodo anterior: los N días justo antes del rango mostrado.
+  const prevDays = new Set(
+    last7.length ? last7.map((_, i) => isoDay(new Date(Date.parse(last7[0]) - (last7.length - i) * 864e5))) : [],
+  );
+  const prev = { prompts: 0, credits: 0, tokens: 0, usd: 0 };
+  for (const x of rangeRows) {
+    if (!x.user_id || !prevDays.has(x.day)) continue;
+    prev.prompts += x.count ?? 0;
+    prev.credits += x.credits ?? 0;
+    prev.tokens += (x.input_tokens ?? 0) + (x.output_tokens ?? 0);
+    prev.usd += x.cost_usd ?? 0;
+  }
+  const delta = (cur: number, before: number, fmt: (n: number) => string) =>
+    before > 0
+      ? `${cur >= before ? '▲' : '▼'} ${Math.abs(((cur - before) / before) * 100).toFixed(0)}% vs ${fmt(before)} (periodo anterior)`
+      : 'Sin datos del periodo anterior';
+  const curTokens = dayTotals.input + dayTotals.output;
+
   const exportDetail = () =>
     downloadCsv(`detalle-por-fecha_${from}_${to}.csv`, [
       ['Fecha', 'Usuarios', 'Prompts', 'Creditos', 'Tokens entrada', 'Tokens salida', 'Tokens cache', 'Costo USD'],
@@ -280,6 +301,14 @@ export function AnalyticsPage() {
           />
         </CardBody>
       </Card>
+
+      {/* Comparativa contra el periodo anterior de igual largo */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="Costo" value={formatUsd(dayTotals.usd)} sub={delta(dayTotals.usd, prev.usd, formatUsd)} />
+        <StatCard label="Tokens (entrada+salida)" value={formatTokens(curTokens)} sub={delta(curTokens, prev.tokens, formatTokens)} />
+        <StatCard label="Prompts" value={dayTotals.prompts} sub={delta(dayTotals.prompts, prev.prompts, String)} />
+        <StatCard label="Créditos" value={dayTotals.credits} sub={delta(dayTotals.credits, prev.credits, String)} />
+      </div>
 
       {/* Detalle del equipo por fecha */}
       <Card>
