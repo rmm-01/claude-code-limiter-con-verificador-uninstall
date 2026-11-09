@@ -404,25 +404,31 @@ export function DonutChart({ data }: { data: Record<string, number> }) {
     if (!canvas || !data) return;
 
     const size = 200;
-    const ctx = setupCanvas(canvas, size, size);
-    const cx = size / 2;
+    const width = 280; // wide enough for a legend row; extra rows grow the canvas
+    const LEGEND_ROW = 14;
+    const measure = document.createElement('canvas').getContext('2d')!;
+    measure.font = '500 10px system-ui, sans-serif';
+    const labels = Object.keys(data).filter((k) => data[k] > 0).map((k) => `${k}: ${data[k]}`);
+    let rows = 1;
+    for (let x = 10, i = 0; i < labels.length; i++) {
+      const w = measure.measureText(labels[i]).width + 24;
+      if (x + w > width && x > 10) { rows++; x = 10; }
+      x += w;
+    }
+    const height = size + (rows - 1) * LEGEND_ROW;
+    const ctx = setupCanvas(canvas, width, height);
+    const cx = width / 2;
     const cy = size / 2;
     const outerR = 80;
     const innerR = 50;
 
     let total = 0;
     const entries: Array<{ label: string; value: number; color: string }> = [];
-    const chartColors: Record<string, string> = {
-      fable: COLORS.teal,
-      opus: COLORS.purple,
-      sonnet: COLORS.blue,
-      haiku: COLORS.green,
-    };
 
     for (const key of Object.keys(data)) {
       if (data[key] > 0) {
         total += data[key];
-        entries.push({ label: key, value: data[key], color: chartColors[key] || COLORS.blue });
+        entries.push({ label: key, value: data[key], color: MODEL_COLORS[key] || COLORS.textMuted });
       }
     }
 
@@ -468,12 +474,14 @@ export function DonutChart({ data }: { data: Record<string, number> }) {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
     for (const entry of entries) {
+      const label = `${entry.label}: ${entry.value}`;
+      const w = ctx.measureText(label).width + 24;
+      if (legendX + w > width && legendX > 10) { legendX = 10; legendY += LEGEND_ROW; }
       ctx.fillStyle = entry.color;
       ctx.fillRect(legendX, legendY - 8, 8, 8);
       ctx.fillStyle = COLORS.textMuted;
-      const label = `${entry.label}: ${entry.value}`;
       ctx.fillText(label, legendX + 12, legendY);
-      legendX += ctx.measureText(label).width + 24;
+      legendX += w;
     }
   }, [data]);
 

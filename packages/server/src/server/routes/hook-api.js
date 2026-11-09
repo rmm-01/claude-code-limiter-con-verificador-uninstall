@@ -150,7 +150,10 @@ router.post('/check', hookAuth, (req, res) => {
   try {
     const user = req.user;
     const team = req.team;
-    const model = req.body.model || 'default';
+    // An unrecognized declared model ('default') falls back to the one the last real turn ran.
+    const declaredModel = req.body.model || 'default';
+    const observedKnown = ['fable', 'opus', 'sonnet', 'haiku'].includes(req.body.observed_model) ? req.body.observed_model : null;
+    const model = declaredModel === 'default' && observedKnown ? observedKnown : declaredModel;
     const creditWeights = JSON.parse(team.credit_weights);
     const now = new Date().toISOString();
     const clientIp = getClientIp(req);
