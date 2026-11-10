@@ -276,6 +276,21 @@ function usdSpent(user, since) {
   return total;
 }
 
+/**
+ * Dollars left in the tightest dollar rule plus the price table, so the hook can
+ * stop a turn mid-way (a turn is only recorded when it ends). null when the user
+ * is not in dollars mode or has no finite dollar rule.
+ */
+function usdGuard(user) {
+  if (effectiveLimitMode(user) !== 'dollars') return null;
+  let remaining = null;
+  for (const rule of db.getLimitRules(user.id).filter(r => r.type === 'dollars' && r.value !== -1)) {
+    const left = Math.max(0, rule.value - usdSpent(user, db.calculateWindowStart(rule.window)));
+    if (remaining === null || left < remaining) remaining = left;
+  }
+  return remaining === null ? null : { remaining, prices: parsePrices(db.getTeam(user.team_id)) };
+}
+
 /** Rules the hook needs for offline evaluation: no dollar rules, no dormant credit rule. */
 function hookLimits(user, rules) {
   const credits = effectiveLimitMode(user) === 'credits';
@@ -368,6 +383,7 @@ module.exports = {
   effectiveLimitMode,
   hookLimits,
   usdSpent,
+  usdGuard,
   isInTimeWindow,
   isEffortAllowed,
   EFFORT_HIERARCHY,

@@ -369,7 +369,7 @@ export function AnalyticsPage() {
       {/* Comparativa contra el periodo anterior de igual largo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Costo" value={formatUsd(dayTotals.usd)} sub={delta(dayTotals.usd, prev.usd, formatUsd)} subClass={deltaCls(dayTotals.usd, prev.usd)} />
-        <StatCard label="Tokens (entrada+salida)" value={formatTokens(curTokens)} sub={delta(curTokens, prev.tokens, formatTokens)} subClass={deltaCls(curTokens, prev.tokens)} />
+        <StatCard label="Tokens (entrada+salida)" value={formatTokens(curTokens)} sub={`+ ${formatTokens(dayTotals.cache)} de caché (lo que más cuesta) · ${delta(curTokens, prev.tokens, formatTokens)}`} subClass={deltaCls(curTokens, prev.tokens)} />
         <StatCard label="Prompts" value={dayTotals.prompts} sub={delta(dayTotals.prompts, prev.prompts, String)} subClass={deltaCls(dayTotals.prompts, prev.prompts)} />
         <StatCard label="Créditos" value={dayTotals.credits} sub={delta(dayTotals.credits, prev.credits, String)} subClass={deltaCls(dayTotals.credits, prev.credits)} />
       </div>

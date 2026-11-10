@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { hookAuth } = require('../services/auth');
-const { evaluateLimits, isModelBlocked, allowedModels, isEffortAllowed, hookLimits } = require('../services/limiter');
+const { evaluateLimits, isModelBlocked, allowedModels, isEffortAllowed, hookLimits, usdGuard } = require('../services/limiter');
 const { parsePrices, computeCostUsd } = require('../services/pricing');
 const { combineReports, pruneReports } = require('../services/accountUsage');
 const { getUsageSummary, getCreditBalance } = require('../services/usage');
@@ -268,6 +268,7 @@ router.post('/check', hookAuth, (req, res) => {
       credit_budget: creditBudget,
       allow_workflows: !!user.allow_workflows,
       max_effort_level: user.max_effort_level || 'max',
+      usd_guard: usdGuard(user),
       message: null,
     });
   } catch (err) {

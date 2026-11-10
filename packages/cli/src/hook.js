@@ -52,6 +52,7 @@ const USAGE_DIR = path.join(LIMITER_DIR, "usage");
 const CACHE_FILE = path.join(USAGE_DIR, ".cache.json");
 const MODEL_FILE = path.join(USAGE_DIR, ".session-model.txt");
 const DEBUG_LOG = path.join(USAGE_DIR, "debug.log");
+const COUNTED_FILE = path.join(USAGE_DIR, ".last-counted.json");
 
 const DEVICE_CACHE_FILE = path.join(USAGE_DIR, ".device-cache.json");
 
@@ -661,7 +662,7 @@ function resolveContinuedTranscript(transcriptPath) {
  * are more reliable than settings.json (they are what actually ran).
  */
 function parseTurnFromTranscript(transcriptPath) {
-  const result = { input: null, output: null, cacheRead: null, cacheCreation: null, model: null, effort: null, subagents: null };
+  const result = { input: null, output: null, cacheRead: null, cacheCreation: null, model: null, effort: null, subagents: null, lastId: null };
   if (!transcriptPath) return result;
   transcriptPath = resolveContinuedTranscript(transcriptPath);
   const acc = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, seen: new Set(), found: false };
@@ -674,7 +675,7 @@ function parseTurnFromTranscript(transcriptPath) {
     for (const bytes of [1 << 20, 8 << 20, 32 << 20]) {
       const { lines, complete } = readTailLines(transcriptPath, bytes);
       acc.input = 0; acc.output = 0; acc.cacheRead = 0; acc.cacheCreation = 0; acc.seen.clear(); acc.found = false;
-      result.model = null; result.effort = null;
+      result.model = null; result.effort = null; result.lastId = null;
       for (let i = lines.length - 1; i >= 0; i--) {
         let entry;
         try { entry = JSON.parse(lines[i]); } catch { continue; }
@@ -682,6 +683,7 @@ function parseTurnFromTranscript(transcriptPath) {
         if (entry.type === "assistant" && !entry.isSidechain) {
           if (!result.model && entry.message && entry.message.model) result.model = entry.message.model;
           if (!result.effort && typeof entry.effort === "string") result.effort = entry.effort;
+          if (!result.lastId && entry.message && entry.message.usage) result.lastId = entry.message.id || entry.uuid || null;
           addUsage(acc, entry);
         }
       }
@@ -982,6 +984,20 @@ async function actionCount(config) {
     }
     if (!turn.model) debugLog("COUNT transcript had no assistant entry after retries");
   }
+  // Stop firing twice for one turn would report it twice: skip when the turn's
+  // last assistant message was already counted for this session.
+  if (turn.lastId && stdinData.session_id) {
+    const counted = readJSON(COUNTED_FILE) || {};
+    if (counted[stdinData.session_id] === turn.lastId) {
+      debugLog(`COUNT duplicate skipped session=${stdinData.session_id} msg=${turn.lastId}`);
+      return;
+    }
+    counted[stdinData.session_id] = turn.lastId;
+    // shortcut: keeps the 50 newest sessions, enough since only the latest turn can repeat.
+    const keys = Object.keys(counted);
+    for (const k of keys.slice(0, Math.max(0, keys.length - 50))) delete counted[k];
+    writeJSON(COUNTED_FILE, counted);
+  }
   const rawModel = turn.model || detectModelRaw(stdinData, config);
   const model = normalizeModel(rawModel);
   const modelVersion = extractModelVersion(rawModel);
@@ -1013,6 +1029,32 @@ async function actionCount(config) {
     session_id: stdinData.session_id || null,
     response_length: (stdinData.last_assistant_message || "").length,
   }, 3000);
+}
+
+// Dollar cost of a turn so far. Mirrors server/services/pricing.js computeCostUsd
+// (prices per million tokens, cache writes inside input, subagents at their own model); keep both in sync.
+function turnCostUsd(prices, turn, model) {
+  const rows = Object.values(prices || {}).filter((p) => p && p.input != null && p.output != null);
+  const dearest = rows.sort((a, b) => b.input + b.output - (a.input + a.output))[0];
+  const rowFor = (fam) => (prices && prices[fam] && prices[fam].input != null && prices[fam].output != null ? prices[fam] : dearest);
+  const cost = (p, t) => {
+    const creation = Math.min(t.cacheCreation || 0, t.input);
+    const write = p.cache_write != null ? p.cache_write : p.input * 1.25;
+    const read = p.cache_read != null ? p.cache_read : p.input * 0.1;
+    return ((t.input - creation) * p.input + creation * write + t.cacheRead * read + t.output * p.output) / 1e6;
+  };
+  const main = { input: turn.input || 0, output: turn.output || 0, cacheRead: turn.cacheRead || 0, cacheCreation: turn.cacheCreation || 0 };
+  let total = 0;
+  for (const [version, s] of Object.entries(turn.subagents || {})) {
+    const sub = { input: s.input || 0, output: s.output || 0, cacheRead: s.cache_read || 0, cacheCreation: 0 };
+    main.input = Math.max(0, main.input - sub.input);
+    main.output = Math.max(0, main.output - sub.output);
+    main.cacheRead = Math.max(0, main.cacheRead - sub.cacheRead);
+    const p = rowFor(version.split("-")[0]);
+    if (p) total += cost(p, sub);
+  }
+  const p = rowFor(model);
+  return p ? total + cost(p, main) : total;
 }
 
 /**
@@ -1096,6 +1138,30 @@ async function actionEnforce() {
       },
     }));
     return;
+  }
+
+  // Dollars mode: a turn is only recorded when it ends, so stop it here once what it
+  // has spent so far exceeds what the last /check said was left. A stale cache (offline
+  // check) only holds a larger "remaining", so it errs toward allowing.
+  // shortcut: re-parses the turn transcript on every tool call; cache by file size if hooks get slow.
+  const guard = cached && cached.usd_guard;
+  if (guard && stdinData.transcript_path) {
+    const turn = parseTurnFromTranscript(stdinData.transcript_path);
+    const spent = turnCostUsd(guard.prices, turn, normalizeModel(turn.model));
+    if (spent >= guard.remaining) {
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          permissionDecision: "deny",
+          permissionDecisionReason: `Presupuesto en dólares agotado durante este turno.
+Este turno lleva ~US$${spent.toFixed(2)} y quedaban US$${guard.remaining.toFixed(2)}.
+
+Esperá a que se reinicie la ventana o contactá al admin.`,
+        },
+      }));
+      debugLog(`ENFORCE BLOCKED: turn spent ${spent.toFixed(2)} >= remaining ${guard.remaining.toFixed(2)}`);
+      return;
+    }
   }
   // Active — no output = allow
 }
