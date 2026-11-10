@@ -709,10 +709,11 @@ function parseTurnFromTranscript(transcriptPath) {
           if (sub && !subSeen.has(entry.message.id || entry.uuid)) {
             subSeen.add(entry.message.id || entry.uuid);
             const key = extractModelVersion(entry.message.model);
-            const s = subagents[key] || (subagents[key] = { input: 0, output: 0, cache_read: 0 });
+            const s = subagents[key] || (subagents[key] = { input: 0, output: 0, cache_read: 0, cache_creation: 0 });
             s.input += (sub.input_tokens || 0) + (sub.cache_creation_input_tokens || 0);
             s.output += sub.output_tokens || 0;
             s.cache_read += sub.cache_read_input_tokens || 0;
+            s.cache_creation += sub.cache_creation_input_tokens || 0; // also inside s.input, like the main turn
           }
         }
       }
@@ -1046,8 +1047,9 @@ function turnCostUsd(prices, turn, model) {
   const main = { input: turn.input || 0, output: turn.output || 0, cacheRead: turn.cacheRead || 0, cacheCreation: turn.cacheCreation || 0 };
   let total = 0;
   for (const [version, s] of Object.entries(turn.subagents || {})) {
-    const sub = { input: s.input || 0, output: s.output || 0, cacheRead: s.cache_read || 0, cacheCreation: 0 };
+    const sub = { input: s.input || 0, output: s.output || 0, cacheRead: s.cache_read || 0, cacheCreation: s.cache_creation || 0 };
     main.input = Math.max(0, main.input - sub.input);
+    main.cacheCreation = Math.max(0, main.cacheCreation - sub.cacheCreation);
     main.output = Math.max(0, main.output - sub.output);
     main.cacheRead = Math.max(0, main.cacheRead - sub.cacheRead);
     const p = rowFor(version.split("-")[0]);

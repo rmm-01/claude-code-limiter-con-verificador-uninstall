@@ -591,7 +591,7 @@ function sanitizeSubagentTokens(value) {
   for (const [key, t] of Object.entries(value).slice(0, 20)) {
     if (!t || typeof t !== 'object') continue;
     const num = (n) => (Number.isFinite(n) && n >= 0 ? Math.round(n) : 0);
-    const entry = { input: num(t.input), output: num(t.output), cache_read: num(t.cache_read) };
+    const entry = { input: num(t.input), output: num(t.output), cache_read: num(t.cache_read), cache_creation: num(t.cache_creation) };
     if (entry.input + entry.output + entry.cache_read > 0) out[String(key).slice(0, 64)] = entry;
   }
   return Object.keys(out).length ? JSON.stringify(out) : null;
@@ -690,7 +690,8 @@ function calculateWindowStart(windowType, tz) {
 
   // For daily/weekly/monthly we compute midnight in the given timezone
   // then convert back to UTC ISO string for the DB query.
-  const timeZone = tz || 'UTC';
+  // No caller passes tz: default to the team's weekly-reset zone so daily/monthly reset at local midnight.
+  const timeZone = tz || getWeeklyReset().tz || 'UTC';
 
   // Get current date parts in the target timezone
   const parts = getDatePartsInTZ(now, timeZone);

@@ -280,7 +280,7 @@ router.post('/check', hookAuth, (req, res) => {
 /**
  * POST /api/v1/count
  * Stop: record a completed turn.
- * Body: { auth_token, model, timestamp?, session_id?, response_length? }
+ * Body: { auth_token, model, session_id?, response_length? } (a sent timestamp is ignored)
  */
 router.post('/count', hookAuth, (req, res) => {
   try {
@@ -297,7 +297,8 @@ router.post('/count', hookAuth, (req, res) => {
     const inputTokens = tokenCount(req.body.input_tokens);
     const outputTokens = tokenCount(req.body.output_tokens);
     const cacheReadTokens = tokenCount(req.body.cache_read_tokens);
-    const timestamp = req.body.timestamp || new Date().toISOString();
+    // Server clock, never the client's: a back-dated turn would fall outside every limit window.
+    const timestamp = new Date().toISOString();
     const creditWeights = JSON.parse(team.credit_weights);
     const clientIp = getClientIp(req);
 

@@ -91,12 +91,15 @@ function computeCostUsd(prices, { model, input, output, cacheRead, cacheCreation
 
   const main = { input: input || 0, output: output || 0, cacheRead: cacheRead || 0, cacheCreation: cacheCreation || 0 };
   let total = 0;
+  // Unpriced subagent model: dearest configured row (as the hook does), not the turn's own.
+  const dearest = (fallbackPrices(prices) || {}).opus || mainPrice;
   for (const [version, s] of Object.entries(subagents || {})) {
-    const sub = { input: s.input || 0, output: s.output || 0, cacheRead: s.cache_read || 0 };
+    const sub = { input: s.input || 0, output: s.output || 0, cacheRead: s.cache_read || 0, cacheCreation: s.cache_creation || 0 };
     main.input = Math.max(0, main.input - sub.input);
+    main.cacheCreation = Math.max(0, main.cacheCreation - sub.cacheCreation);
     main.output = Math.max(0, main.output - sub.output);
     main.cacheRead = Math.max(0, main.cacheRead - sub.cacheRead);
-    total += cost(priceFor(prices, familyOf(version)) || mainPrice, sub);
+    total += cost(priceFor(prices, familyOf(version)) || dearest, sub);
   }
   main.cacheCreation = Math.min(main.cacheCreation, main.input);
   total += cost(mainPrice, main);
