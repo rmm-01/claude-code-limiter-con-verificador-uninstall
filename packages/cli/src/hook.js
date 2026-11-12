@@ -51,6 +51,7 @@ const SERVER_FILE = path.join(LIMITER_DIR, "server.json");
 const USAGE_DIR = path.join(LIMITER_DIR, "usage");
 const CACHE_FILE = path.join(USAGE_DIR, ".cache.json");
 const MODEL_FILE = path.join(USAGE_DIR, ".session-model.txt");
+const SESSION_MODELS_FILE = path.join(USAGE_DIR, ".session-models.json");
 const DEBUG_LOG = path.join(USAGE_DIR, "debug.log");
 const COUNTED_FILE = path.join(USAGE_DIR, ".last-counted.json");
 
@@ -206,6 +207,11 @@ function detectModelRaw(stdinData, config) {
   if (stdinData && stdinData.model) {
     return stdinData.model;
   }
+
+  // Source 1b: this session's own model. /model is session-only, so the global
+  // settings.json below goes stale and mislabels concurrent sessions.
+  const sessionModel = sessionModelRaw(stdinData);
+  if (sessionModel) return sessionModel;
 
   // Source 2: User settings (updated by /model command)
   const home = os.homedir();
@@ -732,6 +738,37 @@ function parseTurnFromTranscript(transcriptPath) {
   return result;
 }
 
+// Model a /model command left in the transcript, or null. The command's args can
+// be empty (picker) or a typo, so read its output line instead.
+function parseModelSwitch(entry) {
+  if (!entry || entry.type !== "system" || !entry.commandRun || entry.commandRun.command !== "model") return null;
+  const m = String(entry.content || "").match(/(?:Set model to|Kept model as) `([^`]+)`/);
+  return m ? m[1] : null;
+}
+
+// Model this session runs under: latest /model in its transcript, else what
+// SessionStart reported for this session_id. Null when neither is known.
+function sessionModelRaw(stdinData) {
+  if (!stdinData) return null;
+  if (stdinData.transcript_path) {
+    try {
+      // shortcut: a /model older than the last 4 MB is missed and SessionStart's model wins; grow if sessions run longer.
+      const { lines } = readTailLines(resolveContinuedTranscript(stdinData.transcript_path), 4 << 20);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (!lines[i].includes('"commandRun"')) continue;
+        let e;
+        try { e = JSON.parse(lines[i]); } catch { continue; }
+        const switched = parseModelSwitch(e);
+        if (switched) return switched;
+      }
+    } catch (err) {
+      debugLog(`SESSION_MODEL error: ${err.message}`);
+    }
+  }
+  const map = stdinData.session_id && readJSON(SESSION_MODELS_FILE);
+  return (map && map[stdinData.session_id]) || null;
+}
+
 // Raw model of the latest main-thread assistant turn, or null when absent or
 // older than 5 min. The age cap keeps a legit /model switch from being judged
 // by a stale turn (no new turn can run while blocked, so it would never clear).
@@ -809,6 +846,15 @@ async function actionSync(config) {
   const model = normalizeModel(rawModel);
   const modelVersion = extractModelVersion(rawModel);
   writeText(MODEL_FILE, rawModel);
+  if (stdinData.session_id && stdinData.model) {
+    const map = readJSON(SESSION_MODELS_FILE) || {};
+    delete map[stdinData.session_id]; // re-insert so it counts as newest
+    map[stdinData.session_id] = stdinData.model;
+    // shortcut: keeps the 50 newest sessions; an older one still open falls back to settings.json.
+    const keys = Object.keys(map);
+    for (const k of keys.slice(0, Math.max(0, keys.length - 50))) delete map[k];
+    writeJSON(SESSION_MODELS_FILE, map);
+  }
   debugLog(`SYNC model=${model} version=${modelVersion} source=${stdinData.source || "unknown"}`);
 
   const deviceInfo = getDeviceInfo(stdinData);

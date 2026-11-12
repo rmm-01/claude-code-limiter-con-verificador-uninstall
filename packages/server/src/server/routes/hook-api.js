@@ -361,9 +361,12 @@ router.post('/count', hookAuth, (req, res) => {
       timestamp,
     });
 
-    // Settings/env claimed one model, the transcript says another ran: flag it.
+    // The session declared one model, the transcript says another ran: flag it,
+    // unless the one that ran is allowed and cheaper (opusplan outside plan mode, overload fallback).
     const declared = req.body.declared_model;
-    if (declared && declared !== 'default' && declared !== model) {
+    const weight = (m) => creditWeights[m] ?? creditWeights['default'] ?? 1;
+    if (declared && declared !== 'default' && declared !== model
+        && (isModelBlocked(user, model) || weight(model) >= weight(declared))) {
       db.recordSessionEvent({
         user_id: user.id,
         device_id: (devices.length > 0) ? devices[0].id : null,
