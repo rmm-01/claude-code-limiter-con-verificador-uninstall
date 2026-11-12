@@ -11,6 +11,7 @@ import type {
   UpdateSettingsPayload,
   AccountUsage,
   ApiCredits,
+  ApiCreditsSnapshot,
   Team,
   UsageEvent,
   ModelMismatch,
@@ -225,8 +226,8 @@ async function getApiCredits(): Promise<ApiCredits> {
   return request<ApiCredits>('/api/admin/api-credits');
 }
 
-async function setApiCredits(amount_usd: number, date: string): Promise<ApiCredits> {
-  return request<ApiCredits>('/api/admin/api-credits', { method: 'PUT', body: { amount_usd, date } });
+async function setApiCredits(snapshot: ApiCreditsSnapshot): Promise<ApiCredits> {
+  return request<ApiCredits>('/api/admin/api-credits', { method: 'PUT', body: snapshot });
 }
 
 async function getAccountUsage(): Promise<{ usage: AccountUsage | null }> {

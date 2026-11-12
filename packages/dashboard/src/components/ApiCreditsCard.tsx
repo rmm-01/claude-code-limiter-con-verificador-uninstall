@@ -19,6 +19,8 @@ export function ApiCreditsCard() {
   const [editing, setEditing] = useState(false);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayUtc());
+  const [creditUsd, setCreditUsd] = useState('0');
+  const [creditDay, setCreditDay] = useState('1');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -33,7 +35,7 @@ export function ApiCreditsCard() {
     setSaving(true);
     setFormError('');
     try {
-      setData(await api.setApiCredits(Number(amount), date));
+      setData(await api.setApiCredits({ amount_usd: Number(amount), date, credit_usd: Number(creditUsd || 0), credit_day: Number(creditDay || 1) }));
       setEditing(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'No se pudo guardar');
@@ -45,6 +47,8 @@ export function ApiCreditsCard() {
   const openForm = () => {
     setAmount(data?.snapshot ? String(data.snapshot.amount_usd) : '');
     setDate(todayUtc());
+    setCreditUsd(String(data?.snapshot?.credit_usd ?? 0));
+    setCreditDay(String(data?.snapshot?.credit_day ?? 1));
     setFormError('');
     setEditing(true);
   };
@@ -65,11 +69,13 @@ export function ApiCreditsCard() {
         {editing ? (
           <div className="space-y-3">
             <p className="text-xs text-zinc-400">
-              Copia «Créditos de la organización» de Anthropic Console. Mejor al final del día laboral (antes de las 19:00 de Lima, que es fin del día UTC): lo que se gaste ese mismo día después de la lectura no se descuenta.
+              Copia «Créditos de la organización» de Anthropic Console (el total, con el crédito del plan incluido). Mejor al final del día laboral (antes de las 19:00 de Lima, que es fin del día UTC): lo que se gaste ese mismo día después de la lectura no se descuenta. Solo hace falta volver a hacerlo al comprar créditos: la renovación del plan se calcula sola.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <Input label="Saldo en Console (US$)" type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
               <Input label="Fecha de la lectura (UTC)" type="date" max={todayUtc()} value={date} onChange={(e) => setDate(e.target.value)} />
+              <Input label="Crédito mensual del plan (US$)" hint="Ultra: 200. Sin plan: 0." type="number" min="0" step="0.01" value={creditUsd} onChange={(e) => setCreditUsd(e.target.value)} />
+              <Input label="Día de renovación del crédito" hint="«Próximo crédito» en la página de tu plan." type="number" min="1" max="31" step="1" value={creditDay} onChange={(e) => setCreditDay(e.target.value)} />
             </div>
             {formError && <p className="text-xs text-red-400">{formError}</p>}
             <div className="flex gap-2 justify-end">
@@ -93,8 +99,15 @@ export function ApiCreditsCard() {
             <div>
               <div className="text-xs text-zinc-500">Saldo estimado</div>
               <div className={`text-2xl font-semibold ${low ? 'text-red-400' : 'text-zinc-100'}`}>{formatUsd(data.balance_usd)}</div>
-              <div className="text-xs text-zinc-500 mt-1">
-                {formatUsd(data.snapshot.amount_usd)} el {data.snapshot.date} − {formatUsd(data.spent_since_usd)} gastado después
+              <div className="text-xs text-zinc-500 mt-1 space-y-0.5">
+                {data.snapshot.credit_usd > 0 ? (
+                  <>
+                    <div>Plan: {formatUsd(data.plan_left_usd)} de {formatUsd(data.snapshot.credit_usd)}, se renueva el {data.plan_renews} (lo no usado vence)</div>
+                    <div>Comprados: {formatUsd(data.purchased_usd)}</div>
+                  </>
+                ) : (
+                  <div>{formatUsd(data.snapshot.amount_usd)} el {data.snapshot.date} − {formatUsd(data.spent_since_usd)} gastado después</div>
+                )}
               </div>
             </div>
             <div>

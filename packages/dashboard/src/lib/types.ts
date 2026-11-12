@@ -314,11 +314,24 @@ export interface AccountUsage {
   reporters?: string[];
 }
 
+/** Total balance read in Console, the UTC day it was read, and the monthly plan credit (Ultra: 200 on the 27th). */
+export interface ApiCreditsSnapshot {
+  amount_usd: number;
+  date: string;
+  credit_usd: number;
+  credit_day: number;
+}
+
 /** Anthropic API credits of the ERP chat assistant (GET /api/admin/api-credits). */
 export interface ApiCredits {
   /** Balance read in Console and the UTC day it was read; null until the admin enters one. */
-  snapshot: { amount_usd: number; date: string } | null;
+  snapshot: ApiCreditsSnapshot | null;
+  /** Purchased credits + what is left of the plan credit this cycle. */
   balance_usd?: number;
+  purchased_usd?: number;
+  plan_left_usd?: number;
+  /** Next plan credit grant (YYYY-MM-DD); null without a plan credit. */
+  plan_renews?: string | null;
   spent_since_usd?: number;
   month_usd?: number;
   consulted_at?: string | null;
