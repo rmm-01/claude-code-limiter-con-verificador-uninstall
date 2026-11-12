@@ -742,7 +742,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
             </CardBody>
           </Card>
 
-          {/* Modelo falsificado o effort sobre el tope: solo aparece si hubo infracciones */}
+          {/* Discrepancia de modelo o effort sobre el tope: solo aparece si hubo infracciones */}
           {mismatches.length > 0 && (
             <Card>
               <CardHeader>
@@ -752,7 +752,7 @@ export function UserDetailPage({ showToast }: UserDetailPageProps) {
                 <Table
                   columns={[
                     { key: 'time', header: 'Hora', render: (m) => <span className="font-mono text-xs">{timeAgo(m.timestamp)}</span> },
-                    { key: 'kind', header: 'Tipo', render: (m) => <span className="text-xs text-zinc-300">{m.type === 'effort_exceeded' ? 'Effort sobre el tope' : 'Modelo falsificado'}</span> },
+                    { key: 'kind', header: 'Tipo', render: (m) => <span className="text-xs text-zinc-300">{m.type === 'effort_exceeded' ? 'Effort sobre el tope' : 'Discrepancia de modelo'}</span> },
                     { key: 'ran', header: 'Modelo', render: (m) => <Badge variant="model">{m.model}</Badge> },
                     { key: 'detail', header: 'Detalle', render: (m) => <span className="text-xs text-zinc-400">{m.blocked_reason ?? ''}</span> },
                   ]}

@@ -49,7 +49,7 @@ function wsEventToFeed(evt: WSEvent): FeedItem | null {
         id: nextFeedId(),
         type: 'blocked',
         user: evt.userName ?? 'Desconocido',
-        detail: `Modelo falsificado: declaró ${evt.declared ?? '?'}, ejecutó ${evt.model ?? '?'}`,
+        detail: `Discrepancia de modelo: declaró ${evt.declared ?? '?'}, ejecutó ${evt.model ?? '?'}`,
         time: evt.timestamp,
       };
     case 'effort_exceeded':
