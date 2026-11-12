@@ -15,6 +15,7 @@ import { AddUserModal } from './AddUserModal';
 import { ultracodeAllowed } from '../components/EffortControl';
 import { DollarsExplainer } from '../components/DollarsExplainer';
 import { UpdateCommandModal } from '../components/UpdateCommandModal';
+import { ApiCreditsCard } from '../components/ApiCreditsCard';
 import { Modal, ModalHeader, ModalBody } from '../components/Modal';
 
 interface OverviewPageProps {
@@ -118,6 +119,8 @@ export function OverviewPage({ wsEvents, showToast }: OverviewPageProps) {
         <StatCard label="Pausados" value={pausedUsers} color="text-yellow-400" />
         <StatCard label="Eliminados" value={killedUsers} color="text-red-400" />
       </div>
+
+      <ApiCreditsCard />
 
       {/* Two columns: users + live feed */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

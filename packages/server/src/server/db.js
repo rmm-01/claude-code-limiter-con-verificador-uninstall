@@ -291,6 +291,10 @@ function runMigrations(db) {
   if (!teamCols.includes('prices')) {
     db.exec(`ALTER TABLE team ADD COLUMN prices TEXT NOT NULL DEFAULT '{}'`);
   }
+  // Anthropic API credit balance read in Console: { amount_usd, date } (see services/apiCredits.js).
+  if (!teamCols.includes('api_credits')) {
+    db.exec('ALTER TABLE team ADD COLUMN api_credits TEXT');
+  }
   // Per-user override of the team limit mode; NULL = inherit.
   const userModeCols = db.pragma('table_info(user)').map(c => c.name);
   if (!userModeCols.includes('limit_mode')) {
@@ -452,6 +456,7 @@ function updateTeam(teamId, fields) {
   if (fields.weekly_reset !== undefined) { sets.push('weekly_reset = ?'); values.push(typeof fields.weekly_reset === 'string' ? fields.weekly_reset : JSON.stringify(fields.weekly_reset)); }
   if (fields.admin_password !== undefined) { sets.push('admin_password = ?'); values.push(fields.admin_password); }
   if (fields.limit_mode !== undefined) { sets.push('limit_mode = ?'); values.push(fields.limit_mode); }
+  if (fields.api_credits !== undefined) { sets.push('api_credits = ?'); values.push(fields.api_credits === null ? null : JSON.stringify(fields.api_credits)); }
   if (fields.prices !== undefined) { sets.push('prices = ?'); values.push(typeof fields.prices === 'string' ? fields.prices : JSON.stringify(fields.prices)); }
   if (sets.length === 0) return;
   values.push(teamId);

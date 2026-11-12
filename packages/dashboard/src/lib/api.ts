@@ -10,6 +10,7 @@ import type {
   UpdateUserPayload,
   UpdateSettingsPayload,
   AccountUsage,
+  ApiCredits,
   Team,
   UsageEvent,
   ModelMismatch,
@@ -220,6 +221,14 @@ async function getAnalytics(params?: {
   return request(`/api/admin/analytics${buildQS(params)}`);
 }
 
+async function getApiCredits(): Promise<ApiCredits> {
+  return request<ApiCredits>('/api/admin/api-credits');
+}
+
+async function setApiCredits(amount_usd: number, date: string): Promise<ApiCredits> {
+  return request<ApiCredits>('/api/admin/api-credits', { method: 'PUT', body: { amount_usd, date } });
+}
+
 async function getAccountUsage(): Promise<{ usage: AccountUsage | null }> {
   return request<{ usage: AccountUsage | null }>('/api/admin/account-usage');
 }
@@ -280,6 +289,8 @@ export const api = {
   getSettings,
   setTeamDollarBudget,
   getAccountUsage,
+  getApiCredits,
+  setApiCredits,
   getWeeklyResetStatus,
   resetWeekNow,
   getToken,

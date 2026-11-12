@@ -314,6 +314,17 @@ export interface AccountUsage {
   reporters?: string[];
 }
 
+/** Anthropic API credits of the ERP chat assistant (GET /api/admin/api-credits). */
+export interface ApiCredits {
+  /** Balance read in Console and the UTC day it was read; null until the admin enters one. */
+  snapshot: { amount_usd: number; date: string } | null;
+  balance_usd?: number;
+  spent_since_usd?: number;
+  month_usd?: number;
+  consulted_at?: string | null;
+  error?: string;
+}
+
 export interface FeedItem {
   id: string;
   type: 'check' | 'blocked' | 'counted' | 'status' | 'system';

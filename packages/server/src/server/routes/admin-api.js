@@ -8,6 +8,7 @@ const { getUsageSummary, getCreditBalance } = require('../services/usage');
 const { broadcast } = require('../ws');
 const { allowedModels, effectiveLimitMode, usdSpent } = require('../services/limiter');
 const { parsePrices, sanitizePrices, computeCostUsd } = require('../services/pricing');
+const { parseSnapshot, getApiCredits, clearCache: clearApiCreditsCache } = require('../services/apiCredits');
 
 function pickDefined(obj, keys) {
   const result = {};
@@ -763,6 +764,38 @@ router.get('/account-usage', (req, res) => {
     res.json({ usage });
   } catch (err) {
     console.error('GET /account-usage error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/api-credits
+ * Anthropic API credit balance of the ERP chat assistant (see services/apiCredits.js).
+ */
+router.get('/api-credits', async (req, res) => {
+  try {
+    let snapshot = null;
+    try { snapshot = JSON.parse(req.team.api_credits || 'null'); } catch {}
+    res.json(await getApiCredits(snapshot));
+  } catch (err) {
+    console.error('GET /api-credits error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PUT /api/admin/api-credits
+ * Body: { amount_usd, date: 'YYYY-MM-DD' } — balance read in Console and the UTC day it was read.
+ */
+router.put('/api-credits', async (req, res) => {
+  try {
+    const snapshot = parseSnapshot(req.body, new Date().toISOString().slice(0, 10));
+    if (typeof snapshot === 'string') return res.status(400).json({ error: snapshot });
+    db.updateTeam(req.team.id, { api_credits: snapshot });
+    clearApiCreditsCache();
+    res.json(await getApiCredits(snapshot));
+  } catch (err) {
+    console.error('PUT /api-credits error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
