@@ -6,7 +6,7 @@ import { Card, CardHeader, CardBody } from './Card';
 import { Button } from './Button';
 import { Input } from './Input';
 
-const REFRESH_MS = 10 * 60 * 1000;
+const REFRESH_MS = 60 * 1000;
 const todayUtc = () => new Date().toISOString().slice(0, 10);
 
 /**
@@ -114,7 +114,8 @@ export function ApiCreditsCard() {
               <div className="text-xs text-zinc-500">Gasto de este mes</div>
               <div className="text-2xl font-semibold text-zinc-100">{formatUsd(data.month_usd)}</div>
               <div className="text-xs text-zinc-500 mt-1">
-                Informe de Anthropic{data.consulted_at ? `, consultado ${new Date(data.consulted_at).toLocaleTimeString()}` : ''}. Hoy aún no aparece.
+                Informe de Anthropic{data.consulted_at ? `, consultado ${new Date(data.consulted_at).toLocaleTimeString()}` : ''}.{' '}
+                {data.today_estimated_usd != null && `Incluye ${formatUsd(data.today_estimated_usd)} de hoy (UTC) estimados por el chat; Anthropic lo informa mañana.`}
               </div>
             </div>
           </div>

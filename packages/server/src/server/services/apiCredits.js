@@ -10,7 +10,9 @@
 // The ERP owns the Anthropic admin key; this server only gets spend figures
 // from GET api/AsistenteConfiguracion/costo-real-externo (X-Limiter-Token).
 
-const CACHE_MS = 10 * 60 * 1000; // the ERP and Anthropic already lag minutes behind
+// Today comes from the ERP's per-reply estimate (Anthropic reports a day only the next
+// day), so it changes by the minute; the ERP keeps its own 10 min cache of the report.
+const CACHE_MS = 60 * 1000;
 const DAY_MS = 86400000;
 let cache = null; // { key, at, value }
 
@@ -107,7 +109,7 @@ async function fetchErp(desde) {
     if (!res.ok) return { error: `El ERP respondió HTTP ${res.status}.` };
     const data = await res.json();
     if (!data.disponible) return { error: data.motivo || 'El ERP no pudo leer el informe de costos.' };
-    return { dias: data.dias || [], consulted_at: data.consultadoUtc || null };
+    return { dias: data.dias || [], consulted_at: data.consultadoUtc || null, today_estimated_usd: data.hoyEstimadoUsd ?? null };
   } catch (err) {
     return { error: `No se pudo contactar al ERP: ${err.message}` };
   }
@@ -123,11 +125,10 @@ async function getApiCredits(snapshot, nowMs = Date.now()) {
   if (cache && cache.key === key && nowMs - cache.at < CACHE_MS) erp = cache.value;
   else {
     erp = await fetchErp(desde);
-    // Errors are retried after a minute instead of ten.
-    cache = { key, at: erp.error ? nowMs - CACHE_MS + 60000 : nowMs, value: erp };
+    cache = { key, at: nowMs, value: erp };
   }
   if (erp.error) return { snapshot, error: erp.error };
-  return { snapshot, ...computeCredits(snapshot, erp.dias, todayIso), consulted_at: erp.consulted_at };
+  return { snapshot, ...computeCredits(snapshot, erp.dias, todayIso), consulted_at: erp.consulted_at, today_estimated_usd: erp.today_estimated_usd };
 }
 
 function clearCache() { cache = null; }

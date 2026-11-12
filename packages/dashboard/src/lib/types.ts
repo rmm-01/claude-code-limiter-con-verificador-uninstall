@@ -335,6 +335,8 @@ export interface ApiCredits {
   spent_since_usd?: number;
   month_usd?: number;
   consulted_at?: string | null;
+  /** Today's spend (UTC day), estimated by the ERP chat: Anthropic reports a day only the next day. Already in the totals. */
+  today_estimated_usd?: number | null;
   error?: string;
 }
 
